@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Internship System • Use Case View</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        kanit: ['"Kanit"', 'sans-serif']
+                    },
+                    colors: {
+                        brand: '#1d4ed8',
+                        brandDark: '#0f172a',
+                        accent: '#0ea5e9',
+                        subtle: '#f1f5f9'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Mermaid JS for Diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+    <!-- Google Fonts: Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; }
+        .section-card { background: #ffffff; border-radius: 1rem; padding: 2rem; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08); }
+        .mermaid { margin-top: 24px; }
+        .spec-table th { background-color: #e2e8f0; color: #0f172a; width: 20%; }
+        .spec-table th, .spec-table td { padding: 0.85rem; border: 1px solid #e5e7eb; vertical-align: top; }
+        .spec-table ol { list-style: decimal; margin-left: 1.25rem; }
+        .spec-table ul { list-style: disc; margin-left: 1.25rem; }
+        .badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.8rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+        .timeline-step::before { content: ""; position: absolute; left: 1rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #38bdf8, #1d4ed8); }
+        .timeline-step:last-child::before { height: 50%; bottom: auto; }
+        code { background: #e2e8f0; padding: 0.15rem 0.35rem; border-radius: 0.35rem; font-size: 0.9rem; }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-subtle via-white to-white text-gray-900">
+
+    <header class="bg-gradient-to-r from-brandDark to-brand text-white">
+        <div class="max-w-6xl mx-auto px-6 py-12 space-y-4">
+            <p class="uppercase tracking-widest text-sm text-slate-300">React 19 + Vite + Tailwind + MUI</p>
+            <h1 class="text-4xl md:text-5xl font-semibold">Use Case Diagram & Specification</h1>
+            <p class="text-lg text-slate-100 max-w-3xl">ดึง Flow จาก README.md เพื่อสรุป actor, ขอบเขตการทำงาน และรายละเอียด step ที่สำคัญของ Professional Internship Platform</p>
+            <div class="flex flex-wrap gap-3 pt-4">
+                <span class="badge bg-white/15">Student</span>
+                <span class="badge bg-white/15">Company</span>
+                <span class="badge bg-white/15">Advisor</span>
+                <span class="badge bg-white/15">Admin</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+
+        <section class="section-card">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h2 class="text-2xl font-semibold text-brand">ภาพรวม Flow จาก README</h2>
+                    <p class="text-slate-600">อ้างอิงหัวข้อ Frontend Flow และ Flow Diagram เพื่อถอดออกมาเป็นขั้นตอน Use Case</p>
+                </div>
+                <div class="flex gap-3 flex-wrap">
+                    <span class="badge bg-accent/10 text-accent">Login & Role Resolution</span>
+                    <span class="badge bg-brand/10 text-brand">Role-specific Modules</span>
+                    <span class="badge bg-brandDark/10 text-brandDark">Feedback & Validation</span>
+                </div>
+            </div>
+            <ol class="mt-8 space-y-6">
+                <li class="relative pl-12 timeline-step">
+                    <div class="absolute left-3 top-1 w-6 h-6 rounded-full bg-white border-4 border-accent"></div>
+                    <p class="text-sm uppercase tracking-widest text-slate-500">Step 1</p>
+                    <h3 class="text-lg font-semibold">Login + Token Handling</h3>
+                    <p class="text-slate-600">หน้าล็อกอินเรียก service ตรวจ credential แล้วเก็บ token / role ลง context + localStorage</p>
+                </li>
+                <li class="relative pl-12 timeline-step">
+                    <div class="absolute left-3 top-1 w-6 h-6 rounded-full bg-white border-4 border-brand"></div>
+                    <p class="text-sm uppercase tracking-widest text-slate-500">Step 2</p>
+                    <h3 class="text-lg font-semibold">Role-aware Layout & Navigation</h3>
+                    <p class="text-slate-600">App.jsx guard เส้นทางก่อน render layout เพื่อให้ sidebar/header ตรงบทบาท</p>
+                </li>
+                <li class="relative pl-12 timeline-step">
+                    <div class="absolute left-3 top-1 w-6 h-6 rounded-full bg-white border-4 border-brandDark"></div>
+                    <p class="text-sm uppercase tracking-widest text-slate-500">Step 3</p>
+                    <h3 class="text-lg font-semibold">Modules ตามสิทธิ์</h3>
+                    <p class="text-slate-600">Admin / Student / Advisor / Company ได้ Dashboard เฉพาะ พร้อม action เช่น approve, export, check-in</p>
+                </li>
+                <li class="relative pl-12 timeline-step">
+                    <div class="absolute left-3 top-1 w-6 h-6 rounded-full bg-white border-4 border-accent"></div>
+                    <p class="text-sm uppercase tracking-widest text-slate-500">Step 4</p>
+                    <h3 class="text-lg font-semibold">Data Hooks & Helpers</h3>
+                    <p class="text-slate-600">ทุกหน้าดึง service และ helper ใน <code>api/*Service</code>, <code>utils/</code> เพื่อจัดรูปแบบและ export</p>
+                </li>
+                <li class="relative pl-12 timeline-step">
+                    <div class="absolute left-3 top-1 w-6 h-6 rounded-full bg-white border-4 border-brand"></div>
+                    <p class="text-sm uppercase tracking-widest text-slate-500">Step 5</p>
+                    <h3 class="text-lg font-semibold">Feedback & Validation</h3>
+                    <p class="text-slate-600">ใช้ Material UI Snackbar/Dialog แจ้งผล พร้อม client validation ก่อน submit</p>
+                </li>
+            </ol>
+        </section>
+
+        <section class="section-card">
+            <div class="flex flex-col gap-4">
+                <div>
+                    <h2 class="text-2xl font-semibold text-brand">Use Case Diagram</h2>
+                    <p class="text-slate-600">ถอดจาก Flow Diagram (+ Frontend Flow) เพื่อเน้นขอบเขต actor และ use case หลัก</p>
+                </div>
+                <div class="grid gap-3 md:grid-cols-4">
+                    <div class="p-3 rounded-xl bg-subtle">
+                        <p class="text-xs uppercase text-slate-500">Student</p>
+                        <p class="font-semibold">ส่งคำร้อง / Check-in / Payments</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-subtle">
+                        <p class="text-xs uppercase text-slate-500">Advisor</p>
+                        <p class="font-semibold">Review + Approve Request</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-subtle">
+                        <p class="text-xs uppercase text-slate-500">Company</p>
+                        <p class="font-semibold">ยืนยันการเช็คชื่อ</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-subtle">
+                        <p class="text-xs uppercase text-slate-500">Admin</p>
+                        <p class="font-semibold">Manage Users / Export / Oversight</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mermaid">
+useCaseDiagram
+    actor "Student" as Student
+    actor "Advisor" as Advisor
+    actor "Company" as Company
+    actor "Admin" as Admin
+
+    package "Core Platform" {
+        usecase "เข้าสู่ระบบ" as UC_Login
+        usecase "กำหนดบทบาท & Layout" as UC_RoleLayout
+        usecase "แสดง Dashboard ตามบทบาท" as UC_ViewDashboard
+    }
+
+    package "Student Module" {
+        usecase "ส่งคำร้องฝึกงาน" as UC_SubmitRequest
+        usecase "ติดตามสถานะคำร้อง" as UC_TrackRequest
+        usecase "บันทึก Check-in รายวัน" as UC_StudentCheckin
+        usecase "อัปโหลดสลิปชำระเงิน" as UC_PaymentUpload
+    }
+
+    package "Advisor & Admin" {
+        usecase "ตรวจสอบคำร้อง" as UC_ReviewRequest
+        usecase "อนุมัติ/ปฏิเสธ" as UC_ApproveReject
+        usecase "ดูภาพรวมผู้ฝึกงาน" as UC_AdviseeOverview
+        usecase "จัดการผู้ใช้ & สิทธิ์" as UC_ManageUsers
+        usecase "ตรวจเช็ค/ชำระเงิน" as UC_AdminOversight
+        usecase "Export XLSX" as UC_Export
+    }
+
+    package "Company Module" {
+        usecase "ดูรายชื่อผู้ฝึกงาน" as UC_CompanyInternList
+        usecase "ยืนยัน Check-in" as UC_ConfirmCheckin
+    }
+
+    Student --> UC_Login
+    Advisor --> UC_Login
+    Company --> UC_Login
+    Admin --> UC_Login
+
+    Student --> UC_SubmitRequest
+    Student --> UC_TrackRequest
+    Student --> UC_StudentCheckin
+    Student --> UC_PaymentUpload
+
+    Advisor --> UC_ReviewRequest
+    Advisor --> UC_ApproveReject
+    Advisor --> UC_AdviseeOverview
+
+    Company --> UC_CompanyInternList
+    Company --> UC_ConfirmCheckin
+
+    Admin --> UC_ManageUsers
+    Admin --> UC_AdminOversight
+    Admin --> UC_Export
+    Admin --> UC_ApproveReject
+
+    UC_RoleLayout ..> UC_Login : <<include>>
+    UC_ViewDashboard ..> UC_RoleLayout : <<include>>
+    UC_SubmitRequest ..> UC_ViewDashboard : <<include>>
+    UC_TrackRequest ..> UC_SubmitRequest : <<extend>>
+    UC_ApproveReject ..> UC_ReviewRequest : <<include>>
+    UC_ConfirmCheckin ..> UC_CompanyInternList : <<include>>
+    UC_AdminOversight ..> UC_ViewDashboard : <<include>>
+    UC_Export ..> UC_AdminOversight : <<extend>>
+            </div>
+        </section>
+
+        <section class="section-card space-y-8">
+            <div>
+                <h2 class="text-2xl font-semibold text-brand">Use Case Specifications</h2>
+                <p class="text-slate-600">ถอดรายละเอียด Main Flow / Alternate Flow จาก README: Frontend Flow + Module breakdown</p>
+            </div>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-01</span>
+                    <h3 class="text-xl font-semibold">Login & Role Resolution</h3>
+                    <span class="badge bg-brand/10 text-brand">Core Platform</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>Student, Company, Advisor, Admin</td></tr>
+                        <tr><th>คำอธิบาย</th><td><code>LoginPage</code> รับ credential → เรียก service ตรวจสอบ → เก็บ token + role ตามที่ README กำหนด</td></tr>
+                        <tr><th>Pre-condition</th><td>ผู้ใช้มีบัญชีและอินเทอร์เน็ตพร้อมใช้งาน</td></tr>
+                        <tr><th>Trigger</th><td>ผู้ใช้เปิดเว็บและกดเข้าสู่ระบบ</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>กรอก Username / Password แล้วกดเข้าสู่ระบบ</li>
+                                    <li>Front-end เรียก API service ภายใต้ <code>api/</code></li>
+                                    <li>เมื่อสำเร็จ บันทึก token + role ลง context และ localStorage</li>
+                                    <li>Router ส่งผู้ใช้ไป layout ที่ตรงบทบาท</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>Credential ไม่ถูกต้อง → แสดง Snackbar แจ้งเตือน</li>
+                                    <li>เซิร์ฟเวอร์ตอบ role ไม่ครบ → ปิด session และให้ login ใหม่</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>ผู้ใช้มี session สมบูรณ์และพร้อมใช้เมนูเฉพาะบทบาท</td></tr>
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-02</span>
+                    <h3 class="text-xl font-semibold">Role-based Layout & Navigation</h3>
+                    <span class="badge bg-brandDark/10 text-brandDark">App.jsx</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>ทุกบทบาท (หลัง Login)</td></tr>
+                        <tr><th>คำอธิบาย</th><td><code>App.jsx</code> ตรวจ role ก่อน render layout / sidebar / route guard</td></tr>
+                        <tr><th>Pre-condition</th><td>มี token + role ใน context/localStorage</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>Router อ่าน role จาก context</li>
+                                    <li>เลือก layout (Admin, Advisor, Company, Student)</li>
+                                    <li>โหลดเมนู/คอมโพเนนต์ที่ผูกกับบทบาทนั้น</li>
+                                    <li>ป้องกันการเข้าถึงหน้าอื่นด้วย guard</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>Role ไม่ตรงกับ route → redirect กลับ dashboard ที่ถูกต้อง</li>
+                                    <li>Token หมดอายุ → logout และกลับหน้า Login</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>ผู้ใช้เห็น navigation และ widget ที่สอดคล้องกับสิทธิ์เท่านั้น</td></tr>
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-03</span>
+                    <h3 class="text-xl font-semibold">Student Request Lifecycle</h3>
+                    <span class="badge bg-accent/10 text-accent">Student Module</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>Student</td></tr>
+                        <tr><th>คำอธิบาย</th><td>นักศึกษาส่งคำร้อง, อัปโหลดไฟล์, ติดตามสถานะใน Dashboard ตาม Flow README</td></tr>
+                        <tr><th>Pre-condition</th><td>เข้าสู่ระบบด้วยสิทธิ์ Student และกรอกข้อมูลสถานประกอบการเรียบร้อย</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>เปิด Student Dashboard → เลือกเมนูส่งคำร้อง</li>
+                                    <li>กรอกฟอร์ม + แนบไฟล์, ผ่าน client validation</li>
+                                    <li>กด Submit → API บันทึกคำร้องสถานะ "รออนุมัติ"</li>
+                                    <li>Dashboard แสดง progress tracker (Pending → Approved)</li>
+                                    <li>ได้รับ Snackbar แจ้งผลทุกครั้งที่สถานะเปลี่ยน</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>Validation ไม่ผ่าน → ไฮไลต์ฟิลด์ผิดและไม่ส่งคำร้อง</li>
+                                    <li>ถูก Reject → tracker แสดงสถานะไม่อนุมัติพร้อมเหตุผล</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>คำร้องถูกจัดเก็บและสามารถติดตามสถานะย้อนหลังได้</td></tr>
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-04</span>
+                    <h3 class="text-xl font-semibold">Advisor/Admin Request Approval</h3>
+                    <span class="badge bg-brand/10 text-brand">Advisor & Admin</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>Advisor, Admin</td></tr>
+                        <tr><th>คำอธิบาย</th><td>ตรวจสอบคำร้องใน Dashboard, ให้ความคิดเห็น, อนุมัติหรือปฏิเสธ</td></tr>
+                        <tr><th>Pre-condition</th><td>มีคำร้องสถานะ Pending และผู้ใช้มีสิทธิ์ที่เหมาะสม</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>เข้าสู่ Dashboard ที่รวบรวมคำร้อง</li>
+                                    <li>ใช้ตัวกรองดูรายการที่รอการตัดสิน</li>
+                                    <li>เปิดรายละเอียดพร้อมไฟล์แนบ</li>
+                                    <li>เลือก Approve / Reject และระบุเหตุผล</li>
+                                    <li>ระบบอัปเดตสถานะและแจ้ง Student ผ่าน Snackbar/Notification</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>พบข้อมูลไม่ครบ → ส่งกลับ (Request changes) ให้ Student แก้ไข</li>
+                                    <li>การอนุมัติล้มเหลว → ระบบ rollback และแจ้งเตือนความผิดพลาด</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>สถานะคำร้องเปลี่ยนและถูกบันทึกในระบบ รายการถัดไปสามารถถูกประมวลผล</td></tr>
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-05</span>
+                    <h3 class="text-xl font-semibold">Company Daily Check-in Cycle</h3>
+                    <span class="badge bg-brandDark/10 text-brandDark">Company Module</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>Student, Company</td></tr>
+                        <tr><th>คำอธิบาย</th><td>Student บันทึก check-in รายวัน / สัปดาห์ และ Company ยืนยันผ่าน Intern List</td></tr>
+                        <tr><th>Pre-condition</th><td>Student ถูกจับคู่กับสถานประกอบการในระบบ</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>Student กรอกฟอร์ม check-in ในเมนู Student → Check-ins</li>
+                                    <li>ระบบบันทึกข้อมูลและ sync กับ company dashboard</li>
+                                    <li>Company เข้าหน้า Intern List</li>
+                                    <li>เลือกนักศึกษาที่เกี่ยวข้องและกดยืนยัน (หรือ comment)</li>
+                                    <li>Admin Dashboard ได้รับ data เพื่อ oversight</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>Company ไม่ยืนยัน → สถานะค้าง และแจ้งเตือนถึง Student</li>
+                                    <li>Student ลืมกรอก → ระบบเตือนผ่าน UI ก่อนสิ้นวัน</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>ข้อมูลเวลาและการยืนยันถูกเก็บในฐานข้อมูลสำหรับการประเมิน</td></tr>
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="space-y-3">
+                <header class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-semibold tracking-widest text-brand">UC-06</span>
+                    <h3 class="text-xl font-semibold">Admin Oversight & Export</h3>
+                    <span class="badge bg-brand/10 text-brand">Admin Module</span>
+                </header>
+                <table class="w-full text-sm spec-table border-collapse">
+                    <tbody>
+                        <tr><th>Actor</th><td>Admin</td></tr>
+                        <tr><th>คำอธิบาย</th><td>Admin ดูสถิติ, ตรวจผู้ใช้, ติดตามคำร้อง/เช็คชื่อ/การชำระเงิน และส่งออกไฟล์ XLSX</td></tr>
+                        <tr><th>Pre-condition</th><td>มีสิทธิ์ Admin และมีข้อมูลในระบบ</td></tr>
+                        <tr>
+                            <th>Main Flow</th>
+                            <td>
+                                <ol>
+                                    <li>เปิด Dashboard Admin เพื่อดูการ์ดสรุป</li>
+                                    <li>จัดการผู้ใช้/สิทธิ์ หรือปรับสถานะคำร้อง/ชำระเงิน</li>
+                                    <li>ตรวจ log เช็คชื่อที่ sync จากบริษัท</li>
+                                    <li>กดปุ่ม Export XLSX (helper ใน <code>utils/</code>)</li>
+                                    <li>ดาวน์โหลดไฟล์และแชร์ต่อให้ส่วนงานต่าง ๆ</li>
+                                </ol>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Alternate Flow</th>
+                            <td>
+                                <ul>
+                                    <li>Export ล้มเหลว → Snackbar แจ้งเตือนและให้ลองอีกครั้ง</li>
+                                    <li>พบข้อมูลผิด → ใช้ action manual เพื่อแก้ไขก่อน export</li>
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr><th>Post-condition</th><td>ข้อมูลได้รับการตรวจสอบ/ส่งออก พร้อมสำหรับ auditing หรือรายงาน</td></tr>
+                    </tbody>
+                </table>
+            </article>
+        </section>
+
+        <footer class="text-center text-slate-500 text-sm py-6">
+            <p>Generated from README.md • Professional Internship Frontend • React 19 + Vite + Tailwind CSS + Material UI</p>
+        </footer>
+    </main>
+</body>
+</html>

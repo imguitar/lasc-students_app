@@ -1,0 +1,312 @@
+.new-request-container {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  padding: 2rem;
+}
+
+.new-request-header {
+  max-width: 900px;
+  margin: 0 auto 2rem;
+}
+
+.back-button {
+  display: inline-block;
+  color: #111111;
+  text-decoration: none;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  transition: color 0.3s;
+}
+
+.back-button:hover {
+  color: #000000;
+}
+
+.new-request-header h1 {
+  color: #111111;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.new-request-header p {
+  color: #333333;
+}
+
+.request-form {
+  max-width: 1000px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 2.25rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  width: 100%;
+  max-width: 100%;
+}
+
+.form-section {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+}
+
+.form-section h2 {
+  color: #111111;
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #111111;
+  background-image: none;
+  display: inline-block;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  align-items: start;
+}
+
+.form-row > * {
+  min-width: 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  min-width: 0;
+}
+
+.form-group label {
+  color: #111111;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Keep all MUI TextField controls at a consistent height (except multiline) */
+.request-form .MuiFormControl-root .MuiInputBase-root:not(.MuiInputBase-multiline) {
+  height: 40px;
+}
+
+.request-form .MuiFormControl-root .MuiOutlinedInput-input:not(.MuiInputBase-inputMultiline) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.request-form .MuiFormControl-root .MuiSelect-select {
+  display: flex;
+  align-items: center;
+}
+
+.request-form .MuiFormControl-root .MuiInputBase-root.MuiInputBase-multiline {
+  height: auto;
+  min-height: 96px;
+}
+
+.request-form .MuiFormControl-root {
+  width: 100%;
+}
+
+.request-form .MuiOutlinedInput-root {
+  background: #ffffff;
+  border-radius: 10px;
+}
+
+.request-form .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
+  border-color: #e5e7eb;
+  border-width: 1.5px;
+}
+
+.request-form .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #cbd5e1;
+}
+
+.request-form .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #111111;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.request-form .MuiInputBase-multiline textarea {
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 2rem;
+}
+
+.btn-cancel {
+  padding: 0.875rem 2rem;
+  background: #ffffff;
+  color: #111111;
+  text-decoration: none;
+  border: 2px solid #111111;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s;
+  display: inline-block;
+}
+
+.btn-cancel:hover {
+  background: #111111;
+  border-color: #111111;
+  color: #ffffff;
+}
+
+.btn-submit {
+  padding: 0.875rem 2rem;
+  background: #111111;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.btn-submit:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.btn-submit:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .new-request-container {
+    padding: 1rem;
+  }
+
+  .request-form {
+    padding: 1.5rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-cancel,
+  .btn-submit {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .request-form {
+    padding: 1.25rem;
+  }
+
+  .form-row {
+    gap: 0.75rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.1rem;
+  }
+
+  .form-group label {
+    font-size: 0.85rem;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    font-size: 0.95rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .form-group input[type="date"] {
+    padding-right: 2.25rem;
+  }
+}
+
+@media (max-width: 1366px) {
+  .new-request-container {
+    padding: 1.5rem;
+  }
+
+  .new-request-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .request-form {
+    padding: 1.75rem;
+  }
+
+  .form-row {
+    gap: 1.25rem;
+  }
+}
+
+/* File input styling and help text */
+.file-info {
+  margin-top: 0.5rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+input[type="file"] {
+  padding: 0.5rem 0.6rem;
+  border: 1.5px dashed #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+/* Subheading for inline group */
+h3 {
+  font-size: 1rem;
+  color: #374151;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Slightly smaller labels for compactness */
+.form-group label {
+  font-size: 0.88rem;
+  color: #1f2937;
+}
+
+/* Modal Styles */
+.modal-content .btn-secondary {
+  background: #f3f4f6;
+  color: #111111;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.modal-content .btn-secondary:hover {
+  background: #e5e7eb;
+  color: #111111;
+}
+
+/* Improve visual separation of sections on large screens */
+@media (min-width: 900px) {
+  .form-section {
+    padding: 2.25rem;
+    background: rgba(250,250,255,0.6);
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+  }
+}

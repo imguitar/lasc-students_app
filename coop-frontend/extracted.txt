@@ -1,0 +1,117 @@
+<Paper className="content-section" elevation={0} sx={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 2, boxShadow: 'none', p: { xs: 2, md: 3 } }}>
+          <div className="section-header">
+            <h2>α╕äα╕│α╕úα╣ëα╕¡α╕çα╕ùα╕▒α╣ëα╕çα╕½α╕íα╕ö</h2>
+            <div className="filter-buttons">
+              <button 
+                className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+                onClick={() => setFilter('all')}
+              >
+                α╕ùα╕▒α╣ëα╕çα╕½α╕íα╕ö
+              </button>
+              <button 
+                className={`filter-btn ${filter === 'pending_admin' ? 'active' : ''}`}
+                onClick={() => setFilter('pending_admin')}
+              >
+                α╕úα╕¡α╕òα╕úα╕ºα╕êα╕¬α╕¡α╕Ü
+              </button>
+              <button 
+                className={`filter-btn ${filter === 'α╕úα╕¡α╕¬α╕ûα╕▓α╕Öα╕¢α╕úα╕░α╕üα╕¡α╕Üα╕üα╕▓α╕úα╕òα╕¡α╕Üα╕úα╕▒α╕Ü' ? 'active' : ''}`}
+                onClick={() => setFilter('α╕úα╕¡α╕¬α╕ûα╕▓α╕Öα╕¢α╕úα╕░α╕üα╕¡α╕Üα╕üα╕▓α╕úα╕òα╕¡α╕Üα╕úα╕▒α╕Ü')}
+              >
+                α╕úα╕¡α╕¬α╕ûα╕▓α╕Öα╕¢α╕úα╕░α╕üα╕¡α╕Üα╕üα╕▓α╕ú
+              </button>
+              <button 
+                className={`filter-btn ${filter === 'approved' ? 'active' : ''}`}
+                onClick={() => setFilter('α╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤α╣üα╕Ñα╣ëα╕º')}
+              >
+                α╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤α╣üα╕Ñα╣ëα╕º
+              </button>
+              <button 
+                className={`filter-btn ${filter === 'rejected' ? 'active' : ''}`}
+                onClick={() => setFilter('rejected')}
+              >
+                α╣äα╕íα╣êα╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤
+              </button>
+            </div>
+          </div>
+
+          <TableContainer component={Box} className="compact-table">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell className="sortable" onClick={() => toggleSort('studentId')}>α╕úα╕½α╕▒α╕¬α╕Öα╕▒α╕üα╕¿α╕╢α╕üα╕⌐α╕▓ {sortBy === 'studentId' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell className="sortable" onClick={() => toggleSort('studentName')}>α╕èα╕╖α╣êα╕¡-α╕Öα╕▓α╕íα╕¬α╕üα╕╕α╕Ñ {sortBy === 'studentName' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell className="sortable" onClick={() => toggleSort('department')}>α╕¬α╕▓α╕éα╕▓ {sortBy === 'department' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell className="sortable" onClick={() => toggleSort('company')}>α╕Üα╕úα╕┤α╕⌐α╕▒α╕ù {sortBy === 'company' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell className="sortable" onClick={() => toggleSort('submittedDate')}>α╕ºα╕▒α╕Öα╕ùα╕╡α╣êα╕óα╕╖α╣êα╕Ö {sortBy === 'submittedDate' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell className="sortable" onClick={() => toggleSort('status')}>α╕¬α╕ûα╕▓α╕Öα╕░ {sortBy === 'status' ? (sortDir === 'asc' ? 'Γû▓' : 'Γû╝') : ''}</TableCell>
+                  <TableCell>α╕êα╕▒α╕öα╕üα╕▓α╕ú</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedRequests.map((request) => {
+                  const statusStyle = getStatusBadge(request.status);
+                  const displayStatus = getAdminDisplayStatus(request.status);
+                  return (
+                    <TableRow key={request.id} hover>
+                      <TableCell>{request.studentId}</TableCell>
+                      <TableCell>{request.studentName}</TableCell>
+                      <TableCell>{request.department}</TableCell>
+                      <TableCell>{request.company}</TableCell>
+                      <TableCell>{new Date(request.submittedDate).toLocaleDateString('th-TH')}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={displayStatus}
+                          sx={{ bgcolor: statusStyle.bg, color: statusStyle.color, fontWeight: 700 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="action-buttons">
+                          <button
+                            className="btn-delete"
+                            onClick={() => handleDelete(request.id)}
+                            style={{ padding: '5px 10px', background: '#ff4d4d', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >α╕Ñα╕Ü</button>
+                          {(request.status === 'α╕úα╕¡α╕£α╕╣α╣ëα╕öα╕╣α╣üα╕Ñα╕úα╕░α╕Üα╕Üα╕òα╕úα╕ºα╕êα╕¬α╕¡α╕Ü' || request.status === 'α╕úα╕¡α╕£α╕╣α╣ëα╕öα╕╣α╣üα╕Ñα╕úα╕░α╕Üα╕Üα╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤') && (
+                            <>
+                              <button className="btn-approve" onClick={() => handleApprove(request.id)} title="α╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤α╕äα╕│α╕úα╣ëα╕¡α╕ç">Γ£ô</button>
+                              <button className="btn-reject" onClick={() => handleReject(request.id)} title="α╣äα╕íα╣êα╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤">Γ£ù</button>
+                            </>
+                          )}
+                          {request.status === 'α╕¡α╕Öα╕╕α╕íα╕▒α╕òα╕┤α╣üα╕Ñα╣ëα╕º' && (
+                            <button className="btn-next-step" onClick={() => handleOpenSemesterModal(request.id)} style={{ padding: '5px 10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>α╣Çα╕úα╕┤α╣êα╕íα╕¥α╕╢α╕üα╕çα╕▓α╕Ö</button>
+                          )}
+                          {request.status === 'α╕úα╕¡α╕¬α╕ûα╕▓α╕Öα╕¢α╕úα╕░α╕üα╕¡α╕Üα╕üα╕▓α╕úα╕òα╕¡α╕Üα╕úα╕▒α╕Ü' && (
+                            <button
+                              onClick={() => {
+                                setQrModal({
+                                  open: true,
+                                  requestId: request.id,
+                                  link: `${window.location.origin}/public/request/${request.id}`
+                                });
+                              }}
+                              style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '5px' }}
+                            >
+                              QR Code
+                            </button>
+                          )}
+                          {request.status === 'α╕¡α╕¡α╕üα╕¥α╕╢α╕üα╕çα╕▓α╕Ö' && (
+                            <span className="muted-action"></span>
+                          )}
+                          <Link to={`/dashboard/request/${request.id}`} style={{ padding: '5px 10px', background: '#edf2f7', color: '#4a5568', borderRadius: '4px', textDecoration: 'none', fontSize: '0.9rem', display: 'inline-block', marginLeft: '5px' }}>α╕öα╕╣α╕úα╕▓α╕óα╕Ñα╕░α╣Çα╕¡α╕╡α╕óα╕ö</Link>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {sortedRequests.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">α╣äα╕íα╣êα╕íα╕╡α╕éα╣ëα╕¡α╕íα╕╣α╕Ñ</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      

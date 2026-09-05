@@ -1,0 +1,30 @@
+const DEPARTMENTS = [
+  { id: 1, name: "สาขาวิชาวิทยาการคอมพิวเตอร์" },
+  { id: 2, name: "สาขาวิชาเทคโนโลยีคอมพิวเตอร์และดิจิทัล" },
+  { id: 3, name: "สาขาวิชาสาธารณสุขชุมชน" },
+  { id: 4, name: "สาขาวิชาวิทยาศาสตร์การกีฬา" },
+  { id: 5, name: "สาขาวิชาเทคโนโลยีการเกษตร" },
+  { id: 6, name: "สาขาวิชาเทคโนโลยีและนวัตกรรมอาหาร" },
+  { id: 7, name: "สาขาวิชาอาชีวอนามัยและความปลอดภัย" },
+  { id: 8, name: "สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์" },
+  { id: 9, name: "สาขาวิชาวิศวกรรมโลจิสติกส์" },
+  { id: 10, name: "สาขาวิชาวิศวกรรมการจัดการอุตสาหกรรมและสิ่งแวดล้อม" },
+  { id: 11, name: "สาขาวิชาการออกแบบผลิตภัณฑ์และนวัตกรรมวัสดุ" },
+  { id: 12, name: "สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม" }
+];
+
+const getDepartmentNameById = (id) => {
+  const dept = DEPARTMENTS.find(d => d.id === parseInt(id));
+  return dept ? dept.name : "ไม่ระบุสาขาวิชา";
+};
+
+const getDepartmentIdByName = (name) => {
+  const dept = DEPARTMENTS.find(d => d.name === name);
+  return dept ? dept.id : null;
+};
+
+module.exports = {
+  DEPARTMENTS,
+  getDepartmentNameById,
+  getDepartmentIdByName
+};

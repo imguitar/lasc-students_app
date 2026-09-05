@@ -1,0 +1,174 @@
+# ==========================================================
+#  LASC Students App — Development environment
+#
+#  ประกอบด้วย 2 แอป ที่ใช้ฐานข้อมูล MySQL ร่วมกัน (lascstudent)
+#    1) ระบบฐานข้อมูลนักศึกษา  : profile-frontend + profile-backend
+#    2) ระบบศูนย์ฝึกนักศึกษา   : coop-frontend    + coop-backend
+#  พร้อม MySQL 8 + phpMyAdmin
+# ==========================================================
+
+services:
+  # --------------------------------------------------------
+  # ฐานข้อมูล MySQL — import schema และข้อมูลอ้างอิงจากโฟลเดอร์ db
+  # อัตโนมัติในครั้งแรกที่สร้าง volume
+  # --------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: lasc-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_allowed_packet=67108864
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Bangkok
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks: [lasc-net]
+
+  # --------------------------------------------------------
+  # phpMyAdmin — จัดการฐานข้อมูลผ่านเว็บ
+  # --------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: lasc-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+      UPLOAD_LIMIT: 256M
+      MAX_EXECUTION_TIME: 600
+    ports:
+      - "${PHPMYADMIN_PORT:-8080}:80"
+    networks: [lasc-net]
+
+  # ========================================================
+  #  แอปที่ 1 — ระบบฐานข้อมูลนักศึกษา (Student Database)
+  # ========================================================
+  profile-backend:
+    build:
+      context: ./profile-backend
+      dockerfile: Dockerfile
+    container_name: lasc-profile-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      # Prisma ต้องใช้รหัสผ่านที่ URL-encode แล้ว (! = %21)
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD_URLENCODED}@mysql:3306/${MYSQL_DATABASE}
+      JWT_SECRET: ${PROFILE_JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${PROFILE_BACKEND_PORT:-5001}:5000"
+    volumes:
+      - ./profile-backend:/app
+      - profile_backend_node_modules:/app/node_modules
+    networks: [lasc-net]
+
+  profile-frontend:
+    build:
+      context: ./profile-frontend
+      dockerfile: Dockerfile
+    container_name: lasc-profile-frontend
+    restart: unless-stopped
+    depends_on:
+      - profile-backend
+    environment:
+      VITE_API_URL: ${PROFILE_API_URL}
+      # ใช้เมื่อเรียกผ่าน vite proxy (/api) ภายใน network ของ docker
+      VITE_PROXY_TARGET: http://profile-backend:5000
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${PROFILE_FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./profile-frontend:/app
+      - profile_frontend_node_modules:/app/node_modules
+    networks: [lasc-net]
+
+  # ========================================================
+  #  แอปที่ 2 — ระบบศูนย์ฝึกนักศึกษา (Internship / Co-op)
+  # ========================================================
+  coop-backend:
+    build:
+      context: ./coop-backend
+      dockerfile: Dockerfile
+    container_name: lasc-coop-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      JWT_SECRET: ${COOP_JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${COOP_BACKEND_PORT:-5002}:5000"
+    volumes:
+      - ./coop-backend:/app
+      - coop_backend_node_modules:/app/node_modules
+    networks: [lasc-net]
+
+  coop-frontend:
+    build:
+      context: ./coop-frontend
+      dockerfile: Dockerfile
+    container_name: lasc-coop-frontend
+    restart: unless-stopped
+    depends_on:
+      - coop-backend
+    environment:
+      VITE_API_BASE_URL: ${COOP_API_URL}
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${COOP_FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./coop-frontend:/app
+      - coop_frontend_node_modules:/app/node_modules
+    networks: [lasc-net]
+
+networks:
+  lasc-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  profile_backend_node_modules:
+  profile_frontend_node_modules:
+  coop_backend_node_modules:
+  coop_frontend_node_modules:

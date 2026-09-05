@@ -1,0 +1,155 @@
+// ------------------------------------------------------
+// Prisma Schema
+// ------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  student
+  alumni
+  admin
+  advisor
+}
+
+enum ProjectStatus {
+  Draft
+  Approved
+  Completed
+}
+
+enum ProjectType {
+  individual
+  group
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model Faculty {
+  id           Int          @id @default(autoincrement())
+  faculty_name String       @db.VarChar(200)
+  
+  // Relations
+  departments  Department[]
+  profiles     Profile[]
+
+  @@map("faculties")
+}
+
+model Department {
+  id              Int       @id @default(autoincrement())
+  faculty_id      Int
+  department_id   String    @unique @db.VarChar(50)
+  department_name String    @db.VarChar(200)
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  
+  // Relations
+  faculty         Faculty   @relation(fields: [faculty_id], references: [id], onDelete: Cascade)
+  profiles        Profile[]
+
+  @@map("departments")
+}
+
+model Profile {
+  id            Int     @id @default(autoincrement())
+  profile_id    String  @unique @db.VarChar(13)
+  prefix        String? @db.VarChar(50)
+  firstname     String  @db.VarChar(50)
+  lastname      String  @db.VarChar(50)
+  faculty_id    Int
+  department_id Int
+  address       String? @db.Text
+
+  // Relations ขาเข้า (Belongs To)
+  faculty       Faculty    @relation(fields: [faculty_id], references: [id])
+  department    Department @relation(fields: [department_id], references: [id])
+
+  // Relations ขาออก (Has Many)
+  projectsAsAdvisor Project[]        @relation("ProjectAdvisor")
+  projectsCreated   Project[]        @relation("ProjectCreator")
+  projectComments   ProjectComment[]
+  projectMembers    ProjectMember[]
+
+  @@map("profile")
+}
+
+model Project {
+  id                    Int           @id @default(autoincrement())
+  project_id            String        @unique @db.VarChar(30)
+  title_th              String        @db.VarChar(500)
+  title_en              String?       @db.VarChar(500)
+  description           String?       @db.Text
+  advisor_profile_id    String?       @db.VarChar(13)
+  year                  Int
+  document_url          String?       @db.VarChar(500)
+  status                ProjectStatus @default(Draft)
+  type                  ProjectType   @default(individual)
+  has_award             Boolean       @default(false)
+  tags                  Json?
+  created_by_profile_id String?       @db.VarChar(13)
+  created_at            DateTime      @default(now())
+  updated_at            DateTime      @updatedAt
+
+  // Relations ขาเข้า
+  advisor   Profile? @relation("ProjectAdvisor", fields: [advisor_profile_id], references: [profile_id], onDelete: SetNull)
+  createdBy Profile? @relation("ProjectCreator", fields: [created_by_profile_id], references: [profile_id], onDelete: SetNull)
+
+  // Relations ขาออก
+  comments  ProjectComment[]
+  members   ProjectMember[]
+
+  @@map("projects")
+}
+
+model ProjectComment {
+  id                Int      @id @default(autoincrement())
+  project_id        Int
+  author_profile_id String   @db.VarChar(13)
+  message           String   @db.Text
+  created_at        DateTime @default(now())
+
+  // Relations
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  author  Profile @relation(fields: [author_profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("project_comments")
+}
+
+model ProjectMember {
+  id         Int    @id @default(autoincrement())
+  project_id Int
+  profile_id String @db.VarChar(13)
+
+  // Relations
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("project_members")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique @db.VarChar(191)
+  email     String   @unique @db.VarChar(191)
+  password  String   @db.VarChar(191)
+  role      Role     @default(student)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user")
+}

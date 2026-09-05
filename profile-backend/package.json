@@ -1,0 +1,46 @@
+{
+  "name": "student-database-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Student Database Management System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npm run check-env && nodemon server.js",
+    "check-env": "node scripts/check-db-env.js",
+    "db:pull": "npm run check-env && prisma db pull",
+    "db:generate": "prisma generate",
+    "db:push": "npm run check-env && prisma db push",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "prisma generate"
+  },
+  "keywords": [
+    "student",
+    "database",
+    "api",
+    "express",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "axios": "^1.18.1",
+    "bcryptjs": "^2.4.3",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "iconv-lite": "^0.7.2",
+    "json2csv": "^6.0.0-alpha.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.22.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "prisma": "^5.22.0"
+  }
+}

@@ -1,0 +1,3 @@
+/coop/assets/* /assets/:splat 200
+/coop/* /index.html 200
+/* /index.html 200

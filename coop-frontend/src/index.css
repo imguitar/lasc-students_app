@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: linear-gradient(135deg, #f4e8ff 0%, #fcfdfd 35%, #fef9c3 100%);
+  --text: #1a237e;
+  --muted: #4c1d95;
+  --surface: rgba(255, 255, 255, 0.8);
+  --surface-muted: rgba(243, 244, 246, 0.7);
+  --border: #e9d5ff;
+  --primary: #111111;
+  --primary-contrast: #ffffff;
+  --danger: #b91c1c;
+  --success: #166534;
+  --warning: #a16207;
+}
+
+body {
+  margin: 0;
+  font-family: 'Sarabun', 'Kanit', 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  /* NOTE: overflow-x: hidden removed – it blocks vertical scroll on iOS/iPad */
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--text);
+}
+
+button,
+.btn-submit,
+.btn-primary,
+.btn-add,
+.btn-login,
+.btn-primary-small,
+.btn-save-profile,
+.btn-approve {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-color: var(--primary);
+}
+
+.btn-cancel,
+.btn-secondary,
+.btn-signup,
+.btn-cancel-profile,
+.logout-btn {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.btn-reject,
+.btn-delete {
+  background: var(--danger);
+  color: #ffffff;
+  border-color: var(--danger);
+}
+
+.footer {
+  background: #000000;
+  color: #ffffff;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Global overflow guards */
+.admin-main,
+.dashboard-main,
+.content-section,
+.content-wrapper,
+.table-container,
+.table-responsive,
+.requests-table,
+.users-table-container,
+.bulk-table-wrapper,
+.checkin-table-container,
+.compact-table,
+.MuiPaper-root {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.MuiTableContainer-root,
+.table-container,
+.table-responsive,
+.requests-table,
+.users-table-container,
+.bulk-table-wrapper,
+.checkin-table-container,
+.compact-table {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.MuiTable-root {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.MuiTableCell-root {
+  white-space: nowrap;
+}
+
+.action-buttons,
+.advisor-action-buttons {
+  flex-wrap: nowrap;
+}
+
+.status-badge,
+.checkin-status {
+  white-space: nowrap;
+}

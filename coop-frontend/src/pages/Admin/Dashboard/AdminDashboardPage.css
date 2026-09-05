@@ -1,0 +1,700 @@
+.admin-dashboard-container {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  padding-top: 60px;
+}
+
+/* Sidebar - reuse from DashboardPage */
+.sidebar {
+  width: 260px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 60px);
+  position: fixed;
+  top: 60px;
+  left: 0;
+  z-index: 1050;
+}
+
+.sidebar-header {
+  padding: 2rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sidebar-header h2 {
+  color: #111111;
+  font-size: 1.5rem;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1.5rem;
+  color: #111111;
+  text-decoration: none;
+  transition: all 0.3s;
+  border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+  background: #f3f4f6;
+  color: #111111;
+}
+
+.nav-item.active {
+  background: #f3f4f6;
+  color: #111111;
+  border-left-color: #111111;
+  font-weight: 600;
+}
+
+.nav-icon {
+  font-size: 1.25rem;
+}
+
+.sidebar-footer {
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  color: #111111;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logout-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Main Content */
+.admin-main {
+  flex: 1;
+  margin-left: 260px;
+  padding: 2rem;
+  padding-bottom: 6rem !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-header h1 {
+  color: #111111;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+
+.admin-header p {
+  color: #333333;
+}
+
+.home-link {
+  padding: 0.75rem 1.5rem;
+  background: #ffffff;
+  color: #111111;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  border: 2px solid #111111;
+  transition: all 0.3s;
+}
+
+.home-link:hover {
+  background: #111111;
+  color: #ffffff;
+}
+
+/* (Stats grid removed) */
+
+/* Content Section */
+.content-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-width: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.section-header h2 {
+  color: #111111;
+  font-size: 1.5rem;
+}
+
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  color: #111111;
+}
+
+/* advisor student list overrides for gradient container */
+.content-section[style] {
+  color: #07122b; /* ensure text contrast on gradient */
+}
+
+/* Requests Table */
+.requests-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.requests-table .MuiTable-root {
+  width: max-content !important;
+  min-width: 1200px !important;
+  table-layout: auto;
+}
+
+.requests-table .MuiTableCell-root {
+  white-space: nowrap;
+}
+
+.requests-table .action-buttons {
+  flex-wrap: nowrap;
+}
+
+.dashboard-amchart {
+  width: 100%;
+  height: 290px;
+}
+
+/* Prevent horizontal scrollbar without breaking vertical scroll on iOS/iPad */
+.admin-dashboard-container {
+  overflow-x: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background: #f3f4f6;
+}
+
+th {
+  padding: 1rem;
+  text-align: left;
+  color: #111111;
+  font-weight: 600;
+  border-bottom: 2px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #333333;
+  white-space: nowrap;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  width: min(520px, 92vw);
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.modal-content .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: #111111;
+}
+
+.modal-content textarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111111;
+  resize: vertical;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.modal-content .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 16px;
+}
+
+.modal-content .btn-cancel {
+  background: #ffffff;
+  color: #111111;
+  border: 2px solid #111111;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.modal-content .btn-submit {
+  background: #111111;
+  color: #ffffff;
+  border: 2px solid #111111;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+tbody tr {
+  transition: background 0.3s;
+}
+
+tbody tr:hover {
+  background: #f3f4f6;
+}
+
+.status-badge {
+  background: #f3f4f6;
+  color: #111111;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-view,
+.btn-approve,
+.btn-reject {
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #ffffff;
+  transition: all 0.3s;
+}
+
+.btn-view {
+  background: #111111;
+}
+
+.btn-view:hover {
+  background: #000000;
+}
+
+.btn-approve {
+  background: #15803d;
+}
+
+.btn-approve:hover {
+  background: #166534;
+}
+
+.btn-reject {
+  background: #b91c1c;
+}
+
+.btn-reject:hover {
+  background: #991b1b;
+}
+
+/* Responsive */
+@media (max-width: 1366px) {
+  .admin-main {
+    padding: 1.5rem;
+  }
+
+  .admin-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .content-section {
+    padding: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .dashboard-amchart {
+    height: 250px;
+  }
+
+  .filter-buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Scrollbar styling (WebKit) and Firefox helpers */
+.filter-buttons,
+.requests-table,
+.compact-table {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(15,23,42,0.12) transparent; /* Firefox thumb + track */
+}
+
+.filter-buttons::-webkit-scrollbar {
+  height: 8px;
+}
+.filter-buttons::-webkit-scrollbar-track {
+  background: transparent;
+}
+.filter-buttons::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+.filter-buttons::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+.requests-table::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.requests-table::-webkit-scrollbar-track {
+  background: transparent;
+}
+.requests-table::-webkit-scrollbar-thumb {
+  background: rgba(15,23,42,0.12);
+  border-radius: 8px;
+}
+.requests-table::-webkit-scrollbar-thumb:hover {
+  background: rgba(15,23,42,0.18);
+}
+
+/* compact table (latest 5) scroll styles reuse the same webkit rules */
+.compact-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.compact-table table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+.compact-table::-webkit-scrollbar {
+  height: 8px;
+}
+.compact-table::-webkit-scrollbar-thumb {
+  background: rgba(15,23,42,0.12);
+  border-radius: 8px;
+}
+.compact-table::-webkit-scrollbar-thumb:hover {
+  background: rgba(15,23,42,0.18);
+}
+
+@media (max-width: 768px) {
+  .admin-main {
+    padding: 1rem;
+  }
+
+  .admin-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .requests-table {
+    width: 100%;
+    overflow-x: auto;
+    font-size: 0.875rem;
+  }
+
+  .requests-table table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  th, td {
+    padding: 0.75rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .action-buttons {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .requests-table {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .requests-table table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .status-badge {
+    white-space: nowrap;
+    text-align: center;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Mobile Menu Button - Default Hidden */
+.mobile-top-navbar {
+  display: flex;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 1080;
+}
+
+.home-link {
+  display: none;
+}
+
+.mobile-menu-btn {
+  display: none;
+  position: static;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  cursor: pointer;
+  font-size: 1.5rem;
+  color: #333;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mobile-top-logo {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.mobile-top-logo img {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1040;
+}
+
+.sidebar-overlay.open {
+  display: block;
+}
+
+@media (max-width: 1199px) {
+  .mobile-menu-btn {
+    display: flex;
+    margin-left: auto;
+    z-index: 1090;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 60px;
+    left: -280px;
+    height: calc(100vh - 60px);
+    width: 260px !important;
+    z-index: 1050;
+    transition: left 0.3s ease;
+    flex-direction: column !important;
+    border-right: 1px solid #e5e7eb !important;
+    box-shadow: none;
+    background: #ffffff;
+  }
+
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+  }
+
+  /* Reset sidebar internals */
+  .sidebar-nav {
+    display: block !important;
+    overflow-x: visible !important;
+    padding: 1rem 0 !important;
+  }
+
+  .nav-item {
+    flex-direction: row !important;
+    padding: 0.875rem 1.5rem !important;
+    border-left: 3px solid transparent !important;
+    border-bottom: none !important;
+    gap: 1rem !important;
+    white-space: normal !important;
+  }
+  
+  .nav-item.active {
+    border-left-color: #111111 !important;
+    border-bottom-color: transparent !important;
+  }
+
+  .sidebar-footer {
+    display: block !important;
+  }
+
+  .admin-main {
+    margin-left: 0;
+    padding-top: 5rem;
+    padding-bottom: 6rem !important;
+  }
+
+  /* Keep all role tables as horizontal-scroll tables on mobile */
+  .table-responsive,
+  .requests-table {
+    overflow-x: auto !important;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table {
+    display: table !important;
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  .data-table thead {
+    display: table-header-group !important;
+  }
+
+  .data-table tbody {
+    display: table-row-group !important;
+  }
+
+  .data-table tr {
+    display: table-row !important;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    margin-bottom: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .data-table td {
+    display: table-cell !important;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .data-table td::before {
+    content: none !important;
+  }
+
+  /* Adjust user info layout in mobile card */
+  .user-info {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+  
+  .user-details {
+    align-items: flex-end;
+  }
+}
+

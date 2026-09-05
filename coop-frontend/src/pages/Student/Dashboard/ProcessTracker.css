@@ -1,0 +1,233 @@
+.status-tracker-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  overflow: hidden;
+}
+
+.status-tracker-container h2 {
+  text-align: left;
+  margin-bottom: 2rem;
+  font-size: 1.25rem;
+  color: #111111;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
+}
+
+/* Linear Tracker */
+.linear-tracker-wrapper {
+  width: 100%;
+  padding: 0.75rem 0.25rem;
+}
+
+.linear-progress-line {
+  position: relative;
+  width: calc(100% - 44px);
+  margin: 26px auto -22px;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.linear-progress-fill {
+  height: 100%;
+  background: #6b7280;
+  border-radius: inherit;
+  transition: width 0.35s ease;
+}
+
+.linear-progress-line.rejected .linear-progress-fill {
+  background: #6b7280;
+}
+
+.linear-steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.linear-step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+  z-index: 1;
+}
+
+.linear-step-icon {
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: calc(1.2rem * var(--tracker-scale));
+  color: #6b7280;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.linear-step-label {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.linear-step-item.active .linear-step-icon {
+  border-color: #111111;
+  color: #111111;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.15);
+  transform: scale(1.05);
+}
+
+.linear-step-item.active .linear-step-label {
+  color: #111111;
+}
+
+.linear-step-item.completed .linear-step-icon {
+  border-color: #6b7280;
+  background: #ffffff;
+  color: #374151;
+}
+
+.linear-step-item.completed .linear-step-label {
+  color: #374151;
+}
+
+.linear-step-item.rejected .linear-step-icon {
+  border-color: #6b7280;
+  background: #ffffff;
+  color: #374151;
+}
+
+.linear-step-item.rejected .linear-step-label {
+  color: #374151;
+}
+
+.linear-tracker-summary {
+  margin-top: 1.25rem;
+}
+
+.linear-tracker-summary h3 {
+  font-size: 1.7rem;
+  color: #111111;
+  margin: 0 0 0.4rem;
+}
+
+.linear-tracker-summary p {
+  font-size: 1.05rem;
+  color: #333333;
+  margin: 0;
+}
+
+/* No Request */
+.no-request-tracker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.mono-emoji {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols", "Apple Symbols", sans-serif;
+  color: #9ca3af;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-emoji {
+  font-size: 1.1rem;
+  color: #6b7280;
+}
+
+.progress-emoji-inline {
+  font-size: 0.95rem;
+  color: #9ca3af;
+}
+
+.no-request-emoji {
+  font-size: 5rem;
+  color: #d1d5db;
+}
+
+.no-request-tracker .step-circle.start {
+  border-color: #111111;
+  background: #f3f4f6;
+  width: 80px;
+  height: 80px;
+  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.btn-primary-small {
+  margin-top: 1rem;
+  display: inline-block;
+  padding: 0.5rem 1.5rem;
+  background: #111111;
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-primary-small:hover {
+  background: #000000;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .status-tracker-container {
+    padding: 1.25rem;
+  }
+
+  .linear-step-label {
+    font-size: 0.78rem;
+  }
+
+  .linear-tracker-summary h3 {
+    font-size: 1.45rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .linear-progress-line {
+    width: calc(100% - 24px);
+  }
+
+  .linear-step-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+
+  .linear-step-label {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .status-tracker-container {
+    padding: 1rem;
+  }
+
+  .linear-step-label {
+    font-size: 0.65rem;
+  }
+}

@@ -1,0 +1,94 @@
+.stat-card {
+    border-radius: 12px;
+    padding: 18px 20px;
+    color: var(--text, #111);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.gradient-stat {
+    /* Force monochrome white gradient regardless of --accent variables */
+    background: linear-gradient(90deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.86) 90%);
+}
+
+.gradient-stat::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 10px;
+    height: 6px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,0,0,0.03));
+}
+
+.stat-left h3 {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.stat-left .big-number {
+    margin: 8px 0 4px;
+    font-size: 2.25rem;
+    color: var(--text, #111);
+}
+
+.stat-icon-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 12px;
+    box-shadow: none;
+}
+
+.stat-icon-box svg {
+    width: 34px;
+    height: 34px;
+    color: rgba(0,0,0,0.85);
+    fill: currentColor;
+}
+
+/* Plain icon (emoji/text) style: remove background and let the glyph render without colored box */
+.stat-icon-box.plain {
+    background: transparent;
+    box-shadow: none;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    margin-left: 12px;
+}
+
+.stat-icon-box.plain .stat-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-icon-box.plain .stat-emoji svg,
+.stat-icon-box.plain .stat-emoji path {
+    width: 34px;
+    height: 34px;
+}
+
+/* monochrome icon color (contrast with card background) */
+.stat-icon-box.plain .stat-emoji,
+.stat-icon-box.plain .stat-emoji svg {
+    color: rgba(255,255,255,0.98);
+    fill: currentColor;
+    stroke: none;
+}
+
+.gradient-stat:hover {
+    transform: translateY(-4px);
+    transition: transform 220ms ease;
+}

@@ -1,0 +1,40 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 
+   * DO NOT set overflow-x: hidden on html or body!
+   * On iOS/iPad Safari (WebKit), overflow: hidden on the root elements
+   * blocks ALL scrolling — both x and y axes. 
+   * Use overflow-x: hidden on inner wrapper divs (.dashboard-container, .admin-dashboard-container) instead.
+   */
+}
+
+/* Prevent MUI Modal scrollbar hiding & background layout shift */
+html {
+  scrollbar-gutter: stable;
+  /* overflow-x NOT set here — WebKit blocks vertical scroll if we do */
+}
+
+body.MuiModal-open {
+  overflow: auto !important;
+  overflow-y: scroll !important;
+  padding-right: 0px !important;
+}
+
+.MuiModal-root {
+  padding-right: 0px !important;
+}
