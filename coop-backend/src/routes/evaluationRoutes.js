@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middlewares/auth');
 const { parseRequestRow } = require('../utils/helpers');
+const { sendEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
 
 // =============================================
 // Company Evaluations (Public & Analytics)
@@ -206,7 +207,55 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
       ['ประเมินแบบฟอร์มละเอียดแล้ว (ผลการนิเทศ: ผ่าน)', reqId]
     );
 
-    res.status(201).json({ success: true, message: 'บันทึกผลการนิเทศสำเร็จ' });
+    // เมื่ออาจารย์บันทึกผลนิเทศแล้ว ส่งลิงก์แบบประเมินให้ผู้ประเมินฝั่งสถานประกอบการ
+    // การส่งอีเมลล้มเหลวต้องไม่ทำให้การบันทึกผลนิเทศล้มเหลวตามไปด้วย
+    let emailSent = false;
+    let emailSimulated = false;
+    let recipientEmail = null;
+    try {
+      const [rRows] = await pool.query('SELECT * FROM requests WHERE id = ?', [reqId]);
+      if (rRows[0]) {
+        const reqItem = rRows[0];
+        let detailsObj = {};
+        if (reqItem.details) {
+          try {
+            detailsObj = typeof reqItem.details === 'object' ? reqItem.details : JSON.parse(reqItem.details);
+          } catch (_) {}
+        }
+
+        recipientEmail = reqItem.evaluator_email || detailsObj.evaluatorEmail || detailsObj.contactEmail || null;
+        if (recipientEmail) {
+          const result = await sendEvaluationEmail({
+            to: recipientEmail,
+            studentName: reqItem.studentName,
+            companyName: reqItem.company,
+            evalUrl: buildEvaluationUrl(reqId),
+          });
+
+          emailSent = result.success && !result.simulated;
+          emailSimulated = Boolean(result.simulated);
+
+          detailsObj.evaluatorEmailSent = emailSent;
+          detailsObj.evaluatorEmailSentAt = emailSent ? new Date().toISOString() : null;
+          await pool.query('UPDATE requests SET details = ? WHERE id = ?', [JSON.stringify(detailsObj), reqId]);
+        }
+      }
+    } catch (mailErr) {
+      console.error('[AdvisorEvaluation] ส่งอีเมลแบบประเมินไม่สำเร็จ:', mailErr.message);
+    }
+
+    let message = 'บันทึกผลการนิเทศสำเร็จ';
+    if (emailSent) {
+      message = `บันทึกผลการนิเทศสำเร็จ และส่งอีเมลแบบประเมินไปยัง ${recipientEmail} เรียบร้อยแล้ว`;
+    } else if (emailSimulated) {
+      message = 'บันทึกผลการนิเทศสำเร็จ (ยังไม่ได้ตั้งค่า SMTP จึงยังไม่ได้ส่งอีเมลแบบประเมิน)';
+    } else if (recipientEmail) {
+      message = `บันทึกผลการนิเทศสำเร็จ แต่ส่งอีเมลไปยัง ${recipientEmail} ไม่สำเร็จ`;
+    } else {
+      message = 'บันทึกผลการนิเทศสำเร็จ (ยังไม่ได้ระบุอีเมลผู้ประเมิน จึงยังไม่ได้ส่งแบบประเมิน)';
+    }
+
+    res.status(201).json({ success: true, message, emailSent, emailSimulated, recipientEmail });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -135,7 +135,7 @@ router.patch('/:id/status', async (req, res) => {
 
   const updateStatusHandler = async () => {
     try {
-      const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm } = req.body;
+      const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm, evaluatorEmail, evaluator_email, evaluatorName, evaluatorPosition } = req.body;
       const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
       if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
@@ -147,6 +147,22 @@ router.patch('/:id/status', async (req, res) => {
         try {
           details = typeof rows[0].details === 'object' ? rows[0].details : JSON.parse(rows[0].details);
         } catch (_) {}
+      }
+
+      // อีเมลผู้ประเมิน — เฉพาะเจ้าหน้าที่/อาจารย์เท่านั้น นักศึกษาแก้ไม่ได้
+      // ตรวจการมีคีย์แยกจากค่า เพื่อให้ส่งค่าว่างมาเพื่อล้างอีเมลได้
+      const hasEvalEmail = evaluatorEmail !== undefined || evaluator_email !== undefined;
+      const targetEvalEmail = evaluatorEmail !== undefined ? evaluatorEmail : evaluator_email;
+      if (hasEvalEmail) {
+        if (req.user?.role === 'student') {
+          return res.status(403).json({ success: false, message: 'นักศึกษาไม่สามารถแก้ไขข้อมูลอีเมลของผู้ประเมินได้' });
+        }
+        updates.push('evaluator_email = ?');
+        params.push(targetEvalEmail || null);
+        details.evaluatorEmail = targetEvalEmail || null;
+        // ชื่อ/ตำแหน่งผู้ประเมินเก็บไว้ใน details เพราะไม่ได้ใช้ค้นหา
+        if (evaluatorName !== undefined) details.evaluatorName = evaluatorName || null;
+        if (evaluatorPosition !== undefined) details.evaluatorPosition = evaluatorPosition || null;
       }
 
       if (startDate !== undefined) {
@@ -167,7 +183,7 @@ router.patch('/:id/status', async (req, res) => {
         details.internshipTerm = internshipTerm;
       }
 
-      if (startDate !== undefined || endDate !== undefined || internshipTerm !== undefined) {
+      if (startDate !== undefined || endDate !== undefined || internshipTerm !== undefined || hasEvalEmail) {
         updates.push('details = ?');
         params.push(JSON.stringify(details));
       }
@@ -259,7 +275,7 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
 // PUT /api/requests/:id
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const { studentId, studentName, department, company, position, status, details, dispatchLetter, internship_start_date, internship_end_date } = req.body;
+    const { studentId, studentName, department, company, position, status, details, dispatchLetter, internship_start_date, internship_end_date, evaluator_email, evaluatorEmail } = req.body;
     const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
@@ -275,9 +291,40 @@ router.put('/:id', authenticate, async (req, res) => {
     if (internship_start_date !== undefined) { updates.push('internship_start_date = ?'); params.push(internship_start_date); }
     if (internship_end_date !== undefined) { updates.push('internship_end_date = ?'); params.push(internship_end_date); }
 
+    // อีเมลผู้ประเมิน — เฉพาะ admin/advisor เท่านั้นที่เขียนได้
+    // ตรวจการมีคีย์แยกจากค่า เพื่อให้ส่งค่าว่างมาเพื่อล้างอีเมลได้
+    const hasEvalEmail = evaluator_email !== undefined || evaluatorEmail !== undefined;
+    const targetEmail = evaluator_email !== undefined ? evaluator_email : evaluatorEmail;
+    const canEditEvalEmail = req.user?.role === 'admin' || req.user?.role === 'advisor';
+    if (hasEvalEmail && canEditEvalEmail) {
+      updates.push('evaluator_email = ?');
+      params.push(targetEmail || null);
+    }
+
     if (details !== undefined) {
+      let detailsObj = {};
+      if (typeof details === 'object' && details !== null) {
+        detailsObj = { ...details };
+      } else if (typeof details === 'string') {
+        try { detailsObj = JSON.parse(details) || {}; } catch (_) { detailsObj = {}; }
+      }
+
+      if (hasEvalEmail && canEditEvalEmail) {
+        detailsObj.evaluatorEmail = targetEmail || null;
+      } else {
+        // ผู้ที่แก้ไม่ได้ (เช่น นักศึกษา) ต้องไม่ลบอีเมลเดิมทิ้งผ่านการแก้ details
+        let existingDetails = {};
+        if (typeof rows[0].details === 'string') {
+          try { existingDetails = JSON.parse(rows[0].details || '{}') || {}; } catch (_) {}
+        } else if (rows[0].details && typeof rows[0].details === 'object') {
+          existingDetails = rows[0].details;
+        }
+        const preserved = rows[0].evaluator_email || existingDetails.evaluatorEmail;
+        if (preserved) detailsObj.evaluatorEmail = preserved;
+      }
+
       updates.push('details = ?');
-      params.push(typeof details === 'object' ? JSON.stringify(details) : details);
+      params.push(JSON.stringify(detailsObj));
     }
     if (dispatchLetter !== undefined) {
       updates.push('dispatchLetter = ?');

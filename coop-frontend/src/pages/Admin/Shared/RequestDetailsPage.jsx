@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert } from '@mui/material';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import api from '../../../api/axios';
@@ -60,6 +60,7 @@ const RequestDetailsPage = () => {
   const [rejectModal, setRejectModal] = useState({ open: false, reason: '' });
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [qrModal, setQrModal] = useState({ open: false, link: '' });
+  const [editEvalEmailModal, setEditEvalEmailModal] = useState({ open: false, email: '', submitting: false, error: '' });
   const [dispatchModal, setDispatchModal] = useState({ open: false, file: null, comment: '', startDate: '', endDate: '', submitting: false, error: '' });
   const [scheduleModal, setScheduleModal] = useState({
     open: false,
@@ -311,6 +312,42 @@ const RequestDetailsPage = () => {
     });
   };
 
+  // อีเมลผู้ประเมินจากสถานประกอบการ — backend อนุญาตเฉพาะ admin/advisor
+  const handleSaveEvalEmail = async () => {
+    const email = editEvalEmailModal.email.trim();
+    if (!email) {
+      setEditEvalEmailModal(prev => ({ ...prev, error: 'กรุณาระบุอีเมลผู้ประเมิน' }));
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEditEvalEmailModal(prev => ({ ...prev, error: 'รูปแบบอีเมลไม่ถูกต้อง' }));
+      return;
+    }
+
+    try {
+      setEditEvalEmailModal(prev => ({ ...prev, submitting: true, error: '' }));
+      const res = await api.patch(`/requests/${id}/status`, { status: request.status, evaluatorEmail: email });
+      if (res.data?.data) {
+        setRequest(res.data.data);
+      } else {
+        setRequest(prev => ({
+          ...prev,
+          evaluator_email: email,
+          details: { ...(prev.details || {}), evaluatorEmail: email }
+        }));
+      }
+      setToast({ open: true, message: 'บันทึกอีเมลผู้ประเมินเรียบร้อยแล้ว', severity: 'success' });
+      setEditEvalEmailModal({ open: false, email: '', submitting: false, error: '' });
+    } catch (err) {
+      setEditEvalEmailModal(prev => ({
+        ...prev,
+        submitting: false,
+        error: err.response?.data?.message || err.message || 'บันทึกอีเมลไม่สำเร็จ'
+      }));
+    }
+  };
+
   const handleCloseQrModal = () => {
     setQrModal({ open: false, link: '' });
     navigate(-1);
@@ -488,6 +525,29 @@ const RequestDetailsPage = () => {
             <div className="detail-item">
               <span className="detail-label">4. โทรศัพท์ / อีเมลติดต่อ</span>
               <span className="detail-value">{details.contactPhone || '-'} / {details.contactEmail || '-'}</span>
+            </div>
+            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+              <span className="detail-label">อีเมลผู้ประเมินจากสถานประกอบการ (สำหรับส่งแบบประเมิน)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span className="detail-value" style={{ fontWeight: 600, color: (request.evaluator_email || details.evaluatorEmail) ? '#1e293b' : '#94a3b8' }}>
+                  {request.evaluator_email || details.evaluatorEmail || '(ยังไม่ระบุโดยสถานประกอบการ)'}
+                </span>
+                {(userRole === 'admin' || userRole === 'advisor') && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setEditEvalEmailModal({
+                      open: true,
+                      email: request.evaluator_email || details.evaluatorEmail || '',
+                      submitting: false,
+                      error: ''
+                    })}
+                    sx={{ fontSize: '0.78rem', py: 0.2, px: 1.2, borderRadius: 1.5 }}
+                  >
+                    แก้ไขอีเมลผู้ประเมิน
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
               <span className="detail-label">5. ตำแหน่งงานที่ต้องการเข้าฝึกงาน</span>
@@ -779,6 +839,42 @@ const RequestDetailsPage = () => {
           )}
         </footer>
       </div>
+
+      {/* แก้ไขอีเมลผู้ประเมินจากสถานประกอบการ */}
+      <Dialog
+        open={editEvalEmailModal.open}
+        onClose={() => !editEvalEmailModal.submitting && setEditEvalEmailModal(prev => ({ ...prev, open: false }))}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>แก้ไขอีเมลผู้ประเมินจากสถานประกอบการ</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            ระบุอีเมลสำหรับให้ระบบจัดส่งแบบประเมินผลการฝึกงานโดยอัตโนมัติหลังอาจารย์บันทึกผลการนิเทศ
+            (เฉพาะ Admin และอาจารย์เท่านั้นที่แก้ไขได้)
+          </Typography>
+          {editEvalEmailModal.error && (
+            <Alert severity="error" sx={{ mb: 2 }}>{editEvalEmailModal.error}</Alert>
+          )}
+          <TextField
+            fullWidth
+            type="email"
+            label="อีเมลผู้ประเมิน"
+            value={editEvalEmailModal.email}
+            onChange={(e) => setEditEvalEmailModal(prev => ({ ...prev, email: e.target.value, error: '' }))}
+            placeholder="evaluator@company.com"
+            disabled={editEvalEmailModal.submitting}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditEvalEmailModal(prev => ({ ...prev, open: false }))} disabled={editEvalEmailModal.submitting}>
+            ยกเลิก
+          </Button>
+          <Button variant="contained" onClick={handleSaveEvalEmail} disabled={editEvalEmailModal.submitting} sx={{ fontWeight: 700 }}>
+            {editEvalEmailModal.submitting ? 'กำลังบันทึก...' : 'บันทึกอีเมล'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={rejectModal.open} onClose={handleRejectClose} fullWidth maxWidth="sm">
         <DialogTitle>ระบุเหตุผลที่ไม่อนุมัติ/ปฏิเสธ</DialogTitle>

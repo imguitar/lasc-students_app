@@ -136,6 +136,12 @@ services:
       JWT_SECRET: ${COOP_JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
+      COOP_PUBLIC_URL: ${COOP_PUBLIC_URL:-http://localhost:5173/coop}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       CHOKIDAR_USEPOLLING: "true"
     ports:
       - "${COOP_BACKEND_PORT:-5002}:5000"

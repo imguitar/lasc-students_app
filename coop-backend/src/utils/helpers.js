@@ -120,6 +120,17 @@ const parseRequestRow = (row) => {
     if (!parsed.internship_end_date && parsed.details.endDate) {
       parsed.internship_end_date = parsed.details.endDate;
     }
+    // อีเมลผู้ประเมิน: sync ระหว่างคอลัมน์จริงกับค่าเดิมที่เคยฝังอยู่ใน details JSON
+    if (parsed.evaluator_email && !parsed.details.evaluatorEmail) {
+      parsed.details.evaluatorEmail = parsed.evaluator_email;
+    }
+    if (!parsed.evaluator_email && (parsed.details.evaluatorEmail || parsed.details.contactEmail)) {
+      parsed.evaluator_email = parsed.details.evaluatorEmail || parsed.details.contactEmail;
+    }
+  } else if (parsed.details === null || parsed.details === undefined) {
+    // ไม่มี details เลย — ใส่โครงขั้นต่ำให้ frontend อ่าน evaluatorEmail ได้
+    // (ถ้า details เป็น string ที่ parse ไม่ผ่าน จะปล่อยไว้ตามเดิม ไม่ทับข้อมูลดิบทิ้ง)
+    parsed.details = { evaluatorEmail: parsed.evaluator_email || null };
   }
   return parsed;
 };

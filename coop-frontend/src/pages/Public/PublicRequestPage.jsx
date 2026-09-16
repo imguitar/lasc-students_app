@@ -13,6 +13,7 @@ const PublicRequestPage = () => {
   const [updating, setUpdating] = useState(false);
   const [feedback, setFeedback] = useState({ message: '', severity: '' });
   const [rejectDialog, setRejectDialog] = useState({ open: false, reason: '' });
+  const [acceptDialog, setAcceptDialog] = useState({ open: false, evaluatorEmail: '', evaluatorName: '', evaluatorPosition: '', error: '' });
   const [previewOpen, setPreviewOpen] = useState(false);
   const [imageModal, setImageModal] = useState({ open: false, src: '', title: '' });
 
@@ -83,12 +84,46 @@ const PublicRequestPage = () => {
 
   const canRespond = request.status === 'รอสถานประกอบการตอบรับ';
 
-  const handleAccept = async () => {
+  const handleAcceptOpen = () => {
+    setAcceptDialog({
+      open: true,
+      evaluatorEmail: request.evaluator_email || request.details?.evaluatorEmail || request.details?.contactEmail || '',
+      evaluatorName: request.details?.evaluatorName || request.details?.supervisor || '',
+      evaluatorPosition: request.details?.evaluatorPosition || request.details?.contactPosition || '',
+      error: ''
+    });
+  };
+
+  const handleAcceptConfirm = async () => {
+    const email = acceptDialog.evaluatorEmail.trim();
+    if (!email) {
+      setAcceptDialog(prev => ({ ...prev, error: 'กรุณากรอกอีเมลสำหรับส่งแบบประเมิน (จำเป็นต้องระบุ)' }));
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setAcceptDialog(prev => ({ ...prev, error: 'รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' }));
+      return;
+    }
+
+    const evaluatorName = acceptDialog.evaluatorName.trim();
+    const evaluatorPosition = acceptDialog.evaluatorPosition.trim();
+
     setUpdating(true);
     try {
-      await api.patch(`/public/requests/${id}/status`, { status: 'อนุมัติแล้ว' });
-      setRequest({ ...request, status: 'อนุมัติแล้ว' });
-      setFeedback({ message: 'ตอบรับนักศึกษาเข้าฝึกงานเรียบร้อยแล้ว', severity: 'success' });
+      const res = await api.patch(`/public/requests/${id}/status`, {
+        status: 'อนุมัติแล้ว',
+        evaluatorEmail: email,
+        evaluatorName: evaluatorName || undefined,
+        evaluatorPosition: evaluatorPosition || undefined
+      });
+      setRequest(res.data?.data || {
+        ...request,
+        status: 'อนุมัติแล้ว',
+        evaluator_email: email,
+        details: { ...(request.details || {}), evaluatorEmail: email, evaluatorName, evaluatorPosition }
+      });
+      setAcceptDialog({ open: false, evaluatorEmail: '', evaluatorName: '', evaluatorPosition: '', error: '' });
+      setFeedback({ message: 'ตอบรับนักศึกษาเข้าฝึกงานเรียบร้อยแล้ว และบันทึกอีเมลผู้ประเมินแล้ว', severity: 'success' });
     } catch (err) {
       setFeedback({ message: 'เกิดข้อผิดพลาด: ' + (err.response?.data?.message || err.message), severity: 'error' });
     } finally {
@@ -352,7 +387,7 @@ const PublicRequestPage = () => {
                   color="success"
                   size="large"
                   disabled={updating}
-                  onClick={handleAccept}
+                  onClick={handleAcceptOpen}
                   sx={{ minWidth: 160, fontWeight: 700, borderRadius: 2, padding: '12px 24px' }}
                 >
                   ตอบรับ
@@ -376,6 +411,58 @@ const PublicRequestPage = () => {
       </div>
 
       {/* Reject Reason Dialog */}
+      {/* ตอบรับนักศึกษา — ต้องระบุอีเมลผู้ประเมินเพื่อให้ระบบส่งแบบประเมินได้ */}
+      <Dialog
+        open={acceptDialog.open}
+        onClose={() => !updating && setAcceptDialog(prev => ({ ...prev, open: false }))}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>ตอบรับนักศึกษาเข้าฝึกงาน</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            กรุณาระบุ <strong>อีเมลผู้ประเมิน / พี่เลี้ยงฝึกงาน</strong> เพื่อให้ระบบส่งลิงก์แบบประเมินผลการฝึกงานให้โดยตรงเมื่ออาจารย์นิเทศงานเสร็จสิ้น
+          </Typography>
+          {acceptDialog.error && (
+            <Alert severity="error" sx={{ mb: 2 }}>{acceptDialog.error}</Alert>
+          )}
+          <TextField
+            fullWidth
+            required
+            type="email"
+            label="อีเมลผู้ประเมิน / พี่เลี้ยงฝึกงาน (สำหรับรับแบบประเมิน)"
+            value={acceptDialog.evaluatorEmail}
+            onChange={(e) => setAcceptDialog(prev => ({ ...prev, evaluatorEmail: e.target.value, error: '' }))}
+            placeholder="เช่น evaluator@company.com"
+            disabled={updating}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="ชื่อผู้ประเมิน (ไม่บังคับ)"
+            value={acceptDialog.evaluatorName}
+            onChange={(e) => setAcceptDialog(prev => ({ ...prev, evaluatorName: e.target.value }))}
+            disabled={updating}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="ตำแหน่งผู้ประเมิน (ไม่บังคับ)"
+            value={acceptDialog.evaluatorPosition}
+            onChange={(e) => setAcceptDialog(prev => ({ ...prev, evaluatorPosition: e.target.value }))}
+            disabled={updating}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAcceptDialog(prev => ({ ...prev, open: false }))} disabled={updating}>
+            ยกเลิก
+          </Button>
+          <Button variant="contained" onClick={handleAcceptConfirm} disabled={updating} sx={{ fontWeight: 700 }}>
+            {updating ? 'กำลังบันทึก...' : 'ยืนยันตอบรับ'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={rejectDialog.open} onClose={() => setRejectDialog({ open: false, reason: '' })} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontWeight: 700 }}>ปฏิเสธคำร้อง</DialogTitle>
         <DialogContent>

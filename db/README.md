@@ -6,6 +6,7 @@
 - `02-reference-data.sql` เพิ่มเฉพาะคณะและสาขาวิชาที่ระบบต้องใช้
 - `migrations/20260904-align-existing-schema.sql` ปรับฐานข้อมูล production เดิมให้มีคอลัมน์ที่ระบบปัจจุบันใช้
 - `migrations/20260916-add-department-head.sql` เพิ่ม `departments.department_head_id` สำหรับฟีเจอร์ประธานสาขาวิชา
+- `migrations/20260916-add-evaluator-email.sql` เพิ่ม `requests.evaluator_email` สำหรับส่งแบบประเมินให้สถานประกอบการ
 
 MySQL Docker image จะรันไฟล์ที่อยู่ในโฟลเดอร์นี้โดยตรงตามลำดับชื่อ เฉพาะตอนสร้าง data volume ครั้งแรกเท่านั้น
 และจะไม่ลงไปใน `migrations/` ไฟล์ใน `migrations/` จึงต้องรันเองเสมอ
@@ -21,6 +22,7 @@ mysql -ulascstudent -p lascstudent < db/01-schema.sql
 mysql -ulascstudent -p lascstudent < db/02-reference-data.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260904-align-existing-schema.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-department-head.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.sql
 ```
 
 ## ประธานสาขาวิชา (Department Head)
@@ -40,3 +42,16 @@ FROM `user` u
 LEFT JOIN `profile` p ON p.profile_id = u.username
 WHERE u.role = 'advisor' AND p.id IS NULL;
 ```
+
+## อีเมลผู้ประเมินจากสถานประกอบการ
+
+`requests.evaluator_email` เก็บอีเมลของพี่เลี้ยง/ผู้ประเมินฝั่งสถานประกอบการ
+ระบบจะส่งลิงก์แบบประเมินไปยังอีเมลนี้อัตโนมัติเมื่ออาจารย์บันทึกผลการนิเทศ
+
+- สถานประกอบการกรอกเองตอนตอบรับนักศึกษา (หน้า public request)
+- Admin และอาจารย์แก้ไขได้ภายหลัง ส่วนนักศึกษาแก้ไม่ได้
+- ชื่อและตำแหน่งผู้ประเมินเก็บใน `details.evaluatorName` / `details.evaluatorPosition`
+- migration จะย้ายค่าเดิมจาก `details.evaluatorEmail` และ `details.contactEmail` ขึ้นมาให้อัตโนมัติ
+
+ต้องตั้งค่า `SMTP_*` และ `COOP_PUBLIC_URL` ใน `.env` จึงจะส่งอีเมลจริง
+ถ้าไม่ตั้ง ระบบจะบันทึกผลนิเทศตามปกติแต่แจ้งว่ายังไม่ได้ส่งอีเมล และ log ลิงก์ไว้ใน console แทน
