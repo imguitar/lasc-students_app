@@ -2,3 +2,6 @@
 .env.production
 .DS_Store
 node_modules/
+
+# Separate development repositories maintained by other teams
+*_dev/
