@@ -1,9 +1,41 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const { authenticate } = require('../middlewares/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow } = require('../utils/helpers');
 const { sendEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
+
+// รอบการประเมินที่เปิดใช้งานอยู่ — ถ้ายังไม่เคยตั้งรอบไว้เลยจะได้ null (ไม่ปิดกั้นการประเมิน)
+const getActiveEvaluationRound = async () => {
+  try {
+    const [rounds] = await pool.query('SELECT * FROM evaluation_rounds WHERE isActive = 1 ORDER BY id DESC LIMIT 1');
+    return rounds[0] || null;
+  } catch (_) {
+    return null;
+  }
+};
+
+// ตรวจว่าวันนี้อยู่ในช่วงของรอบที่เปิดอยู่หรือไม่
+// คืน null = ประเมินได้, คืน object = ปิดอยู่พร้อมข้อความอธิบาย
+const checkEvaluationRoundClosed = async () => {
+  const round = await getActiveEvaluationRound();
+  if (!round) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(round.startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(round.endDate);
+  end.setHours(23, 59, 59, 999);
+
+  if (today >= start && today <= end) return null;
+
+  const fmt = (d) => new Date(d).toLocaleDateString('th-TH');
+  return {
+    round,
+    message: `ขณะนี้อยู่นอกช่วงเวลาการประเมิน (${round.title}: วันที่ ${fmt(round.startDate)} ถึง ${fmt(round.endDate)})`
+  };
+};
 
 // =============================================
 // Company Evaluations (Public & Analytics)
@@ -12,6 +44,11 @@ const { sendEvaluationEmail, buildEvaluationUrl } = require('../utils/emailServi
 // GET /api/public/evaluate/request/:id
 router.get('/public/evaluate/request/:id', async (req, res) => {
   try {
+    const closed = await checkEvaluationRoundClosed();
+    if (closed) {
+      return res.json({ success: true, evaluated: false, roundClosed: true, roundMessage: closed.message });
+    }
+
     const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
@@ -28,6 +65,12 @@ router.get('/public/evaluate/request/:id', async (req, res) => {
 // POST /api/public/evaluate/:requestId
 router.post('/public/evaluate/:requestId', async (req, res) => {
   try {
+    // ปิดกั้นที่ฝั่งเซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนหน้าจอ
+    const closed = await checkEvaluationRoundClosed();
+    if (closed) {
+      return res.status(403).json({ success: false, roundClosed: true, message: closed.message });
+    }
+
     const reqId = req.params.requestId;
     const {
       studentId, evaluatorName, evaluatorPosition, evaluatorDepartment,
@@ -256,6 +299,117 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
     }
 
     res.status(201).json({ success: true, message, emailSent, emailSimulated, recipientEmail });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// =============================================
+// Evaluation Rounds — รอบการประเมินสถานประกอบการ
+// =============================================
+
+// GET /api/evaluation-rounds — รายการรอบทั้งหมด
+router.get('/evaluation-rounds', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM evaluation_rounds ORDER BY id DESC');
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/evaluation-rounds/active — รอบที่เปิดใช้งานอยู่ พร้อมสถานะว่าอยู่ในช่วงเวลาหรือยัง
+router.get('/evaluation-rounds/active', async (req, res) => {
+  try {
+    const active = await getActiveEvaluationRound();
+    const closed = await checkEvaluationRoundClosed();
+    res.json({
+      success: true,
+      data: active,
+      isOpen: !closed,
+      roundMessage: closed ? closed.message : null
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/admin/evaluation-rounds — สร้างรอบใหม่
+router.post('/admin/evaluation-rounds', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { title, academicYear, semester, startDate, endDate, isActive } = req.body;
+    if (!title || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อรอบ วันที่เริ่มต้น และวันที่สิ้นสุด' });
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+      return res.status(400).json({ success: false, message: 'วันที่สิ้นสุดต้องไม่มาก่อนวันที่เริ่มต้น' });
+    }
+
+    // ค่าเริ่มต้นคือเปิดใช้งาน และเปิดได้ทีละรอบเท่านั้น
+    const willBeActive = isActive === undefined ? true : Boolean(isActive);
+    if (willBeActive) {
+      await pool.query('UPDATE evaluation_rounds SET isActive = 0');
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO evaluation_rounds (title, academicYear, semester, startDate, endDate, isActive)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [title, academicYear || null, semester || null, startDate, endDate, willBeActive ? 1 : 0]
+    );
+
+    const [newRow] = await pool.query('SELECT * FROM evaluation_rounds WHERE id = ?', [result.insertId]);
+    res.status(201).json({ success: true, message: 'สร้างรอบการประเมินสำเร็จ', data: newRow[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/admin/evaluation-rounds/:id — แก้ไขรอบ
+router.put('/admin/evaluation-rounds/:id', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { title, academicYear, semester, startDate, endDate, isActive } = req.body;
+    const [existing] = await pool.query('SELECT * FROM evaluation_rounds WHERE id = ?', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ success: false, message: 'ไม่พบรอบการประเมิน' });
+
+    const nextStart = startDate !== undefined ? startDate : existing[0].startDate;
+    const nextEnd = endDate !== undefined ? endDate : existing[0].endDate;
+    if (new Date(nextEnd) < new Date(nextStart)) {
+      return res.status(400).json({ success: false, message: 'วันที่สิ้นสุดต้องไม่มาก่อนวันที่เริ่มต้น' });
+    }
+
+    if (isActive) {
+      await pool.query('UPDATE evaluation_rounds SET isActive = 0 WHERE id != ?', [req.params.id]);
+    }
+
+    const updates = [];
+    const params = [];
+    if (title !== undefined) { updates.push('title = ?'); params.push(title); }
+    if (academicYear !== undefined) { updates.push('academicYear = ?'); params.push(academicYear || null); }
+    if (semester !== undefined) { updates.push('semester = ?'); params.push(semester || null); }
+    if (startDate !== undefined) { updates.push('startDate = ?'); params.push(startDate); }
+    if (endDate !== undefined) { updates.push('endDate = ?'); params.push(endDate); }
+    if (isActive !== undefined) { updates.push('isActive = ?'); params.push(isActive ? 1 : 0); }
+
+    if (updates.length > 0) {
+      params.push(req.params.id);
+      await pool.query(`UPDATE evaluation_rounds SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+
+    const [updated] = await pool.query('SELECT * FROM evaluation_rounds WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'อัปเดตรอบการประเมินสำเร็จ', data: updated[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/admin/evaluation-rounds/:id — ลบรอบ
+router.delete('/admin/evaluation-rounds/:id', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const [existing] = await pool.query('SELECT id FROM evaluation_rounds WHERE id = ?', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ success: false, message: 'ไม่พบรอบการประเมิน' });
+
+    await pool.query('DELETE FROM evaluation_rounds WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'ลบรอบการประเมินสำเร็จ' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

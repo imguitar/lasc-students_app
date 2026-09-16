@@ -45,11 +45,14 @@ const PublicEvaluationPage = () => {
   const [success, setSuccess] = useState(false);
   const sigCanvas = useRef({});
   const [signatureError, setSignatureError] = useState(false);
+  const [roundClosedMessage, setRoundClosedMessage] = useState('');
 
   useEffect(() => {
     api.get(`/public/evaluate/request/${id}`)
       .then((res) => {
-        if (res.data.evaluated) {
+        if (res.data.roundClosed) {
+          setRoundClosedMessage(res.data.roundMessage || 'ขณะนี้อยู่นอกรอบเวลาการประเมินนักศึกษา (กำหนดโดยผู้ดูแลระบบ)');
+        } else if (res.data.evaluated) {
           setEvaluated(true);
         } else if (res.data.data) {
           setRequestData(res.data.data);
@@ -110,6 +113,23 @@ const PublicEvaluationPage = () => {
   };
 
   if (loading) return <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>;
+  if (roundClosedMessage) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f7fa' }}>
+        <Paper elevation={0} sx={{ maxWidth: 550, mx: 'auto', p: 4, borderRadius: 2, border: '1px solid #bfdbfe', bgcolor: '#eff6ff' }}>
+          <Typography variant="h6" color="primary.main" fontWeight="bold" gutterBottom>
+            📅 ไม่อยู่ในรอบการประเมิน
+          </Typography>
+          <Typography variant="body1" color="text.primary" sx={{ mb: 2 }}>
+            {roundClosedMessage}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            กรุณาติดต่อผู้ดูแลระบบหรืออาจารย์ประจำสาขาวิชาเพื่อสอบถามข้อมูลเพิ่มเติม
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
   if (evaluated) return <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f7fa' }}><Alert severity="info" sx={{ maxWidth: 500, mx: 'auto' }}>นักศึกษาคนนี้ได้รับการประเมินเรียบร้อยแล้ว ขอบคุณครับ</Alert></Box>;
   if (error && !success) return <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f7fa' }}><Alert severity="error" sx={{ maxWidth: 500, mx: 'auto' }}>{error}</Alert></Box>;
   if (success) return <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f7fa' }}><Alert severity="success" sx={{ maxWidth: 500, mx: 'auto' }}>บันทึกผลการประเมินสำเร็จ ขอบคุณที่ให้ความร่วมมือครับ</Alert></Box>;

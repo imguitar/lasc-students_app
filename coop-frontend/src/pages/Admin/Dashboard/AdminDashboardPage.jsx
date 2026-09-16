@@ -42,8 +42,10 @@ import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
+import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
 
 const AdminDashboardPage = () => {
+  const [evalRoundsModalOpen, setEvalRoundsModalOpen] = useState(false);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [adminName, setAdminName] = useState('');
@@ -595,11 +597,18 @@ const AdminDashboardPage = () => {
       />
 
       <main className="admin-main">
-        <header className="admin-header">
+        <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1>ระบบจัดการคำร้องฝึกงาน</h1>
             <p>จัดการและอนุมัติคำร้องของนักศึกษา</p>
           </div>
+          <Button
+            variant="contained"
+            onClick={() => setEvalRoundsModalOpen(true)}
+            sx={{ bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' }, fontWeight: 600, borderRadius: 2, px: 2.5, py: 1 }}
+          >
+            📅 กำหนดรอบการประเมิน นศ.
+          </Button>
         </header>
 
         <Box
@@ -1424,6 +1433,12 @@ const AdminDashboardPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* จัดการรอบการประเมินสถานประกอบการ */}
+      <AdminEvaluationRoundsModal
+        open={evalRoundsModalOpen}
+        onClose={() => setEvalRoundsModalOpen(false)}
+      />
     </div>
   );
 };

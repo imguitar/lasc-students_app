@@ -7,6 +7,7 @@
 - `migrations/20260904-align-existing-schema.sql` ปรับฐานข้อมูล production เดิมให้มีคอลัมน์ที่ระบบปัจจุบันใช้
 - `migrations/20260916-add-department-head.sql` เพิ่ม `departments.department_head_id` สำหรับฟีเจอร์ประธานสาขาวิชา
 - `migrations/20260916-add-evaluator-email.sql` เพิ่ม `requests.evaluator_email` สำหรับส่งแบบประเมินให้สถานประกอบการ
+- `migrations/20260916-add-evaluation-rounds.sql` เพิ่มตาราง `evaluation_rounds` สำหรับกำหนดช่วงเวลาเปิดประเมิน
 
 MySQL Docker image จะรันไฟล์ที่อยู่ในโฟลเดอร์นี้โดยตรงตามลำดับชื่อ เฉพาะตอนสร้าง data volume ครั้งแรกเท่านั้น
 และจะไม่ลงไปใน `migrations/` ไฟล์ใน `migrations/` จึงต้องรันเองเสมอ
@@ -23,6 +24,7 @@ mysql -ulascstudent -p lascstudent < db/02-reference-data.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260904-align-existing-schema.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-department-head.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluation-rounds.sql
 ```
 
 ## ประธานสาขาวิชา (Department Head)
@@ -58,3 +60,11 @@ WHERE u.role = 'advisor' AND p.id IS NULL;
 
 ต้องตั้งค่า `SMTP_*` และ `COOP_PUBLIC_URL` ใน `.env` จึงจะส่งอีเมลจริง
 ถ้าไม่ตั้ง ระบบจะบันทึกผลนิเทศตามปกติแต่แจ้งว่ายังไม่ได้ส่งอีเมล และ log ลิงก์ไว้ใน console แทน
+
+## รอบการประเมิน (Evaluation Rounds)
+
+`evaluation_rounds` กำหนดช่วงเวลาที่เปิดให้สถานประกอบการทำแบบประเมิน
+เปิดใช้งานได้ทีละรอบเท่านั้น (`isActive`) และถ้ายังไม่เคยสร้างรอบไว้เลย ระบบจะไม่ปิดกั้นการประเมิน
+
+นอกช่วงเวลาของรอบที่เปิดอยู่ ระบบจะปิดทั้งการเปิดหน้าแบบประเมินและการบันทึกผล
+โดยตรวจที่ฝั่งเซิร์ฟเวอร์ทั้งสองทาง ไม่ใช่แค่ซ่อนหน้าจอ
