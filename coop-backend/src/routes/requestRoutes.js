@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middlewares/auth');
-const { parseRequestRow } = require('../utils/helpers');
+const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
 
 // Helper to handle single request fetching
 const handleGetSingleRequest = async (req, res) => {
@@ -255,18 +255,40 @@ router.patch('/:id/internship-period', authenticate, async (req, res) => {
   }
 });
 
-// PATCH /api/requests/:id/appointment
+// PATCH /api/requests/:id/appointment — กำหนดอาจารย์นิเทศและวันนิเทศ
+// เฉพาะ admin หรืออาจารย์ที่เป็นประธานสาขาวิชาเท่านั้น
 router.patch('/:id/appointment', authenticate, async (req, res) => {
   try {
+    // อ่านสิทธิ์จากฐานข้อมูลทุกครั้ง ไม่เชื่อค่าใน JWT เพราะประธานสาขาเปลี่ยนได้จากระบบ Profile
+    const [uRows] = await pool.query(`${USER_SELECT_SQL} WHERE u.id = ? GROUP BY u.id`, [req.user.id]);
+    const currentUser = uRows[0];
+    if (!currentUser) {
+      return res.status(401).json({ success: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    const isHead = currentUser.role === 'admin'
+      || (currentUser.role === 'advisor' && Boolean(currentUser.isDepartmentHead));
+
+    if (!isHead) {
+      return res.status(403).json({
+        success: false,
+        message: 'เฉพาะประธานสาขาวิชาเท่านั้นที่มีสิทธิ์กำหนดรายชื่ออาจารย์นิเทศและวันนิเทศก์'
+      });
+    }
+
     const body = req.body || {};
     const appointmentObj = body.supervisionAppointment || body;
-    const apptStr = typeof appointmentObj === 'object' ? JSON.stringify(appointmentObj) : (appointmentObj || null);
+    const appointmentData = (appointmentObj && typeof appointmentObj === 'object') ? { ...appointmentObj } : {};
+    // บันทึกไว้ว่าใครเป็นคนกำหนดและกำหนดเมื่อไร
+    appointmentData.assignedBy = currentUser.username;
+    appointmentData.assignedAt = new Date().toISOString();
+    const apptStr = JSON.stringify(appointmentData);
 
     await pool.query('UPDATE requests SET supervisionAppointment = ? WHERE id = ?', [apptStr, req.params.id]);
     const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
     if (!updated[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
-    res.json({ success: true, message: 'บันทึกวันนัดหมายสำเร็จ', data: parseRequestRow(updated[0]) });
+    res.json({ success: true, message: 'บันทึกวันนัดหมายและอาจารย์นิเทศสำเร็จ', data: parseRequestRow(updated[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

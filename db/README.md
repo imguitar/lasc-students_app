@@ -31,7 +31,10 @@ mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.
 
 - ระบบ Profile เขียนค่าผ่าน `PUT /api/departments/:id/head`
 - ระบบ Coop อ่านอย่างเดียว โดย join `user.username = profile.profile_id` แล้วต่อไปยัง `departments.department_head_id`
+  (อยู่ใน `USER_SELECT_SQL` ของ `coop-backend/src/utils/helpers.js` จึงส่งออกมาเป็น `isDepartmentHead` ทุก endpoint ที่ใช้ SQL นี้)
 - จงใจไม่เพิ่มคอลัมน์ `user.isDepartmentHead` เพื่อไม่ให้มีแหล่งความจริงซ้อนกันสองที่
+- สิทธิ์กำหนดอาจารย์นิเทศ (`PATCH /api/requests/:id/appointment` ของ Coop) ตรวจจากฐานข้อมูลทุกครั้ง
+  ไม่เก็บไว้ใน JWT เพื่อให้เปลี่ยนประธานแล้วสิทธิ์เปลี่ยนทันทีโดยไม่ต้อง login ใหม่
 
 หนึ่งสาขามีประธานได้คนเดียว และผู้ที่จะเป็นประธานต้องมีแถวใน `profile`
 ตรวจอาจารย์ที่ยังไม่มี profile ได้ด้วย:

@@ -376,10 +376,13 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  const getRoleBadge = (role) => {
+  // ประธานสาขาแสดงผลอย่างเดียว — แต่งตั้งได้ที่หน้า "ข้อมูลสาขาวิชา" ของระบบฐานข้อมูลนักศึกษาเท่านั้น
+  const getRoleBadge = (role, isDeptHead = false) => {
     switch (role) {
       case 'admin': return <span className="status-badge" style={{ background: '#805ad5', color: 'white' }}>ผู้ดูแลระบบ</span>;
-      case 'advisor': return <span className="status-badge" style={{ background: '#3182ce', color: 'white' }}>อาจารย์</span>;
+      case 'advisor': return isDeptHead
+        ? <span className="status-badge" style={{ background: '#d97706', color: 'white', fontWeight: 700 }} title="แต่งตั้งจากระบบฐานข้อมูลนักศึกษา">👑 ประธานสาขา</span>
+        : <span className="status-badge" style={{ background: '#3182ce', color: 'white' }}>อาจารย์</span>;
       case 'student': return <span className="status-badge" style={{ background: '#38a169', color: 'white' }}>นักศึกษา</span>;
       default: return <span className="status-badge">{role}</span>;
     }
@@ -659,7 +662,7 @@ const AdminUserManagementPage = () => {
                       </TableCell>
                       <TableCell>{user.username || user.email}</TableCell>
                       <TableCell>{user.name || user.full_name}</TableCell>
-                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>{getRoleBadge(user.role, user.isDepartmentHead)}</TableCell>
                       <TableCell>
                         {user.role === 'student' && user.studentId && <div>รหัส: {user.studentId}</div>}
                         {user.department && <div style={{ fontSize: '0.85em', color: '#666' }}>สาขา: {user.department}</div>}

@@ -52,6 +52,9 @@ const toFrontendUser = (row) => {
     avatar:        row.avatar || null,
     isActive:      row.isActive,
     is_active:     row.isActive,
+    // ประธานสาขาอ่านจาก departments.department_head_id ของระบบ Profile (ไม่มีคอลัมน์ในตาราง user)
+    isDepartmentHead: Boolean(row.isDepartmentHead),
+    headOfDepartment: row.headOfDepartment || null,
     createdAt:     row.createdAt,
     updatedAt:     row.updatedAt,
   };
@@ -65,9 +68,12 @@ const USER_SELECT_SQL = `
          MAX(p.faculty_id) AS faculty_id, 
          MAX(p.department_id) AS department_id, 
          MAX(p.address) AS profile_address,
-         MAX(p.phone) AS profile_phone
+         MAX(p.phone) AS profile_phone,
+         MAX(dh.id) IS NOT NULL AS isDepartmentHead,
+         MAX(dh.department_name) AS headOfDepartment
   FROM \`user\` u
   LEFT JOIN \`profile\` p ON (p.profile_id = u.username OR p.profile_id = u.email OR (u.studentId IS NOT NULL AND u.studentId != '' AND p.profile_id = u.studentId))
+  LEFT JOIN \`departments\` dh ON dh.department_head_id = p.id
 `;
 
 const parseRequestRow = (row) => {

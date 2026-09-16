@@ -37,6 +37,8 @@ const AdvisorSupervisionPage = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [advisorName, setAdvisorName] = useState('');
     const [advisorDept, setAdvisorDept] = useState('');
+    const [isDepartmentHead, setIsDepartmentHead] = useState(false);
+    const [departmentAdvisors, setDepartmentAdvisors] = useState([]);
     const [supervisionRows, setSupervisionRows] = useState([]);
     const [appointmentDialog, setAppointmentDialog] = useState({
         open: false,
@@ -120,7 +122,26 @@ const AdvisorSupervisionPage = () => {
         const dept = user.department || user.major || '';
         setAdvisorName(user.name || user.full_name || 'อาจารย์ที่ปรึกษา');
         setAdvisorDept(dept);
+        setIsDepartmentHead(Boolean(user.isDepartmentHead));
         loadSupervisionRows(dept);
+
+        // ประธานสาขาเปลี่ยนได้จากระบบฐานข้อมูลนักศึกษา ค่าใน localStorage จึงอาจเก่า
+        // ดึงค่าล่าสุดจากเซิร์ฟเวอร์ทับเสมอ
+        api.get('/auth/me')
+            .then((res) => {
+                const fresh = res.data?.user;
+                if (fresh) setIsDepartmentHead(Boolean(fresh.isDepartmentHead));
+            })
+            .catch(() => {});
+
+        // รายชื่ออาจารย์ในสาขาเดียวกัน สำหรับให้ประธานสาขาเลือกผู้นิเทศ
+        api.get('/users?role=advisor')
+            .then((res) => {
+                const list = res.data?.data || [];
+                const matched = dept ? list.filter((a) => a.department === dept) : list;
+                setDepartmentAdvisors(matched.length > 0 ? matched : list);
+            })
+            .catch(() => {});
     }, [navigate]);
 
     const persistRequests = (updater) => {
@@ -299,6 +320,11 @@ const AdvisorSupervisionPage = () => {
                                                 <TableCell>
                                                     <Stack spacing={0.3}>
                                                         <Typography variant="body2">{appointmentText}</Typography>
+                                                        {request.supervisionAppointment?.advisorName && (
+                                                            <Typography variant="caption" sx={{ color: '#0284c7', fontWeight: 600, display: 'block' }}>
+                                                                ผู้นิเทศ: {request.supervisionAppointment.advisorName}
+                                                            </Typography>
+                                                        )}
                                                         {request.supervisionAppointment?.note && (
                                                             <Typography variant="caption" color="text.secondary">
                                                                 หมายเหตุ: {request.supervisionAppointment.note}
@@ -308,14 +334,20 @@ const AdvisorSupervisionPage = () => {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                                        {request.supervisionAppointment?.date ? (
-                                                            <Button size="small" variant="outlined" color="info" onClick={() => openAppointmentDialog(request)}>
-                                                                แก้ไขวันนัด
-                                                            </Button>
+                                                        {isDepartmentHead ? (
+                                                            request.supervisionAppointment?.date ? (
+                                                                <Button size="small" variant="outlined" color="info" onClick={() => openAppointmentDialog(request)}>
+                                                                    แก้ไขวันนัด/อาจารย์
+                                                                </Button>
+                                                            ) : (
+                                                                <Button size="small" variant="outlined" onClick={() => openAppointmentDialog(request)}>
+                                                                    กำหนดวัน/อาจารย์
+                                                                </Button>
+                                                            )
                                                         ) : (
-                                                            <Button size="small" variant="outlined" onClick={() => openAppointmentDialog(request)}>
-                                                                กำหนดวันนิเทศ
-                                                            </Button>
+                                                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '4px' }}>
+                                                                (กำหนดโดยประธานสาขา)
+                                                            </span>
                                                         )}
                                                         <Button 
                                                             size="small" 
@@ -347,6 +379,27 @@ const AdvisorSupervisionPage = () => {
                 <DialogTitle>กำหนดวันนิเทศ</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
+                        <TextField
+                            select
+                            fullWidth
+                            label="อาจารย์ผู้รับผิดชอบนิเทศ (กำหนดโดยประธานสาขาวิชา)"
+                            value={appointmentDialog.advisorName}
+                            onChange={(event) => {
+                                const selectedName = event.target.value;
+                                const found = departmentAdvisors.find((a) => a.name === selectedName || a.username === selectedName);
+                                setAppointmentDialog((prev) => ({
+                                    ...prev,
+                                    advisorName: selectedName,
+                                    advisorId: found ? found.id : ''
+                                }));
+                            }}
+                        >
+                            {departmentAdvisors.map((adv) => (
+                                <MenuItem key={adv.id} value={adv.name || adv.username}>
+                                    {adv.name || adv.username} {adv.isDepartmentHead ? '👑 (ประธานสาขา)' : ''}
+                                </MenuItem>
+                            ))}
+                        </TextField>
                         <TextField
                             fullWidth
                             type="date"
