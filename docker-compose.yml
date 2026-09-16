@@ -83,6 +83,7 @@ services:
       # Prisma ต้องใช้รหัสผ่านที่ URL-encode แล้ว (! = %21)
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD_URLENCODED}@mysql:3306/${MYSQL_DATABASE}
       JWT_SECRET: ${PROFILE_JWT_SECRET}
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
       CHOKIDAR_USEPOLLING: "true"
@@ -103,6 +104,8 @@ services:
       - profile-backend
     environment:
       VITE_API_URL: ${PROFILE_API_URL}
+      # ปลายทางของเมนู "ระบบศูนย์ฝึกประสบการณ์"
+      VITE_COOP_URL: ${COOP_PUBLIC_URL}
       # ใช้เมื่อเรียกผ่าน vite proxy (/api) ภายใน network ของ docker
       VITE_PROXY_TARGET: http://profile-backend:5000
       CHOKIDAR_USEPOLLING: "true"
@@ -134,6 +137,7 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE}
       JWT_SECRET: ${COOP_JWT_SECRET}
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
       COOP_PUBLIC_URL: ${COOP_PUBLIC_URL:-http://localhost:5173/coop}

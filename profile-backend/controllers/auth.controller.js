@@ -1,6 +1,11 @@
 const prisma = require('../prismaClient');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+// ตั๋ว SSO ไปยังระบบศูนย์ฝึก — อายุสั้นพอให้ redirect ทัน แต่สั้นพอที่จะไม่เป็นภาระถ้าหลุด
+const SSO_TICKET_PURPOSE = 'coop-sso';
+const SSO_TICKET_TTL_SECONDS = 60;
 
 // ประธานสาขาวิชาอ่านจาก departments.department_head_id (แหล่งความจริงเดียวของทั้งระบบ)
 const findHeadDepartment = async (profile) => {
@@ -162,6 +167,57 @@ exports.login = async (req, res) => {
       success: false, 
       message: 'Error logging in',
       error: error.message 
+    });
+  }
+};
+
+// @desc    ออกตั๋วชั่วคราวสำหรับเข้าระบบศูนย์ฝึกโดยไม่ต้อง login ใหม่
+// @route   POST /api/auth/sso-ticket
+// @access  Private (ทุก role)
+//
+// ตั๋วนี้ไม่ใช่ session token — อายุสั้นมากและใช้ได้ครั้งเดียว
+// ระบบศูนย์ฝึกจะเอาไปแลกเป็น token ของตัวเองผ่าน POST /api/auth/sso
+exports.createSsoTicket = async (req, res) => {
+  try {
+    const secret = process.env.SSO_SHARED_SECRET;
+    if (!secret) {
+      return res.status(503).json({
+        success: false,
+        message: 'ยังไม่ได้ตั้งค่า SSO_SHARED_SECRET จึงยังเชื่อมระบบศูนย์ฝึกไม่ได้'
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { id: true, username: true, role: true, isActive: true }
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, message: 'บัญชีนี้ถูกระงับการใช้งาน' });
+    }
+
+    const ticket = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        purpose: SSO_TICKET_PURPOSE,
+        jti: crypto.randomUUID()
+      },
+      secret,
+      { expiresIn: SSO_TICKET_TTL_SECONDS }
+    );
+
+    res.json({
+      success: true,
+      data: { ticket, expiresIn: SSO_TICKET_TTL_SECONDS }
+    });
+  } catch (error) {
+    console.error('Error creating SSO ticket:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถออกตั๋วเข้าระบบศูนย์ฝึกได้',
+      error: error.message
     });
   }
 };

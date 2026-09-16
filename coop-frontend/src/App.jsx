@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/Home/HomePage';
 import LoginPage from './pages/LoginPage';
+import SsoLandingPage from './pages/SsoLandingPage';
 import DashboardPage from './pages/Student/Dashboard/DashboardPage';
 import ProfilePage from './pages/Student/Dashboard/ProfilePage';
 import MyRequestsPage from './pages/Student/Dashboard/MyRequestsPage';
@@ -35,6 +36,8 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        {/* ปลายทาง SSO จากระบบฐานข้อมูลนักศึกษา */}
+        <Route path="/sso" element={<SsoLandingPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/dashboard/profile" element={<ProfilePage />} />
         <Route path="/dashboard/new-request" element={<NewRequestPage />} />

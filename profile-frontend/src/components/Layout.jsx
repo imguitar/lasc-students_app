@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { coopSsoService } from '../services';
 import { Button } from '../components/ui/button';
 import {
   LayoutDashboard,
@@ -10,6 +11,8 @@ import {
   UserCircle,
   Briefcase,
   Building2,
+  Building,
+  ExternalLink,
   LogOut,
   Menu,
   X,
@@ -21,6 +24,23 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [openingCoop, setOpeningCoop] = React.useState(false);
+  const [coopError, setCoopError] = React.useState('');
+
+  // เปิดระบบศูนย์ฝึกโดยไม่ต้องล็อกอินใหม่ — ขอตั๋วอายุสั้นจาก backend ก่อนแล้วค่อยพาไป
+  const handleOpenCoop = async () => {
+    setCoopError('');
+    setOpeningCoop(true);
+    try {
+      const url = await coopSsoService.openCoopSystem();
+      setSidebarOpen(false);
+      window.location.assign(url);
+    } catch (error) {
+      setCoopError(error.response?.data?.message || error.message || 'ไม่สามารถเปิดระบบศูนย์ฝึกได้');
+    } finally {
+      setOpeningCoop(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -162,6 +182,28 @@ const Layout = () => {
                 </Link>
               );
             })}
+
+            {/* ข้ามไปยังระบบศูนย์ฝึก โดยใช้สิทธิ์เดิมที่ล็อกอินไว้แล้ว */}
+            <div className="pt-3 mt-3 border-t border-purple-100/60">
+              <div className="px-3 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                ระบบอื่น
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenCoop}
+                disabled={openingCoop}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group text-purple-950/80 hover:text-purple-700 hover:bg-purple-100/30 disabled:opacity-60 disabled:cursor-wait"
+              >
+                <Building size={18} className="text-purple-950/60 group-hover:text-purple-700 transition-transform duration-200 group-hover:scale-110" />
+                <span className="text-sm text-left flex-1">
+                  {openingCoop ? 'กำลังเปิดระบบ...' : 'ระบบศูนย์ฝึกประสบการณ์'}
+                </span>
+                <ExternalLink size={14} className="text-purple-950/40 group-hover:text-purple-700" />
+              </button>
+              {coopError && (
+                <p className="px-4 pt-1 text-xs text-rose-600">{coopError}</p>
+              )}
+            </div>
           </nav>
         </aside>
 

@@ -316,3 +316,16 @@ export const advisorService = {
 
 export { departmentService } from './department.service';
 export { facultyService } from './faculty.service';
+
+// เข้าระบบศูนย์ฝึกประสบการณ์โดยไม่ต้องล็อกอินใหม่
+export const coopSsoService = {
+  // ขอตั๋วอายุสั้นจากระบบนี้ แล้วเปิดระบบศูนย์ฝึกพร้อมตั๋ว
+  openCoopSystem: async () => {
+    const response = await api.post('/auth/sso-ticket');
+    const ticket = response.data?.data?.ticket;
+    if (!ticket) throw new Error('ไม่ได้รับตั๋วเข้าใช้งานจากเซิร์ฟเวอร์');
+
+    const base = (import.meta.env.VITE_COOP_URL || 'http://localhost:5173/coop').replace(/\/+$/, '');
+    return `${base}/sso?ticket=${encodeURIComponent(ticket)}`;
+  }
+};
