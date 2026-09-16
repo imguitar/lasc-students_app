@@ -2,6 +2,8 @@
 -- Run 01-schema.sql first so any entirely missing tables are created.
 
 USE `lascstudent`;
+-- จำเป็นสำหรับข้อความภาษาไทย: ถ้า client ต่อมาด้วย charset อื่นจะถูกเข้ารหัสซ้อน
+SET NAMES utf8mb4;
 
 DROP PROCEDURE IF EXISTS `add_column_if_missing`;
 

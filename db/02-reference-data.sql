@@ -1,6 +1,8 @@
 -- Required reference data only. No accounts or personal data belong here.
 
 USE `lascstudent`;
+-- จำเป็นสำหรับข้อความภาษาไทย: ถ้า client ต่อมาด้วย charset อื่นจะถูกเข้ารหัสซ้อน
+SET NAMES utf8mb4;
 
 INSERT INTO `faculties` (`id`, `faculty_name`) VALUES
   (1, 'คณะศิลปศาสตร์และวิทยาศาสตร์')
