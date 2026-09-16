@@ -41,6 +41,11 @@ const Students = () => {
   const [promoting, setPromoting] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [promoteForm, setPromoteForm] = useState({
+    graduation_year: '',
+    graduation_batch: '',
+    graduation_date: ''
+  });
 
   // Form states
   const [form, setForm] = useState({
@@ -255,6 +260,13 @@ const Students = () => {
 
   const handleOpenPromote = (student) => {
     setPromoteStudent(student);
+    const currentThaiYear = new Date().getFullYear() + 543;
+    setPromoteForm({
+      graduation_year: currentThaiYear.toString(),
+      graduation_batch: `1/${currentThaiYear}`,
+      graduation_date: '',
+      email: student.email || `${student.student_id || student.profile_id}@alumni.sskru.ac.th`
+    });
     setIsPromoteOpen(true);
   };
 
@@ -262,11 +274,17 @@ const Students = () => {
     if (!promoteStudent) return;
     setPromoting(true);
     try {
-      const response = await api.post(`/students/${promoteStudent.id}/promote`);
+      const payload = {
+        graduation_year: parseInt(promoteForm.graduation_year) || new Date().getFullYear() + 543,
+        graduation_batch: promoteForm.graduation_batch || null,
+        graduation_date: promoteForm.graduation_date || null,
+        email: promoteForm.email?.trim() || null
+      };
+      const response = await api.post(`/students/${promoteStudent.id}/promote`, payload);
       if (response.data.success) {
         toast({
           title: "อัปเดตเป็นศิษย์เก่าสำเร็จ",
-          description: `เปลี่ยนสถานะคุณ ${promoteStudent.first_name} ${promoteStudent.last_name} เป็นศิษย์เก่าและสร้างประวัติเรียบร้อยแล้ว`
+          description: `เปลี่ยนสถานะคุณ ${promoteStudent.first_name} ${promoteStudent.last_name} เป็นศิษย์เก่าเรียบร้อยแล้ว`
         });
         setIsPromoteOpen(false);
         fetchStudents();
@@ -922,7 +940,7 @@ const Students = () => {
 
       {/* Promote to Alumni Confirmation Dialog */}
       <Dialog open={isPromoteOpen} onOpenChange={setIsPromoteOpen}>
-        <DialogContent className="sm:max-w-md bg-white rounded-2xl p-6 shadow-xl border border-purple-100/50">
+        <DialogContent className="sm:max-w-lg bg-white rounded-2xl p-6 shadow-xl border border-purple-100/50">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <GraduationCap className="text-purple-600 h-6 w-6" />
@@ -932,6 +950,54 @@ const Students = () => {
               คุณต้องการเปลี่ยนสถานะของนักศึกษา <strong>{promoteStudent?.first_name} {promoteStudent?.last_name} ({promoteStudent?.student_id})</strong> เป็นสำเร็จการศึกษา (Graduated) และสร้างประวัติเข้าสู่ทำเนียบศิษย์เก่าโดยอัตโนมัติใช่หรือไม่?
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-4 pt-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-gray-700 text-xs font-semibold">ปีที่สำเร็จการศึกษา (พ.ศ.) *</Label>
+                <Input
+                  type="number"
+                  placeholder="เช่น 2569"
+                  value={promoteForm.graduation_year}
+                  onChange={(e) => setPromoteForm({...promoteForm, graduation_year: e.target.value})}
+                  className="border-purple-100 rounded-xl focus:ring-purple-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-gray-700 text-xs font-semibold">รอบจบ / รุ่น</Label>
+                <Input
+                  type="text"
+                  placeholder="เช่น 1/2569"
+                  value={promoteForm.graduation_batch}
+                  onChange={(e) => setPromoteForm({...promoteForm, graduation_batch: e.target.value})}
+                  className="border-purple-100 rounded-xl focus:ring-purple-500"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-gray-700 text-xs font-semibold">วันที่สำเร็จการศึกษา</Label>
+              <Input
+                type="date"
+                value={promoteForm.graduation_date}
+                onChange={(e) => setPromoteForm({...promoteForm, graduation_date: e.target.value})}
+                className="border-purple-100 rounded-xl focus:ring-purple-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-gray-700 text-xs font-semibold">อีเมลสำหรับบัญชีศิษย์เก่า</Label>
+              <Input
+                type="email"
+                placeholder="เช่น student@alumni.sskru.ac.th"
+                value={promoteForm.email || ''}
+                onChange={(e) => setPromoteForm({...promoteForm, email: e.target.value})}
+                className="border-purple-100 rounded-xl focus:ring-purple-500"
+              />
+              <p className="text-[11px] text-gray-500">
+                หากปล่อยว่าง ระบบจะใช้อีเมลเดิมหรือสร้างให้อัตโนมัติ (เช่น {promoteStudent?.student_id || promoteStudent?.profile_id}@alumni.sskru.ac.th)
+              </p>
+            </div>
+          </div>
+
           <DialogFooter className="pt-4 gap-2">
             <Button
               type="button"

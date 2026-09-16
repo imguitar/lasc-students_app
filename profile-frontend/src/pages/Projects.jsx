@@ -14,6 +14,26 @@ import {
 } from '../components/ui/dialog';
 import { Card } from '../components/ui/card';
 
+export const PROJECT_STATUSES = [
+  { value: 'draft', label: 'แบบร่าง', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+  { value: 'approved', label: 'อนุมัติหัวข้อแล้ว', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { value: 'in_progress', label: 'กำลังดำเนินการ', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { value: 'waiting_defense', label: 'รอสอบความก้าวหน้า/สอบจบ', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  { value: 'passed_defense', label: 'ผ่านการสอบแล้ว', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  { value: 'completed', label: 'เสร็จสมบูรณ์', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+];
+
+export const getStatusBadge = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'draft') return { label: 'แบบร่าง', className: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (s === 'approved') return { label: 'อนุมัติหัวข้อแล้ว', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+  if (s === 'in_progress') return { label: 'กำลังดำเนินการ', className: 'bg-amber-50 text-amber-700 border-amber-200' };
+  if (s === 'waiting_defense') return { label: 'รอสอบความก้าวหน้า/สอบจบ', className: 'bg-purple-50 text-purple-700 border-purple-200' };
+  if (s === 'passed_defense') return { label: 'ผ่านการสอบแล้ว', className: 'bg-teal-50 text-teal-700 border-teal-200' };
+  if (s === 'completed') return { label: 'เสร็จสมบูรณ์', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  return { label: status || 'แบบร่าง', className: 'bg-gray-100 text-gray-700 border-gray-200' };
+};
+
 const Projects = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -429,6 +449,28 @@ const Projects = () => {
     setIsDetailsOpen(true);
   };
 
+  const handleUpdateStatus = async (projectId, newStatus) => {
+    try {
+      const res = await projectService.updateStatus(projectId, newStatus);
+      if (res.success) {
+        toast({
+          title: "ปรับปรุงสถานะสำเร็จ",
+          description: `เปลี่ยนสถานะโครงงานเป็น "${getStatusBadge(newStatus).label}" เรียบร้อยแล้ว`
+        });
+        if (selectedProjectForDetails && selectedProjectForDetails.id === projectId) {
+          setSelectedProjectForDetails(prev => ({ ...prev, status: newStatus }));
+        }
+        fetchProjects();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.response?.data?.message || "ไม่สามารถเปลี่ยนสถานะโครงงานได้"
+      });
+    }
+  };
+
   // Export Projects
   const handleExport = async (format) => {
     try {
@@ -535,7 +577,7 @@ const Projects = () => {
           </Button>
         </form>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
           {/* Faculty Filter */}
           <div className="space-y-1">
             <Label className="text-gray-500 text-xs font-semibold">คณะ</Label>
@@ -567,6 +609,21 @@ const Projects = () => {
             </select>
           </div>
 
+          {/* Year Filter */}
+          <div className="space-y-1">
+            <Label className="text-gray-500 text-xs font-semibold">ปีการศึกษา (พ.ศ.)</Label>
+            <select
+              value={filters.year}
+              onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+              className="flex h-10 w-full rounded-xl border border-purple-100/80 bg-white/50 px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            >
+              <option value="">ทั้งหมด</option>
+              {[2569, 2568, 2567, 2566, 2565, 2564].map((yr) => (
+                <option key={yr} value={yr}>พ.ศ. {yr}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Status Filter */}
           <div className="space-y-1">
             <Label className="text-gray-500 text-xs font-semibold">สถานะโครงงาน</Label>
@@ -575,15 +632,15 @@ const Projects = () => {
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               className="flex h-10 w-full rounded-xl border border-purple-100/80 bg-white/50 px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
-              <option value="">ทั้งหมด</option>
-              <option value="Draft">ร่าง (Draft)</option>
-              <option value="Approved">อนุมัติ (Approved)</option>
-              <option value="Completed">เสร็จสมบูรณ์ (Completed)</option>
+              <option value="">ทุกสถานะ</option>
+              {PROJECT_STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
             </select>
           </div>
         </div>
 
-        {(filters.faculty || filters.department || filters.status || filters.has_award || search) && (
+        {(filters.faculty || filters.department || filters.year || filters.status || filters.has_award || search) && (
           <div className="flex justify-end pt-1">
             <Button
               onClick={handleClearFilters}
@@ -597,13 +654,7 @@ const Projects = () => {
       </div>
 
       {/* Grid gallery of Projects */}
-      {!(filters.faculty && filters.department) && !search ? (
-        <div className="text-center py-20 bg-white border border-purple-100/30 rounded-2xl text-gray-400 shadow-sm">
-          <Search size={40} className="mx-auto text-purple-200 mb-3" />
-          <p className="text-base font-bold text-gray-600">กรุณาเลือกข้อมูลให้ครบถ้วน</p>
-          <p className="text-xs text-gray-400 mt-1">โปรดเลือกลำดับจาก คณะ &gt; สาขาวิชา เพื่อแสดงรายชื่อโปรเจค (หรือใช้ช่องค้นหา)</p>
-        </div>
-      ) : loading ? (
+      {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-4">
           <div className="w-10 h-10 rounded-full border-4 border-purple-100 border-t-purple-600 animate-spin" />
           <span className="text-gray-400 text-xs font-medium animate-pulse">กำลังโหลดผลงานโปรเจคจบ...</span>
@@ -634,17 +685,14 @@ const Projects = () => {
                   );
                 })()}
                 <div className="absolute top-3 right-3 z-10">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                    project.status === 'Completed'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      : project.status === 'Approved'
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                        : 'bg-gray-50 text-gray-600 border-gray-100'
-                  }`}>
-                    {project.status === 'Completed' && 'เสร็จสมบูรณ์'}
-                    {project.status === 'Approved' && 'อนุมัติแล้ว'}
-                    {project.status === 'Draft' && 'แบบร่าง'}
-                  </span>
+                  {(() => {
+                    const badge = getStatusBadge(project.status);
+                    return (
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg w-max border border-purple-100/20">
@@ -1039,9 +1087,9 @@ const Projects = () => {
                   onChange={handleFormChange}
                   className="flex h-10 w-full rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs focus-visible:outline-none"
                 >
-                  <option value="Draft">แบบร่าง (Draft)</option>
-                  <option value="Approved">อนุมัติแล้ว (Approved)</option>
-                  <option value="Completed">เสร็จสมบูรณ์ (Completed)</option>
+                  {PROJECT_STATUSES.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -1130,19 +1178,16 @@ const Projects = () => {
             <div className="space-y-6">
               <DialogHeader>
                 <div className="flex items-center justify-between gap-4 pr-8">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                    selectedProjectForDetails.status === 'Completed'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      : selectedProjectForDetails.status === 'Approved'
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                        : 'bg-gray-50 text-gray-600 border-gray-100'
-                  }`}>
-                    {selectedProjectForDetails.status === 'Completed' && 'เสร็จสมบูรณ์'}
-                    {selectedProjectForDetails.status === 'Approved' && 'อนุมัติแล้ว'}
-                    {selectedProjectForDetails.status === 'Draft' && 'แบบร่าง'}
-                  </span>
-                  <span className="text-xs text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100/20 flex items-center gap-1">
-                    <Calendar size={12} />
+                  {(() => {
+                    const badge = getStatusBadge(selectedProjectForDetails.status);
+                    return (
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
+                  <span className="text-xs text-purple-600 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100/20 flex items-center gap-1">
+                    <Calendar size={13} />
                     ปีการศึกษา {selectedProjectForDetails.year}
                   </span>
                 </div>
@@ -1151,6 +1196,59 @@ const Projects = () => {
                 </DialogTitle>
                 <p className="text-sm text-gray-400 font-medium italic mt-1.5 leading-snug">{selectedProjectForDetails.title_en}</p>
               </DialogHeader>
+
+              {/* Status Workflow Progress Tracker */}
+              <div className="bg-purple-50/40 border border-purple-100/60 p-4 rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h5 className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-purple-600" />
+                    ลำดับขั้นตอนการดำเนินงานโครงงาน (Lifecycle Progress)
+                  </h5>
+                  {(user?.role === 'admin' || user?.role === 'advisor' || user?.role === 'teacher' || 
+                    user?.username === selectedProjectForDetails.advisor_id ||
+                    selectedProjectForDetails.members?.some(m => m.student_id === user?.username)) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-500 font-medium">ปรับปรุงสถานะ:</span>
+                      <select
+                        value={selectedProjectForDetails.status?.toLowerCase() || 'draft'}
+                        onChange={(e) => handleUpdateStatus(selectedProjectForDetails.id, e.target.value)}
+                        className="h-8 rounded-lg border border-purple-200 bg-white px-2.5 text-xs text-purple-900 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm"
+                      >
+                        {PROJECT_STATUSES.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Visual Step Bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-1">
+                  {PROJECT_STATUSES.map((step, idx) => {
+                    const currentIdx = PROJECT_STATUSES.findIndex(
+                      s => s.value === (selectedProjectForDetails.status?.toLowerCase() || 'draft')
+                    );
+                    const isDone = idx < currentIdx;
+                    const isCurrent = idx === currentIdx;
+
+                    return (
+                      <div 
+                        key={step.value} 
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
+                          isCurrent
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-md font-bold'
+                            : isDone
+                              ? 'bg-purple-100/70 text-purple-800 border-purple-200 font-medium'
+                              : 'bg-white text-gray-400 border-gray-100 opacity-60'
+                        }`}
+                      >
+                        <div className="text-[10px] uppercase tracking-wider mb-0.5">ขั้นที่ {idx + 1}</div>
+                        <div className="text-xs leading-tight">{step.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Description */}
               <div className="space-y-2.5">

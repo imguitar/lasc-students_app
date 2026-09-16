@@ -7,6 +7,7 @@ router.get('/', auth, projectController.getAllProjects);
 router.get('/student/:studentId', auth, projectController.getProjectsByStudent);
 router.get('/:id', auth, projectController.getProject);
 router.post('/', auth, authorize('admin', 'student', 'alumni', 'advisor'), projectController.createProject);
+router.put('/:id/status', auth, authorize('admin', 'advisor', 'student', 'alumni'), projectController.updateProjectStatus);
 router.put('/:id', auth, authorize('admin', 'student', 'alumni', 'advisor'), projectController.updateProject);
 router.delete('/:id', auth, authorize('admin'), projectController.deleteProject);
 

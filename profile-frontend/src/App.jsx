@@ -12,6 +12,7 @@ import Projects from './pages/Projects';
 import Advisors from './pages/Advisors';
 import Profile from './pages/Profile';
 import Departments from './pages/Departments';
+import Portfolio from './pages/Portfolio';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route path="advisors" element={<Advisors />} />
             <Route path="profile" element={<Profile />} />
             <Route path="departments" element={<Departments />} />
+            <Route path="portfolio" element={<Portfolio />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

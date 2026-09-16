@@ -28,7 +28,9 @@ const Alumni = () => {
   const [filters, setFilters] = useState({
     faculty: '',
     department: '',
+    department_id: '',
     graduation_year: '',
+    graduation_batch: '',
     employment_status: ''
   });
 
@@ -51,6 +53,8 @@ const Alumni = () => {
     faculty: '',
     department: '',
     graduation_year: '',
+    graduation_batch: '',
+    graduation_date: '',
     workplace: '',
     position: '',
     employment_status: 'employed',
@@ -128,7 +132,7 @@ const Alumni = () => {
 
   const handleClearFilters = () => {
     setSearch('');
-    setFilters({ faculty: '', department: '', graduation_year: '', employment_status: '' });
+    setFilters({ faculty: '', department: '', department_id: '', graduation_year: '', graduation_batch: '', employment_status: '' });
   };
 
   // Autofill from Student ID
@@ -236,6 +240,8 @@ const Alumni = () => {
       faculty: '',
       department: '',
       graduation_year: '',
+      graduation_batch: '',
+      graduation_date: '',
       workplace: '',
       position: '',
       employment_status: 'employed',
@@ -287,6 +293,8 @@ const Alumni = () => {
       faculty: alumniItem.faculty || '',
       department: alumniItem.department || '',
       graduation_year: alumniItem.graduation_year ? alumniItem.graduation_year.toString() : '',
+      graduation_batch: alumniItem.graduation_batch || '',
+      graduation_date: alumniItem.graduation_date ? alumniItem.graduation_date.split('T')[0] : '',
       workplace: alumniItem.workplace || '',
       position: alumniItem.position || '',
       employment_status: alumniItem.employment_status || 'employed',
@@ -315,6 +323,8 @@ const Alumni = () => {
       department: (departmentsList.find(d => d.department_id === form.department)?.department_name) || form.department,
       department_id: form.department,
       graduation_year: parseInt(form.graduation_year),
+      graduation_batch: form.graduation_batch || null,
+      graduation_date: form.graduation_date || null,
       employment_status: form.employment_status,
       workplace: form.employment_status === 'seeking' ? '' : form.workplace,
       position: form.employment_status === 'seeking' ? '' : form.position,
@@ -548,13 +558,13 @@ const Alumni = () => {
           </Button>
         </form>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-1">
           {/* Faculty Filter */}
           <div className="space-y-1">
             <Label className="text-gray-500 text-xs font-semibold">คณะ</Label>
             <select
               value={filters.faculty}
-              onChange={(e) => setFilters({ ...filters, faculty: e.target.value, department: '' })}
+              onChange={(e) => setFilters({ ...filters, faculty: e.target.value, department: '', department_id: '' })}
               className="flex h-10 w-full rounded-xl border border-purple-100/80 bg-white/50 px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               <option value="">ทั้งหมด</option>
@@ -569,15 +579,41 @@ const Alumni = () => {
             <Label className="text-gray-500 text-xs font-semibold">สาขาวิชา</Label>
             <select
               value={filters.department_id || ''}
-              onChange={(e) => setFilters({ ...filters, department_id: e.target.value })}
+              onChange={(e) => setFilters({ ...filters, department_id: e.target.value, department: e.target.value })}
               className="flex h-10 w-full rounded-xl border border-purple-100/80 bg-white/50 px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-              disabled={!filters.faculty}
             >
               <option value="">ทั้งหมด</option>
               {departmentsList.filter(d => !filters.faculty || d.faculty_name === filters.faculty).map((dept) => (
                 <option key={dept.department_id} value={dept.department_id}>{dept.department_name}</option>
               ))}
             </select>
+          </div>
+
+          {/* Graduation Year Filter */}
+          <div className="space-y-1">
+            <Label className="text-gray-500 text-xs font-semibold">ปีที่สำเร็จการศึกษา</Label>
+            <select
+              value={filters.graduation_year || ''}
+              onChange={(e) => setFilters({ ...filters, graduation_year: e.target.value })}
+              className="flex h-10 w-full rounded-xl border border-purple-100/80 bg-white/50 px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            >
+              <option value="">ทั้งหมด</option>
+              {[2569, 2568, 2567, 2566, 2565, 2564, 2563, 2562].map((yr) => (
+                <option key={yr} value={yr}>พ.ศ. {yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Graduation Batch Filter */}
+          <div className="space-y-1">
+            <Label className="text-gray-500 text-xs font-semibold">รอบจบ / รุ่น</Label>
+            <Input
+              type="text"
+              placeholder="เช่น 1/2569"
+              value={filters.graduation_batch || ''}
+              onChange={(e) => setFilters({ ...filters, graduation_batch: e.target.value })}
+              className="h-10 text-xs border-purple-100/80 bg-white/50 rounded-xl focus:ring-purple-500"
+            />
           </div>
 
           {/* Employment Status Filter */}
@@ -598,7 +634,7 @@ const Alumni = () => {
           </div>
         </div>
 
-        {(filters.faculty || filters.department || filters.employment_status || search) && (
+        {(filters.faculty || filters.department_id || filters.graduation_year || filters.graduation_batch || filters.employment_status || search) && (
           <div className="flex justify-end pt-1">
             <Button
               onClick={handleClearFilters}
@@ -613,13 +649,7 @@ const Alumni = () => {
 
       {/* Data Table */}
       <div className="bg-white border border-purple-100/40 rounded-2xl overflow-hidden shadow-sm">
-        {!(filters.faculty && filters.department) && !search ? (
-          <div className="text-center py-20 text-gray-400">
-            <Search size={40} className="mx-auto text-purple-200 mb-3" />
-            <p className="text-base font-bold text-gray-600">กรุณาเลือกข้อมูลให้ครบถ้วน</p>
-            <p className="text-xs text-gray-400 mt-1">โปรดเลือกลำดับจาก คณะ &gt; สาขาวิชา เพื่อแสดงรายชื่อศิษย์เก่า (หรือใช้ช่องค้นหา)</p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-4">
             <div className="w-10 h-10 rounded-full border-4 border-purple-100 border-t-purple-600 animate-spin" />
             <span className="text-gray-400 text-xs font-medium animate-pulse">กำลังโหลดข้อมูลตารางศิษย์เก่า...</span>
@@ -663,9 +693,21 @@ const Alumni = () => {
                       </td>
                     <td className="py-4 px-6 leading-tight">
                       <div className="text-xs text-gray-900 font-semibold">{item.department}</div>
-                      <span className="text-[10px] text-purple-800 font-bold bg-purple-100 border border-purple-200 px-1.5 py-0.5 rounded mt-1.5 inline-block">
-                        รุ่นปี พ.ศ. {item.graduation_year}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px] text-purple-800 font-bold bg-purple-100 border border-purple-200 px-1.5 py-0.5 rounded inline-block">
+                          รุ่นปี พ.ศ. {item.graduation_year}
+                        </span>
+                        {item.graduation_batch && (
+                          <span className="text-[10px] text-indigo-800 font-bold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded inline-block">
+                            รอบ {item.graduation_batch}
+                          </span>
+                        )}
+                      </div>
+                      {item.graduation_date && (
+                        <div className="text-[10px] text-gray-400 mt-1">
+                          จบเมื่อ: {new Date(item.graduation_date).toLocaleDateString('th-TH')}
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6 leading-tight">
                       {item.employment_status === 'seeking' ? (
@@ -815,6 +857,34 @@ const Alumni = () => {
                 {formErrors.graduation_year && (
                   <p className="text-rose-500 text-[11px] flex items-center gap-1"><AlertCircle size={12} /> {formErrors.graduation_year}</p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Graduation Batch */}
+              <div className="space-y-1.5">
+                <Label htmlFor="graduation_batch" className="text-gray-700 text-xs font-semibold">รอบจบ / รุ่น</Label>
+                <Input
+                  id="graduation_batch"
+                  name="graduation_batch"
+                  placeholder="เช่น 1/2566"
+                  value={form.graduation_batch || ''}
+                  onChange={handleFormChange}
+                  className="border-purple-100 rounded-xl"
+                />
+              </div>
+
+              {/* Graduation Date */}
+              <div className="space-y-1.5">
+                <Label htmlFor="graduation_date" className="text-gray-700 text-xs font-semibold">วันที่สำเร็จการศึกษา</Label>
+                <Input
+                  id="graduation_date"
+                  name="graduation_date"
+                  type="date"
+                  value={form.graduation_date || ''}
+                  onChange={handleFormChange}
+                  className="border-purple-100 rounded-xl"
+                />
               </div>
             </div>
 

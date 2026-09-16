@@ -367,7 +367,7 @@ exports.getDepartmentStats = async (req, res) => {
     // profile ทั้งหมดในสาขา แล้วแยกประเภทตาม role ในตาราง user
     const profiles = await prisma.profile.findMany({
       where: { department_id: department.id },
-      select: { profile_id: true }
+      select: { profile_id: true, student_status: true }
     });
     const profileIds = profiles.map(p => p.profile_id);
 
@@ -378,11 +378,31 @@ exports.getDepartmentStats = async (req, res) => {
         })
       : [];
 
-    const students = members.filter(u => u.role === 'student');
+    const byUsername = {};
+    members.forEach(u => { byUsername[u.username] = u; });
+
     const alumni = members.filter(u => u.role === 'alumni');
     const advisors = members.filter(u => u.role === 'advisor');
 
-    const activeStudents = students.filter(u => u.isActive).length;
+    // นักศึกษาแยกตาม student_status ก่อน แล้วค่อยตกไปดู isActive
+    let activeStudents = 0;
+    let graduatedStudents = alumni.length;
+    let resignedStudents = 0;
+    let suspendedStudents = 0;
+    let otherInactive = 0;
+
+    profiles.forEach(p => {
+      const user = byUsername[p.profile_id];
+      if (!user || user.role !== 'student') return;
+
+      if (p.student_status === 'graduated') graduatedStudents++;
+      else if (p.student_status === 'resigned') resignedStudents++;
+      else if (p.student_status === 'suspended') suspendedStudents++;
+      else if (user.isActive) activeStudents++;
+      else otherInactive++;
+    });
+
+    const totalStudents = activeStudents + graduatedStudents + resignedStudents + suspendedStudents + otherInactive;
 
     // โครงงานที่สร้างโดยสมาชิกของสาขานี้
     const projects = await prisma.project.findMany({
@@ -390,10 +410,17 @@ exports.getDepartmentStats = async (req, res) => {
       select: { status: true }
     });
 
-    const projectsByStatus = projects.reduce((acc, p) => {
-      acc[p.status] = (acc[p.status] || 0) + 1;
-      return acc;
-    }, {});
+    const projectsByStatus = {
+      draft: 0,
+      approved: 0,
+      in_progress: 0,
+      waiting_defense: 0,
+      passed_defense: 0,
+      completed: 0
+    };
+    projects.forEach(p => {
+      if (projectsByStatus[p.status] !== undefined) projectsByStatus[p.status]++;
+    });
 
     res.json({
       success: true,
@@ -406,9 +433,12 @@ exports.getDepartmentStats = async (req, res) => {
           department_head: formatHead(department.head, userMap)
         },
         stats: {
-          totalStudents: students.length,
+          totalStudents,
           activeStudents,
-          inactiveStudents: students.length - activeStudents,
+          graduatedStudents,
+          resignedStudents,
+          suspendedStudents,
+          otherInactive,
           totalAlumni: alumni.length,
           totalAdvisors: advisors.length,
           totalProjects: projects.length,

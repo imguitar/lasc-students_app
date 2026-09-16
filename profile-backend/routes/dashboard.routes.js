@@ -9,5 +9,7 @@ router.get('/alumni-by-year', auth, dashboardController.getAlumniByYear);
 router.get('/students-by-faculty', auth, dashboardController.getStudentsByFaculty);
 router.get('/recent-alumni', auth, dashboardController.getRecentAlumni);
 router.get('/awarded-projects', auth, dashboardController.getAwardedProjects);
+router.get('/student-report', auth, dashboardController.getStudentReport);
+router.get('/project-report', auth, dashboardController.getProjectReport);
 
 module.exports = router;

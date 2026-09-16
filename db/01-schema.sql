@@ -64,6 +64,18 @@ CREATE TABLE IF NOT EXISTS `profile` (
   `department_id` INT NOT NULL DEFAULT 0,
   `address` TEXT DEFAULT NULL,
   `phone` VARCHAR(50) DEFAULT NULL,
+  `first_name_en` VARCHAR(100) DEFAULT NULL,
+  `last_name_en` VARCHAR(100) DEFAULT NULL,
+  `birth_date` DATE DEFAULT NULL,
+  `avatar_url` VARCHAR(500) DEFAULT NULL,
+  `bio` TEXT DEFAULT NULL,
+  `graduation_year` INT DEFAULT NULL,
+  `linkedin_url` VARCHAR(500) DEFAULT NULL,
+  `github_url` VARCHAR(500) DEFAULT NULL,
+  `portfolio_url` VARCHAR(500) DEFAULT NULL,
+  `graduation_batch` VARCHAR(50) DEFAULT NULL,
+  `graduation_date` DATE DEFAULT NULL,
+  `student_status` VARCHAR(30) DEFAULT 'active',
   PRIMARY KEY (`id`),
   UNIQUE KEY `profile_profile_id_key` (`profile_id`),
   KEY `profile_faculty_id_idx` (`faculty_id`),
@@ -87,6 +99,125 @@ PREPARE fk_statement FROM @fk_sql;
 EXECUTE fk_statement;
 DEALLOCATE PREPARE fk_statement;
 
+CREATE TABLE IF NOT EXISTS `student_addresses` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `type` ENUM('current','registered') NOT NULL DEFAULT 'current',
+  `address_line` VARCHAR(255) DEFAULT NULL,
+  `subdistrict` VARCHAR(100) DEFAULT NULL,
+  `district` VARCHAR(100) DEFAULT NULL,
+  `province` VARCHAR(100) DEFAULT NULL,
+  `postal_code` VARCHAR(10) DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `student_addresses_profile_id_idx` (`profile_id`),
+  CONSTRAINT `student_addresses_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `skills` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL,
+  `category` ENUM('programming','framework','database','tools','soft_skills','language','other') NOT NULL DEFAULT 'other',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `skills_name_key` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `student_skills` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `skill_id` INT NOT NULL,
+  `level` ENUM('beginner','intermediate','advanced','expert') NOT NULL DEFAULT 'intermediate',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `student_skills_profile_id_skill_id_key` (`profile_id`, `skill_id`),
+  KEY `student_skills_skill_id_idx` (`skill_id`),
+  CONSTRAINT `student_skills_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `student_skills_skill_id_fkey`
+    FOREIGN KEY (`skill_id`) REFERENCES `skills` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `student_projects` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `category` VARCHAR(100) DEFAULT NULL,
+  `academic_year` INT DEFAULT NULL,
+  `semester` INT DEFAULT NULL,
+  `course_name` VARCHAR(200) DEFAULT NULL,
+  `technologies` JSON DEFAULT NULL,
+  `github_url` VARCHAR(500) DEFAULT NULL,
+  `demo_url` VARCHAR(500) DEFAULT NULL,
+  `image_url` VARCHAR(500) DEFAULT NULL,
+  `document_url` VARCHAR(500) DEFAULT NULL,
+  `status` VARCHAR(50) DEFAULT 'completed',
+  `skills_used` JSON DEFAULT NULL,
+  `internship_company` VARCHAR(255) DEFAULT NULL,
+  `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+  `link_url` VARCHAR(500) DEFAULT NULL,
+  `year` INT DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `student_projects_profile_id_idx` (`profile_id`),
+  CONSTRAINT `student_projects_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `internships` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `company_name` VARCHAR(255) NOT NULL,
+  `position` VARCHAR(100) NOT NULL,
+  `department` VARCHAR(100) DEFAULT NULL,
+  `address` TEXT DEFAULT NULL,
+  `start_date` DATE DEFAULT NULL,
+  `end_date` DATE DEFAULT NULL,
+  `hours` INT DEFAULT 0,
+  `description` TEXT DEFAULT NULL,
+  `skills_used` JSON DEFAULT NULL,
+  `evaluation_score` DOUBLE DEFAULT NULL,
+  `evaluation_status` VARCHAR(50) DEFAULT 'pending',
+  `status` ENUM('in_progress','completed','cancelled') NOT NULL DEFAULT 'in_progress',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `internships_profile_id_idx` (`profile_id`),
+  CONSTRAINT `internships_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `alumni_employments` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `company_name` VARCHAR(255) NOT NULL,
+  `position` VARCHAR(100) NOT NULL,
+  `department` VARCHAR(100) DEFAULT NULL,
+  `job_type` ENUM('full_time','part_time','contract','freelance','internship') DEFAULT 'full_time',
+  `start_date` DATE DEFAULT NULL,
+  `end_date` DATE DEFAULT NULL,
+  `is_current` TINYINT(1) NOT NULL DEFAULT 1,
+  `description` TEXT DEFAULT NULL,
+  `location` VARCHAR(200) DEFAULT NULL,
+  `company_url` VARCHAR(500) DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `alumni_employments_profile_id_idx` (`profile_id`),
+  CONSTRAINT `alumni_employments_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `projects` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `project_id` VARCHAR(30) NOT NULL,
@@ -96,7 +227,7 @@ CREATE TABLE IF NOT EXISTS `projects` (
   `advisor_profile_id` VARCHAR(13) DEFAULT NULL,
   `year` INT NOT NULL,
   `document_url` VARCHAR(500) DEFAULT NULL,
-  `status` ENUM('Draft','Approved','Completed') NOT NULL DEFAULT 'Draft',
+  `status` ENUM('draft','approved','in_progress','waiting_defense','passed_defense','completed') NOT NULL DEFAULT 'draft',
   `type` ENUM('individual','group') NOT NULL DEFAULT 'individual',
   `has_award` TINYINT(1) NOT NULL DEFAULT 0,
   `tags` JSON DEFAULT NULL,

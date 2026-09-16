@@ -454,7 +454,18 @@ const Advisors = () => {
                   <tr key={adv.id} className="hover:bg-purple-50/10 transition-colors">
                     <td className="py-4 px-6 font-semibold text-gray-900">{adv.advisor_id}</td>
                     <td className="py-4 px-6 font-medium">
-                      {adv.name}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900">{adv.name}</span>
+                        {adv.is_department_head && (
+                          <span 
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs" 
+                            title={`ประธานสาขาวิชา ${adv.head_of_department || ''}`}
+                          >
+                            <span>👑</span>
+                            <span>ประธานสาขา</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 leading-tight">
                       <div className="text-xs text-gray-900 font-semibold">{adv.faculty}</div>

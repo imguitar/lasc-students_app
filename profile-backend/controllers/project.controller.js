@@ -1,5 +1,16 @@
 const prisma = require('../prismaClient');
 
+const VALID_STATUSES = ['draft', 'approved', 'in_progress', 'waiting_defense', 'passed_defense', 'completed'];
+
+// แปลงค่าสถานะให้เป็นรูปแบบปัจจุบัน — รองรับค่าเดิมที่เป็นตัวใหญ่ ('Draft', 'Approved', 'Completed')
+// คืน null ถ้าไม่รู้จัก เพื่อให้ผู้เรียกตัดสินใจเองว่าจะปฏิเสธหรือใช้ค่าเริ่มต้น
+// (ห้ามคืน 'draft' เป็น fallback ที่นี่ เพราะจะทำให้สถานะที่พิมพ์ผิดกลายเป็นแบบร่างแบบเงียบ ๆ)
+const normalizeStatus = (status) => {
+  if (status === undefined || status === null || status === '') return null;
+  const s = String(status).trim().toLowerCase();
+  return VALID_STATUSES.includes(s) ? s : null;
+};
+
 // @desc    Get all projects
 // @route   GET /api/projects
 // @access  Private
@@ -9,13 +20,13 @@ exports.getAllProjects = async (req, res) => {
     let where = {};
 
     if (year) where.year = parseInt(year);
-    if (status) where.status = status;
+    if (status) {
+      const normalized = normalizeStatus(status);
+      // ค่าที่ไม่รู้จักต้องได้ผลลัพธ์ว่าง ไม่ใช่ถูกละเลยจนคืนทุกโครงงาน
+      if (!normalized) return res.json({ success: true, count: 0, data: [] });
+      where.status = normalized;
+    }
     if (has_award) where.has_award = has_award === 'true';
-
-    // Tags filtering: simpler way for MySQL
-    // Note: The schema defines tags as Json. Querying Json in MySQL might require specific syntax.
-    // For simplicity, if tags is passed, we skip exact filtering in the DB query and filter in memory, 
-    // or just let it be. Prisma allows path/equals for JSON. We'll skip complex tags filtering for now.
 
     if (search) {
       where.OR = [
@@ -58,7 +69,6 @@ exports.getAllProjects = async (req, res) => {
       }).filter(Boolean)
     }));
 
-    // If tags filtering is needed, do it in memory for safety with JSON fields
     let finalProjects = mappedProjects;
     if (tags) {
       const searchTags = tags.split(',').map(t => t.trim().toLowerCase());
@@ -100,7 +110,6 @@ exports.getProject = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    // Since User email/phone is separate, we'd ideally join User table, but to keep it fast, we can omit email/phone or fetch it.
     const mappedProject = {
       ...project,
       advisor: project.advisor ? {
@@ -137,12 +146,8 @@ exports.createProject = async (req, res) => {
   try {
     const data = { ...req.body };
     
-    // Map Frontend IDs to profile_ids
-    // The frontend sends `data.advisor` (which might be the profile.id or profile_id). 
-    // We need `advisor_profile_id` which is a String.
     let advisorProfileId = null;
     if (data.advisor) {
-      // Find the advisor profile
       const adv = await prisma.profile.findFirst({ where: { OR: [{ id: parseInt(data.advisor) || -1 }, { profile_id: String(data.advisor) }] } });
       if (adv) advisorProfileId = adv.profile_id;
     }
@@ -166,7 +171,7 @@ exports.createProject = async (req, res) => {
       description: data.description || '',
       year: data.year ? parseInt(data.year) : new Date().getFullYear() + 543,
       document_url: data.document_url || '',
-      status: data.status || 'Draft',
+      status: normalizeStatus(data.status) || 'draft',
       type: data.type || 'individual',
       has_award: data.has_award === true || data.has_award === 'true',
       tags: data.tags || [],
@@ -178,8 +183,6 @@ exports.createProject = async (req, res) => {
     if (advisorProfileId) {
       projectData.advisor_profile_id = advisorProfileId;
     }
-
-    console.log('Creating project with data:', JSON.stringify(projectData, null, 2));
 
     const project = await prisma.project.create({ 
       data: projectData,
@@ -202,20 +205,22 @@ exports.createProject = async (req, res) => {
 
 // @desc    Update project
 // @route   PUT /api/projects/:id
-// @access  Private (Admin/Student)
+// @access  Private (Admin/Student/Advisor)
 exports.updateProject = async (req, res) => {
   try {
     const data = { ...req.body };
     const projectId = parseInt(req.params.id);
 
-    // Map advisor
     let advisorProfileId = undefined;
-    if (data.advisor) {
-      const adv = await prisma.profile.findFirst({ where: { OR: [{ id: parseInt(data.advisor) || -1 }, { profile_id: String(data.advisor) }] } });
-      if (adv) advisorProfileId = adv.profile_id;
+    if (data.advisor !== undefined) {
+      if (data.advisor) {
+        const adv = await prisma.profile.findFirst({ where: { OR: [{ id: parseInt(data.advisor) || -1 }, { profile_id: String(data.advisor) }] } });
+        if (adv) advisorProfileId = adv.profile_id;
+      } else {
+        advisorProfileId = null;
+      }
     }
 
-    // Map members
     let memberProfileIds = undefined;
     if (data.members && Array.isArray(data.members)) {
       memberProfileIds = [];
@@ -231,14 +236,22 @@ exports.updateProject = async (req, res) => {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.year !== undefined) updateData.year = parseInt(data.year);
     if (data.document_url !== undefined) updateData.document_url = data.document_url;
-    if (data.status !== undefined) updateData.status = data.status;
+    if (data.status !== undefined) {
+      const normalizedStatus = normalizeStatus(data.status);
+      if (!normalizedStatus) {
+        return res.status(400).json({
+          success: false,
+          message: `สถานะไม่ถูกต้อง ค่าที่อนุญาต: ${VALID_STATUSES.join(', ')}`
+        });
+      }
+      updateData.status = normalizedStatus;
+    }
     if (data.type !== undefined) updateData.type = data.type;
     if (data.has_award !== undefined) updateData.has_award = data.has_award === true || data.has_award === 'true';
     if (data.tags !== undefined) updateData.tags = data.tags;
     if (advisorProfileId !== undefined) updateData.advisor_profile_id = advisorProfileId;
 
     if (memberProfileIds !== undefined) {
-      // delete old members
       await prisma.projectMember.deleteMany({ where: { project_id: projectId } });
       updateData.members = {
         create: memberProfileIds.map(pid => ({ profile_id: pid }))
@@ -261,6 +274,47 @@ exports.updateProject = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
     res.status(500).json({ success: false, message: 'Error updating project', error: error.message });
+  }
+};
+
+// @desc    Update project status specifically with workflow validation
+// @route   PUT /api/projects/:id/status
+// @access  Private (Admin/Advisor/Student)
+exports.updateProjectStatus = async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status is required' });
+    }
+
+    const normalized = normalizeStatus(status);
+    if (!normalized) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid status. Allowed: ${VALID_STATUSES.join(', ')}` 
+      });
+    }
+
+    const existingProject = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!existingProject) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    const project = await prisma.project.update({
+      where: { id: projectId },
+      data: { status: normalized },
+      include: { advisor: true, members: true }
+    });
+
+    res.json({
+      success: true,
+      message: `ปรับปรุงสถานะโครงงานเป็น ${normalized} สำเร็จ`,
+      data: project
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating status', error: error.message });
   }
 };
 
@@ -291,8 +345,9 @@ exports.deleteProject = async (req, res) => {
 exports.getProjectsByStudent = async (req, res) => {
   try {
     const studentIdParam = req.params.studentId;
-    // Attempt to find profile_id from id or directly use string
-    const profile = await prisma.profile.findFirst({ where: { OR: [{ id: parseInt(studentIdParam) || -1 }, { profile_id: studentIdParam }] } });
+    const profile = await prisma.profile.findFirst({
+      where: { OR: [{ id: parseInt(studentIdParam) || -1 }, { profile_id: studentIdParam }] }
+    });
     if (!profile) return res.status(404).json({ success: false, message: 'Student not found' });
 
     const projects = await prisma.project.findMany({
@@ -310,7 +365,6 @@ exports.getProjectsByStudent = async (req, res) => {
       }
     });
     
-    // Map to frontend expected format
     const mappedProjects = projects.map(p => ({
       ...p,
       advisor: p.advisor ? {

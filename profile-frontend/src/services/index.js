@@ -46,6 +46,11 @@ export const studentService = {
     return response.data;
   },
 
+  getByCode: async (code) => {
+    const response = await api.get(`/students/code/${code}`);
+    return response.data;
+  },
+
   create: async (data) => {
     const response = await api.post('/students', data);
     return response.data;
@@ -58,6 +63,80 @@ export const studentService = {
 
   delete: async (id) => {
     const response = await api.delete(`/students/${id}`);
+    return response.data;
+  },
+
+  promoteToAlumni: async (id, data) => {
+    const response = await api.post(`/students/${id}/promote`, data);
+    return response.data;
+  },
+
+  // Resume
+  getResume: async (id) => {
+    const response = await api.get(`/students/${id}/resume`);
+    return response.data;
+  },
+
+  updateResume: async (id, data) => {
+    const response = await api.put(`/students/${id}/resume`, data);
+    return response.data;
+  },
+
+  // Skills
+  getSkills: async (id) => {
+    const response = await api.get(`/students/${id}/skills`);
+    return response.data;
+  },
+
+  addSkill: async (id, data) => {
+    const response = await api.post(`/students/${id}/skills`, data);
+    return response.data;
+  },
+
+  deleteSkill: async (id, skillId) => {
+    const response = await api.delete(`/students/${id}/skills/${skillId}`);
+    return response.data;
+  },
+
+  // Internships
+  getInternships: async (id) => {
+    const response = await api.get(`/students/${id}/internships`);
+    return response.data;
+  },
+
+  createInternship: async (id, data) => {
+    const response = await api.post(`/students/${id}/internships`, data);
+    return response.data;
+  },
+
+  updateInternship: async (id, internshipId, data) => {
+    const response = await api.put(`/students/${id}/internships/${internshipId}`, data);
+    return response.data;
+  },
+
+  deleteInternship: async (id, internshipId) => {
+    const response = await api.delete(`/students/${id}/internships/${internshipId}`);
+    return response.data;
+  },
+
+  // Semester Projects
+  getProjects: async (id) => {
+    const response = await api.get(`/students/${id}/projects`);
+    return response.data;
+  },
+
+  createProject: async (id, data) => {
+    const response = await api.post(`/students/${id}/projects`, data);
+    return response.data;
+  },
+
+  updateProject: async (id, projectId, data) => {
+    const response = await api.put(`/students/${id}/projects/${projectId}`, data);
+    return response.data;
+  },
+
+  deleteProject: async (id, projectId) => {
+    const response = await api.delete(`/students/${id}/projects/${projectId}`);
     return response.data;
   }
 };
@@ -86,6 +165,22 @@ export const alumniService = {
   delete: async (id) => {
     const response = await api.delete(`/alumni/${id}`);
     return response.data;
+  },
+
+  // Employment
+  addEmployment: async (data) => {
+    const response = await api.post('/alumni/employment', data);
+    return response.data;
+  },
+
+  updateEmployment: async (id, data) => {
+    const response = await api.put(`/alumni/employment/${id}`, data);
+    return response.data;
+  },
+
+  deleteEmployment: async (id) => {
+    const response = await api.delete(`/alumni/employment/${id}`);
+    return response.data;
   }
 };
 
@@ -110,8 +205,37 @@ export const projectService = {
     return response.data;
   },
 
+  updateStatus: async (id, status) => {
+    const response = await api.put(`/projects/${id}/status`, { status });
+    return response.data;
+  },
+
   delete: async (id) => {
     const response = await api.delete(`/projects/${id}`);
+    return response.data;
+  }
+};
+
+export const skillService = {
+  getAll: async (params) => {
+    const response = await api.get('/skills', { params });
+    return response.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/skills', data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/skills/${id}`);
+    return response.data;
+  }
+};
+
+export const studentProjectService = {
+  getAll: async (params) => {
+    const response = await api.get('/student-projects', { params });
     return response.data;
   }
 };
@@ -144,6 +268,16 @@ export const dashboardService = {
 
   getAwardedProjects: async () => {
     const response = await api.get('/dashboard/awarded-projects');
+    return response.data;
+  },
+
+  getStudentReport: async (params) => {
+    const response = await api.get('/dashboard/student-report', { params });
+    return response.data;
+  },
+
+  getProjectReport: async (params) => {
+    const response = await api.get('/dashboard/project-report', { params });
     return response.data;
   }
 };

@@ -59,6 +59,8 @@ const importExportRoutes = require('./routes/importExport.routes');
 const scrapeRoutes = require('./routes/scrape.routes');
 const departmentRoutes = require('./routes/department.routes');
 const facultyRoutes = require('./routes/faculty.routes');
+const skillRoutes = require('./routes/skill.routes');
+const studentProjectRoutes = require('./routes/studentProject.routes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -71,6 +73,8 @@ app.use('/api/data', importExportRoutes);
 app.use('/api/scrape', scrapeRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/faculties', facultyRoutes);
+app.use('/api/skills', skillRoutes);
+app.use('/api/student-projects', studentProjectRoutes);
 
 // Health check for the API and its database connection
 app.get('/api/health', async (req, res) => {

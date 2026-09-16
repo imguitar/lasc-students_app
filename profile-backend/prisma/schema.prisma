@@ -23,9 +23,48 @@ enum Role {
 }
 
 enum ProjectStatus {
-  Draft
-  Approved
-  Completed
+  draft
+  approved
+  in_progress
+  waiting_defense
+  passed_defense
+  completed
+}
+
+enum AddressType {
+  current
+  registered
+}
+
+enum SkillCategory {
+  programming
+  framework
+  database
+  tools
+  soft_skills
+  language
+  other
+}
+
+enum SkillLevel {
+  beginner
+  intermediate
+  advanced
+  expert
+}
+
+enum InternshipStatus {
+  in_progress
+  completed
+  cancelled
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  freelance
+  internship
 }
 
 enum ProjectType {
@@ -77,12 +116,35 @@ model Profile {
   address       String? @db.Text
   phone         String? @db.VarChar(50)
 
+  // ประวัติส่วนตัวสำหรับ resume
+  first_name_en String?   @db.VarChar(100)
+  last_name_en  String?   @db.VarChar(100)
+  birth_date    DateTime? @db.Date
+  avatar_url    String?   @db.VarChar(500)
+  bio           String?   @db.Text
+  linkedin_url  String?   @db.VarChar(500)
+  github_url    String?   @db.VarChar(500)
+  portfolio_url String?   @db.VarChar(500)
+
+  // สถานะการศึกษา
+  graduation_year  Int?
+  graduation_batch String?   @db.VarChar(50)
+  graduation_date  DateTime? @db.Date
+  student_status   String?   @default("active") @db.VarChar(30)
+
   // Relations ขาเข้า (Belongs To)
   faculty       Faculty    @relation(fields: [faculty_id], references: [id])
   department    Department @relation("DepartmentMembers", fields: [department_id], references: [id])
 
   // ประธานสาขาวิชา — หนึ่ง profile เป็นประธานได้ไม่เกินหนึ่งสาขา (บังคับในชั้น controller)
   headOfDepartments Department[] @relation("DepartmentHead")
+
+  // Resume / Portfolio
+  addresses         StudentAddress[]
+  studentSkills     StudentSkill[]
+  studentProjects   StudentProject[]
+  internships       Internship[]
+  alumniEmployments AlumniEmployment[]
 
   // Relations ขาออก (Has Many)
   projectsAsAdvisor Project[]        @relation("ProjectAdvisor")
@@ -102,7 +164,7 @@ model Project {
   advisor_profile_id    String?       @db.VarChar(13)
   year                  Int
   document_url          String?       @db.VarChar(500)
-  status                ProjectStatus @default(Draft)
+  status                ProjectStatus @default(draft)
   type                  ProjectType   @default(individual)
   has_award             Boolean       @default(false)
   tags                  Json?
@@ -158,4 +220,119 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@map("user")
+}
+
+model StudentAddress {
+  id           Int         @id @default(autoincrement())
+  profile_id   String      @db.VarChar(13)
+  type         AddressType @default(current)
+  address_line String?     @db.VarChar(255)
+  subdistrict  String?     @db.VarChar(100)
+  district     String?     @db.VarChar(100)
+  province     String?     @db.VarChar(100)
+  postal_code  String?     @db.VarChar(10)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("student_addresses")
+}
+
+model Skill {
+  id         Int           @id @default(autoincrement())
+  name       String        @unique @db.VarChar(100)
+  category   SkillCategory @default(other)
+  created_at DateTime      @default(now())
+
+  studentSkills StudentSkill[]
+
+  @@map("skills")
+}
+
+model StudentSkill {
+  id         Int        @id @default(autoincrement())
+  profile_id String     @db.VarChar(13)
+  skill_id   Int
+  level      SkillLevel @default(intermediate)
+  created_at DateTime   @default(now())
+
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, skill_id])
+  @@map("student_skills")
+}
+
+model StudentProject {
+  id            Int     @id @default(autoincrement())
+  profile_id    String  @db.VarChar(13)
+  title         String  @db.VarChar(255)
+  description   String? @db.Text
+  category      String? @db.VarChar(100)
+  academic_year Int?
+  semester      Int?
+  course_name   String? @db.VarChar(200)
+
+  technologies       Json?
+  github_url         String?  @db.VarChar(500)
+  demo_url           String?  @db.VarChar(500)
+  image_url          String?  @db.VarChar(500)
+  document_url       String?  @db.VarChar(500)
+  link_url           String?  @db.VarChar(500)
+  status             String?  @default("completed") @db.VarChar(50)
+  skills_used        Json?
+  internship_company String?  @db.VarChar(255)
+  is_published       Boolean  @default(true)
+  year               Int?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("student_projects")
+}
+
+model Internship {
+  id                Int              @id @default(autoincrement())
+  profile_id        String           @db.VarChar(13)
+  company_name      String           @db.VarChar(255)
+  position          String           @db.VarChar(100)
+  department        String?          @db.VarChar(100)
+  address           String?          @db.Text
+  start_date        DateTime?        @db.Date
+  end_date          DateTime?        @db.Date
+  hours             Int?             @default(0)
+  description       String?          @db.Text
+  skills_used       Json?
+  evaluation_score  Float?
+  evaluation_status String?          @default("pending") @db.VarChar(50)
+  status            InternshipStatus @default(in_progress)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("internships")
+}
+
+model AlumniEmployment {
+  id           Int             @id @default(autoincrement())
+  profile_id   String          @db.VarChar(13)
+  company_name String          @db.VarChar(255)
+  position     String          @db.VarChar(100)
+  department   String?         @db.VarChar(100)
+  job_type     EmploymentType? @default(full_time)
+  start_date   DateTime?       @db.Date
+  end_date     DateTime?       @db.Date
+  is_current   Boolean         @default(true)
+  description  String?         @db.Text
+  location     String?         @db.VarChar(200)
+  company_url  String?         @db.VarChar(500)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("alumni_employments")
 }

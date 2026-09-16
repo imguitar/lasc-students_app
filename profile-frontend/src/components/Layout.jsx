@@ -8,6 +8,7 @@ import {
   GraduationCap,
   FolderKanban,
   UserCircle,
+  Briefcase,
   Building2,
   LogOut,
   Menu,
@@ -32,6 +33,7 @@ const Layout = () => {
     { path: '/alumni', label: 'ทำเนียบศิษย์เก่า', icon: GraduationCap, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/projects', label: 'จัดการโปรเจคจบ', icon: FolderKanban, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/advisors', label: 'ทำเนียบอาจารย์', icon: UserCircle, roles: ['admin', 'teacher', 'advisor', 'student'] },
+    { path: '/portfolio', label: 'ผลงานนักศึกษา', icon: Briefcase, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/departments', label: 'ข้อมูลสาขาวิชา', icon: Building2, roles: ['admin', 'teacher', 'advisor'] },
   ];
 

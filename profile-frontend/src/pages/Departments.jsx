@@ -5,20 +5,23 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useToast } from '../components/ui/use-toast';
-import { Card } from '../components/ui/card';
-import {
-  Building2, Search, UserCheck, Users, Mail, Phone, Shield,
-  FolderKanban, GraduationCap, Edit3, UserX, BarChart3
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { 
+  Building2, Search, UserCheck, Users, Mail, Phone, Shield, 
+  FolderKanban, GraduationCap, AlertCircle, ChevronRight, Edit3, 
+  X, CheckCircle2, UserX, BarChart3, Layers, Sparkles
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '../components/ui/dialog';
 
-// สถานะโครงงานตาม enum ProjectStatus ปัจจุบันของระบบหลัก
 const PROJECT_STATUS_LABELS = {
-  Draft: { label: 'แบบร่าง', color: 'bg-slate-100 text-slate-700' },
-  Approved: { label: 'อนุมัติหัวข้อ', color: 'bg-indigo-50 text-indigo-700' },
-  Completed: { label: 'เสร็จสมบูรณ์', color: 'bg-emerald-50 text-emerald-700' }
+  draft: { label: 'แบบร่าง', color: 'bg-slate-100 text-slate-700' },
+  approved: { label: 'อนุมัติหัวข้อ', color: 'bg-indigo-50 text-indigo-700' },
+  in_progress: { label: 'กำลังพัฒนา', color: 'bg-blue-50 text-blue-700' },
+  waiting_defense: { label: 'รอสอบประเมิน', color: 'bg-amber-50 text-amber-700' },
+  passed_defense: { label: 'ผ่านการสอบ', color: 'bg-teal-50 text-teal-700' },
+  completed: { label: 'เสร็จสมบูรณ์', color: 'bg-emerald-50 text-emerald-700' }
 };
 
 const Departments = () => {
@@ -454,13 +457,13 @@ const Departments = () => {
                       <div className="text-lg font-black text-emerald-950">{deptStats.activeStudents}</div>
                       <div className="text-[10px] text-emerald-700 font-semibold uppercase">กำลังศึกษา</div>
                     </div>
-                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 text-center">
-                      <div className="text-lg font-black text-rose-950">{deptStats.inactiveStudents}</div>
-                      <div className="text-[10px] text-rose-700 font-semibold uppercase">ปิดใช้งาน</div>
-                    </div>
                     <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-center">
-                      <div className="text-lg font-black text-indigo-950">{deptStats.totalAlumni}</div>
-                      <div className="text-[10px] text-indigo-700 font-semibold uppercase">ศิษย์เก่า</div>
+                      <div className="text-lg font-black text-indigo-950">{deptStats.graduatedStudents}</div>
+                      <div className="text-[10px] text-indigo-700 font-semibold uppercase">สำเร็จการศึกษา</div>
+                    </div>
+                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 text-center">
+                      <div className="text-lg font-black text-rose-950">{deptStats.resignedStudents + deptStats.suspendedStudents + deptStats.otherInactive}</div>
+                      <div className="text-[10px] text-rose-700 font-semibold uppercase">พ้นสภาพ / อื่น ๆ</div>
                     </div>
                   </div>
 

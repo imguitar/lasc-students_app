@@ -4,6 +4,13 @@ const alumniController = require('../controllers/alumni.controller');
 const { auth, authorize } = require('../middleware/auth');
 
 router.get('/', auth, alumniController.getAllAlumni);
+
+// Employment management
+router.post('/employment', auth, authorize('admin', 'alumni'), alumniController.addEmployment);
+router.put('/employment/:id', auth, authorize('admin', 'alumni'), alumniController.updateEmployment);
+router.delete('/employment/:id', auth, authorize('admin', 'alumni'), alumniController.deleteEmployment);
+
+// Alumni single & CRUD
 router.get('/:id', auth, alumniController.getAlumni);
 router.post('/', auth, authorize('admin'), alumniController.createAlumni);
 router.put('/:id', auth, authorize('admin', 'alumni'), alumniController.updateAlumni);

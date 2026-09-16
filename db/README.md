@@ -8,6 +8,8 @@
 - `migrations/20260916-add-department-head.sql` เพิ่ม `departments.department_head_id` สำหรับฟีเจอร์ประธานสาขาวิชา
 - `migrations/20260916-add-evaluator-email.sql` เพิ่ม `requests.evaluator_email` สำหรับส่งแบบประเมินให้สถานประกอบการ
 - `migrations/20260916-add-evaluation-rounds.sql` เพิ่มตาราง `evaluation_rounds` สำหรับกำหนดช่วงเวลาเปิดประเมิน
+- `migrations/20260916-add-resume-skills-internships.sql` เพิ่มข้อมูล resume ใน `profile` และตารางใหม่ 6 ตาราง
+- `migrations/20260916-graduation-portfolio-and-status.sql` เพิ่มข้อมูลสำเร็จการศึกษา/portfolio และ **แปลงค่า `projects.status`**
 
 MySQL Docker image จะรันไฟล์ที่อยู่ในโฟลเดอร์นี้โดยตรงตามลำดับชื่อ เฉพาะตอนสร้าง data volume ครั้งแรกเท่านั้น
 และจะไม่ลงไปใน `migrations/` ไฟล์ใน `migrations/` จึงต้องรันเองเสมอ
@@ -25,6 +27,8 @@ mysql -ulascstudent -p lascstudent < db/migrations/20260904-align-existing-schem
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-department-head.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluation-rounds.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-resume-skills-internships.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260916-graduation-portfolio-and-status.sql
 ```
 
 ## ประธานสาขาวิชา (Department Head)
@@ -68,3 +72,21 @@ WHERE u.role = 'advisor' AND p.id IS NULL;
 
 นอกช่วงเวลาของรอบที่เปิดอยู่ ระบบจะปิดทั้งการเปิดหน้าแบบประเมินและการบันทึกผล
 โดยตรวจที่ฝั่งเซิร์ฟเวอร์ทั้งสองทาง ไม่ใช่แค่ซ่อนหน้าจอ
+
+## สถานะโครงงาน (projects.status)
+
+ขยายจาก 3 ค่าตัวใหญ่เป็น 6 ค่าตัวเล็ก เพื่อรองรับขั้นตอนการทำโครงงานที่ละเอียดขึ้น
+
+```
+Draft      -> draft
+Approved   -> approved
+Completed  -> completed
+                        + in_progress, waiting_defense, passed_defense (ค่าใหม่)
+```
+
+`migrations/20260916-graduation-portfolio-and-status.sql` แปลงข้อมูลเดิมให้อัตโนมัติ
+แถวที่มีค่านอกเหนือจากที่รู้จักจะถูกตั้งเป็น `draft` แทนที่จะกลายเป็นค่าว่าง
+**สำรองข้อมูลด้วย `mysqldump` ก่อนรัน migration นี้เสมอ**
+
+ฝั่ง API รับค่าตัวใหญ่แบบเดิมได้ (`Completed` -> `completed`) แต่ค่าที่ไม่รู้จักจะถูกปฏิเสธด้วย HTTP 400
+ไม่ถูกแปลงเป็น `draft` แบบเงียบ ๆ
