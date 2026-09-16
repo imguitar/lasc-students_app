@@ -11,6 +11,7 @@ import Alumni from './pages/Alumni';
 import Projects from './pages/Projects';
 import Advisors from './pages/Advisors';
 import Profile from './pages/Profile';
+import Departments from './pages/Departments';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="advisors" element={<Advisors />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="departments" element={<Departments />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

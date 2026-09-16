@@ -49,17 +49,19 @@ model Faculty {
 }
 
 model Department {
-  id              Int       @id @default(autoincrement())
-  faculty_id      Int
-  department_id   String    @unique @db.VarChar(50)
-  department_name String    @db.VarChar(200)
-  is_active       Boolean   @default(true)
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
-  
+  id                 Int       @id @default(autoincrement())
+  faculty_id         Int
+  department_id      String    @unique @db.VarChar(50)
+  department_name    String    @db.VarChar(200)
+  is_active          Boolean   @default(true)
+  department_head_id Int?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
   // Relations
   faculty         Faculty   @relation(fields: [faculty_id], references: [id], onDelete: Cascade)
-  profiles        Profile[]
+  profiles        Profile[] @relation("DepartmentMembers")
+  head            Profile?  @relation("DepartmentHead", fields: [department_head_id], references: [id], onDelete: SetNull)
 
   @@map("departments")
 }
@@ -73,10 +75,14 @@ model Profile {
   faculty_id    Int
   department_id Int
   address       String? @db.Text
+  phone         String? @db.VarChar(50)
 
   // Relations ขาเข้า (Belongs To)
   faculty       Faculty    @relation(fields: [faculty_id], references: [id])
-  department    Department @relation(fields: [department_id], references: [id])
+  department    Department @relation("DepartmentMembers", fields: [department_id], references: [id])
+
+  // ประธานสาขาวิชา — หนึ่ง profile เป็นประธานได้ไม่เกินหนึ่งสาขา (บังคับในชั้น controller)
+  headOfDepartments Department[] @relation("DepartmentHead")
 
   // Relations ขาออก (Has Many)
   projectsAsAdvisor Project[]        @relation("ProjectAdvisor")

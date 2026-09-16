@@ -21,11 +21,13 @@ CREATE TABLE IF NOT EXISTS `departments` (
   `department_id` VARCHAR(50) NOT NULL,
   `department_name` VARCHAR(200) NOT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `department_head_id` INT DEFAULT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `departments_department_id_key` (`department_id`),
   KEY `departments_faculty_id_idx` (`faculty_id`),
+  KEY `departments_department_head_id_idx` (`department_head_id`),
   CONSTRAINT `departments_faculty_id_fkey`
     FOREIGN KEY (`faculty_id`) REFERENCES `faculties` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE
@@ -67,6 +69,23 @@ CREATE TABLE IF NOT EXISTS `profile` (
   KEY `profile_faculty_id_idx` (`faculty_id`),
   KEY `profile_department_id_idx` (`department_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ประธานสาขาวิชา: departments อ้างถึง profile จึงผูก FK ตรงนี้
+-- เพราะ departments ถูกสร้างก่อน profile ในไฟล์นี้
+-- ห่อด้วยเงื่อนไขเพื่อให้ไฟล์นี้ยังรันซ้ำบนฐานข้อมูลเดิมได้เหมือน CREATE TABLE IF NOT EXISTS
+SET @fk_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'departments'
+    AND CONSTRAINT_NAME = 'departments_department_head_id_fkey'
+);
+SET @fk_sql := IF(@fk_exists > 0,
+  'SET @noop := 1',
+  'ALTER TABLE `departments` ADD CONSTRAINT `departments_department_head_id_fkey` FOREIGN KEY (`department_head_id`) REFERENCES `profile` (`id`) ON DELETE SET NULL ON UPDATE CASCADE');
+PREPARE fk_statement FROM @fk_sql;
+EXECUTE fk_statement;
+DEALLOCATE PREPARE fk_statement;
 
 CREATE TABLE IF NOT EXISTS `projects` (
   `id` INT NOT NULL AUTO_INCREMENT,

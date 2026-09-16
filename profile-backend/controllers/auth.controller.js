@@ -2,6 +2,20 @@ const prisma = require('../prismaClient');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
+// ประธานสาขาวิชาอ่านจาก departments.department_head_id (แหล่งความจริงเดียวของทั้งระบบ)
+const findHeadDepartment = async (profile) => {
+  if (!profile) return null;
+  return prisma.department.findFirst({
+    where: { department_head_id: profile.id },
+    select: { id: true, department_id: true, department_name: true }
+  });
+};
+
+// ชื่อเต็มที่แสดงบน UI — เผื่อกรณียังไม่มี profile ให้ตกไปใช้ username
+const buildDisplayName = (user, profile) =>
+  `${profile?.prefix ? profile.prefix + ' ' : ''}${profile?.firstname || ''} ${profile?.lastname || ''}`.trim() || user.username;
+
+
 // Generate JWT token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -117,6 +131,8 @@ exports.login = async (req, res) => {
     });
     user.profile = profile || null;
 
+    const headDepartment = await findHeadDepartment(profile);
+
     // Generate token
     const token = generateToken(user.id);
 
@@ -132,7 +148,12 @@ exports.login = async (req, res) => {
           role: user.role,
           isActive: user.isActive,
           createdAt: user.createdAt,
-          profile: user.profile
+          profile: user.profile,
+          firstName: profile?.firstname || '',
+          lastName: profile?.lastname || '',
+          name: buildDisplayName(user, profile),
+          is_department_head: !!headDepartment,
+          head_department: headDepartment
         }
       }
     });
@@ -176,6 +197,13 @@ exports.getMe = async (req, res) => {
       include: { faculty: true, department: true }
     });
     user.profile = profile || null;
+
+    const headDepartment = await findHeadDepartment(profile);
+    user.firstName = profile?.firstname || '';
+    user.lastName = profile?.lastname || '';
+    user.name = buildDisplayName(user, profile);
+    user.is_department_head = !!headDepartment;
+    user.head_department = headDepartment;
 
     res.json({
       success: true,

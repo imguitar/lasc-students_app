@@ -8,6 +8,7 @@ import {
   GraduationCap,
   FolderKanban,
   UserCircle,
+  Building2,
   LogOut,
   Menu,
   X,
@@ -31,6 +32,7 @@ const Layout = () => {
     { path: '/alumni', label: 'ทำเนียบศิษย์เก่า', icon: GraduationCap, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/projects', label: 'จัดการโปรเจคจบ', icon: FolderKanban, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/advisors', label: 'ทำเนียบอาจารย์', icon: UserCircle, roles: ['admin', 'teacher', 'advisor', 'student'] },
+    { path: '/departments', label: 'ข้อมูลสาขาวิชา', icon: Building2, roles: ['admin', 'teacher', 'advisor'] },
   ];
 
   const filteredMenuItems = menuItems.filter(item => 
@@ -40,12 +42,26 @@ const Layout = () => {
   // Get initials for profile avatar
   const getInitials = () => {
     if (!user) return 'U';
-    const first = user.firstName ? user.firstName.charAt(0) : '';
-    const last = user.lastName ? user.lastName.charAt(0) : '';
+    const first = (user.profile?.firstname || user.firstName || user.username || '').charAt(0);
+    const last = (user.profile?.lastname || user.lastName || '').charAt(0);
     return (first + last).toUpperCase() || 'U';
   };
 
+  // ชื่อที่แสดงบน navbar — ไล่จากข้อมูลที่สมบูรณ์ที่สุดลงไป
+  const userDisplayName =
+    (user?.profile?.firstname
+      ? `${user.profile.prefix ? user.profile.prefix + ' ' : ''}${user.profile.firstname} ${user.profile.lastname || ''}`.trim()
+      : '')
+    || (user?.firstName || user?.lastName ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '')
+    || user?.name
+    || user?.username
+    || 'ผู้ใช้';
+
   const getRoleLabel = (role) => {
+    // ประธานสาขามาจาก departments.department_head_id ฝั่ง backend
+    if (user?.is_department_head) {
+      return '👑 ประธานสาขา';
+    }
     switch(role) {
       case 'admin': return 'ผู้ดูแลระบบ';
       case 'teacher':
@@ -83,7 +99,7 @@ const Layout = () => {
                   {getInitials()}
                 </div>
                 <div className="text-left leading-tight">
-                  <div className="font-semibold text-sm text-gray-800 group-hover:text-purple-700">{user?.firstName} {user?.lastName}</div>
+                  <div className="font-semibold text-sm text-gray-800 group-hover:text-purple-700">{userDisplayName}</div>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-100 mt-0.5">
                     {getRoleLabel(user?.role)}
                   </span>

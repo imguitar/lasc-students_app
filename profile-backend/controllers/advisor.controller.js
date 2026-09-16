@@ -42,7 +42,12 @@ exports.getAllAdvisors = async (req, res) => {
     const facultyMap = {};
     faculties.forEach(f => facultyMap[f.id] = f.faculty_name);
     const departmentMap = {};
-    departments.forEach(d => departmentMap[d.id] = d.department_name);
+    // ประธานสาขา: map จาก profile.id -> ชื่อสาขาที่ดำรงตำแหน่งอยู่
+    const headDeptMap = {};
+    departments.forEach(d => {
+      departmentMap[d.id] = d.department_name;
+      if (d.department_head_id) headDeptMap[d.department_head_id] = d.department_name;
+    });
 
 
     
@@ -65,7 +70,9 @@ exports.getAllAdvisors = async (req, res) => {
         department_id: p.department_id ? p.department_id.toString() : '',
         isActive: user.isActive,
         email: user.email,
-        userId: user.id
+        userId: user.id,
+        is_department_head: !!headDeptMap[p.id],
+        head_of_department: headDeptMap[p.id] || null
       };
     }).filter(Boolean);
 
