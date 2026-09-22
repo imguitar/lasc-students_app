@@ -61,24 +61,125 @@ exports.getAllDepartments = async (req, res) => {
 
     const userMap = await buildUserMap(departments.map(d => d.head?.profile_id));
 
+    // นับจำนวนนักศึกษาปัจจุบัน (รุ่น >= 66) และศิษย์เก่า (รุ่น < 66) แยกตามสาขาวิชา (LEFT JOIN logic)
+    const profiles = await prisma.profile.findMany({
+      where: {
+        department_id: { in: departments.map(d => d.id) }
+      },
+      select: {
+        department_id: true,
+        profile_id: true
+      }
+    });
+
+    const deptCounts = {};
+    departments.forEach(d => {
+      deptCounts[d.id] = { current: 0, alumni: 0, total: 0 };
+    });
+
+    profiles.forEach(p => {
+      if (!deptCounts[p.department_id]) return;
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      if (match) {
+        const batch = parseInt(match[1], 10);
+        if (batch >= 66) {
+          deptCounts[p.department_id].current++;
+          deptCounts[p.department_id].total++;
+        } else {
+          deptCounts[p.department_id].alumni++;
+          deptCounts[p.department_id].total++;
+        }
+      }
+    });
+
     res.json({
       success: true,
       count: departments.length,
-      data: departments.map(d => ({
-        id: d.id,
-        department_id: d.department_id,
-        department_name: d.department_name,
-        faculty_id: d.faculty_id,
-        faculty_name: d.faculty ? d.faculty.faculty_name : null,
-        department_head_id: d.department_head_id,
-        department_head: formatHead(d.head, userMap)
-      }))
+      data: departments.map(d => {
+        const c = deptCounts[d.id] || { current: 0, alumni: 0, total: 0 };
+        return {
+          id: d.id,
+          department_id: d.department_id,
+          department_name: d.department_name,
+          faculty_id: d.faculty_id,
+          faculty_name: d.faculty ? d.faculty.faculty_name : null,
+          department_head_id: d.department_head_id,
+          department_head: formatHead(d.head, userMap),
+          student_count: c.current,
+          current_student_count: c.current,
+          alumni_count: c.alumni,
+          total_student_count: c.total
+        };
+      })
     });
   } catch (error) {
     console.error('Error fetching departments:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching departments',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get department student counts summary (รองรับ LEFT JOIN แสดง 0 คน)
+// @route   GET /api/departments/counts
+// @access  Public
+exports.getDepartmentCounts = async (req, res) => {
+  try {
+    const departments = await prisma.department.findMany({
+      where: { is_active: true },
+      orderBy: { id: 'asc' },
+      include: { faculty: true }
+    });
+
+    const profiles = await prisma.profile.findMany({
+      select: { department_id: true, profile_id: true }
+    });
+
+    const counts = {};
+    departments.forEach(d => {
+      counts[d.id] = { current: 0, alumni: 0, total: 0 };
+    });
+
+    profiles.forEach(p => {
+      if (!counts[p.department_id]) return;
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      if (match) {
+        const batch = parseInt(match[1], 10);
+        if (batch >= 66) {
+          counts[p.department_id].current++;
+          counts[p.department_id].total++;
+        } else {
+          counts[p.department_id].alumni++;
+          counts[p.department_id].total++;
+        }
+      }
+    });
+
+    const result = departments.map(d => ({
+      id: d.id,
+      department_id: d.id,
+      department_code: d.department_id,
+      department_name: d.department_name,
+      faculty_id: d.faculty_id,
+      faculty_name: d.faculty?.faculty_name || null,
+      student_count: counts[d.id].current,
+      current_student_count: counts[d.id].current,
+      alumni_count: counts[d.id].alumni,
+      total_student_count: counts[d.id].total
+    }));
+
+    res.json({
+      success: true,
+      count: result.length,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error fetching department counts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching department counts',
       error: error.message
     });
   }

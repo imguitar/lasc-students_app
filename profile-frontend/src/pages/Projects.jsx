@@ -348,9 +348,27 @@ const Projects = () => {
     setIsAddEditOpen(true);
   };
 
+  const canEditProject = (project) => {
+    if (!project || !user) return false;
+    // Admin, student, alumni, advisor, teacher can all edit projects
+    if (['admin', 'student', 'alumni', 'advisor', 'teacher'].includes(user.role)) return true;
+    return true;
+  };
+
   const handleOpenEdit = (project) => {
     setCurrentProject(project);
-    setSelectedMembers(project.members || []);
+    let initialMembers = project.members && project.members.length > 0 ? [...project.members] : [];
+
+    // Fallback: If members list is empty and current user is student, default to current student
+    if (initialMembers.length === 0 && user?.role === 'student' && user?.profile) {
+      initialMembers = [{
+        id: user.profile.id,
+        student_id: user.profile.profile_id,
+        first_name: user.profile.firstname,
+        last_name: user.profile.lastname
+      }];
+    }
+    setSelectedMembers(initialMembers);
     
     let defaultFacultyId = project.advisor?.faculty_id || '';
     let defaultDeptId = project.advisor?.department_id || '';
@@ -361,23 +379,32 @@ const Projects = () => {
       defaultDeptId = user.profile.department_id ? user.profile.department_id.toString() : '';
     }
 
+    if (defaultFacultyId) {
+      fetchDepartments(defaultFacultyId);
+    }
+    if (defaultFacultyId && defaultDeptId) {
+      fetchAdvisors(defaultFacultyId, defaultDeptId);
+    }
+
+    const advisorValue = project.advisor_profile_id || project.advisor_id || project.advisor?.advisor_id || (project.advisor?.id ? project.advisor.id.toString() : '');
+
     setForm({
       project_id: project.project_id,
-      title_th: project.title_th,
-      title_en: project.title_en,
-      description: project.description,
-      advisor: project.advisor_id || '',
-      year: project.year.toString(),
-      project_type: project.project_type || 'Group',
+      title_th: project.title_th || '',
+      title_en: project.title_en || '',
+      description: project.description || '',
+      advisor: advisorValue,
+      year: project.year ? project.year.toString() : (new Date().getFullYear() + 543).toString(),
+      project_type: project.project_type || (project.type ? (project.type.toLowerCase() === 'group' ? 'Group' : 'Individual') : 'Group'),
       document_url: project.document_url || '',
       tags: Array.isArray(project.tags)
         ? project.tags.join(', ')
         : (typeof project.tags === 'string'
           ? (project.tags.startsWith('[') ? JSON.parse(project.tags).join(', ') : project.tags)
           : ''),
-      status: project.status,
-      faculty: defaultFacultyId,
-      department: defaultDeptId
+      status: project.status || 'draft',
+      faculty: defaultFacultyId ? defaultFacultyId.toString() : '',
+      department: defaultDeptId ? defaultDeptId.toString() : ''
     });
     setFormErrors({});
     setIsAddEditOpen(true);
@@ -779,22 +806,19 @@ const Projects = () => {
                   )}
                 </div>
 
-                {(user?.role === 'admin' || 
-                  (user?.role === 'student' && project.members?.some(m => m.student_id === user.username)) ||
-                  (user?.role === 'alumni' && project.members?.some(m => m.student_id.toLowerCase() === user.username.replace('alumni_', '').toLowerCase())) ||
-                  ((user?.role === 'teacher' || user?.role === 'advisor') && project.advisor?.advisor_id === user.username)
-                ) && (
-                  <div className="flex items-center space-x-1">
+                {canEditProject(project) && (
+                  <div className="flex items-center space-x-1.5">
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleOpenEdit(project);
                       }}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-purple-700 hover:text-purple-900 hover:bg-purple-100/50 rounded-lg"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 text-xs text-purple-700 hover:text-purple-900 border-purple-200 hover:bg-purple-50 rounded-xl flex items-center gap-1.5 font-semibold shadow-xs"
                     >
                       <Edit2 size={13} />
+                      <span>แก้ไข</span>
                     </Button>
                     {user?.role === 'admin' && (
                       <Button
@@ -950,8 +974,7 @@ const Projects = () => {
                   name="faculty"
                   value={form.faculty}
                   onChange={handleFormChange}
-                  disabled={user?.role === 'student'}
-                  className={`flex h-10 w-full rounded-xl border bg-white px-3 py-2 text-xs focus-visible:outline-none ${formErrors.faculty ? 'border-rose-300' : 'border-purple-100'} disabled:bg-gray-100 disabled:text-gray-500`}
+                  className={`flex h-10 w-full rounded-xl border bg-white px-3 py-2 text-xs focus-visible:outline-none ${formErrors.faculty ? 'border-rose-300' : 'border-purple-100'}`}
                 >
                   <option value="">เลือกคณะ</option>
                   {facultiesList.map((fac) => (
@@ -968,7 +991,7 @@ const Projects = () => {
                   name="department"
                   value={form.department}
                   onChange={handleFormChange}
-                  disabled={!form.faculty || user?.role === 'student'}
+                  disabled={!form.faculty}
                   className={`flex h-10 w-full rounded-xl border bg-white px-3 py-2 text-xs focus-visible:outline-none ${formErrors.department ? 'border-rose-300' : 'border-purple-100'} disabled:bg-gray-100 disabled:text-gray-500`}
                 >
                   <option value="">เลือกสาขาวิชา</option>
@@ -1186,10 +1209,28 @@ const Projects = () => {
                       </span>
                     );
                   })()}
-                  <span className="text-xs text-purple-600 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100/20 flex items-center gap-1">
-                    <Calendar size={13} />
-                    ปีการศึกษา {selectedProjectForDetails.year}
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-purple-600 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100/20 flex items-center gap-1">
+                      <Calendar size={13} />
+                      ปีการศึกษา {selectedProjectForDetails.year}
+                    </span>
+                    {canEditProject(selectedProjectForDetails) && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const p = selectedProjectForDetails;
+                          setIsDetailsOpen(false);
+                          handleOpenEdit(p);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-200 text-purple-700 hover:bg-purple-50 rounded-xl text-xs h-8 flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Edit2 size={13} />
+                        <span>แก้ไขโครงงาน</span>
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <DialogTitle className="text-xl md:text-2xl font-bold text-gray-900 mt-3 leading-snug">
                   {selectedProjectForDetails.title_th}

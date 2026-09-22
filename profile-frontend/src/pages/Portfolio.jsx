@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { studentService, studentProjectService } from '../services';
+import React, { useEffect, useState, useRef } from 'react';
+import { studentService, studentProjectService, uploadService } from '../services';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -7,20 +7,57 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useToast } from '../components/ui/use-toast';
 import { 
-  FolderGit2, Search, Plus, Edit2, Trash2, X, AlertCircle, ExternalLink, Eye, EyeOff, Calendar, Tag, Building2, ChevronDown
+  FolderGit2, Search, Plus, Edit2, Trash2, X, AlertCircle, ExternalLink, 
+  Eye, EyeOff, Calendar, Tag, Building2, ChevronDown, ChevronRight,
+  Paperclip, FileText, Image as ImageIcon, File, UploadCloud, LayoutGrid, Layers, Download
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '../components/ui/dialog';
 
-const CATEGORIES = ['Coursework', 'Competition', 'Personal', 'Research', 'Internship', 'Other'];
+// หมวดหมู่ผลงานมาตรฐานภาษาไทย
+export const CATEGORIES = [
+  { value: 'ผลงานระหว่างเทอม', label: 'ผลงานระหว่างเทอม', aliases: ['Coursework', 'coursework'] },
+  { value: 'โครงงาน / ปริญญานิพนธ์', label: 'โครงงาน / ปริญญานิพนธ์', aliases: ['Project', 'Thesis', 'thesis', 'Senior Project'] },
+  { value: 'กิจกรรม', label: 'กิจกรรม', aliases: ['Activity', 'activity'] },
+  { value: 'การแข่งขัน', label: 'การแข่งขัน', aliases: ['Competition', 'competition'] },
+  { value: 'ใบประกาศ / Certificate', label: 'ใบประกาศ / Certificate', aliases: ['Certificate', 'certificate'] },
+  { value: 'การฝึกงาน', label: 'การฝึกงาน', aliases: ['Internship', 'internship'] },
+  { value: 'ผลงานด้าน Programming', label: 'ผลงานด้าน Programming', aliases: ['Programming', 'programming'] },
+  { value: 'ผลงานด้าน AI', label: 'ผลงานด้าน AI', aliases: ['AI', 'ai'] },
+  { value: 'ผลงานอื่น ๆ', label: 'ผลงานอื่น ๆ', aliases: ['Personal', 'Research', 'Other', 'other'] },
+];
+
+export const getCategoryLabel = (cat) => {
+  if (!cat) return 'ผลงานอื่น ๆ';
+  const found = CATEGORIES.find(c => c.value === cat || c.label === cat || (c.aliases && c.aliases.includes(cat)));
+  return found ? found.label : cat;
+};
+
+export const getFileUrl = (filePath) => {
+  if (!filePath) return '';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
+  const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+  return `${backendBase}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+};
+
+export const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
 
 const Portfolio = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef(null);
+  
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' หรือ 'grouped'
   const [filters, setFilters] = useState({
     category: '',
     academic_year: '',
@@ -36,7 +73,7 @@ const Portfolio = () => {
 
   // Form for the project being edited
   const [form, setForm] = useState({
-    title: '', description: '', category: 'Coursework',
+    title: '', description: '', category: 'ผลงานระหว่างเทอม',
     academic_year: '', semester: '1', course_name: '',
     technologies: '', github_url: '', demo_url: '', link_url: '',
     image_url: '', document_url: '', status: 'completed',
@@ -44,6 +81,11 @@ const Portfolio = () => {
   });
   const [formErrors, setFormErrors] = useState({});
   const [editStudentId, setEditStudentId] = useState(null);
+
+  // Attached files state
+  const [existingFiles, setExistingFiles] = useState([]);
+  const [newFiles, setNewFiles] = useState([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -110,11 +152,53 @@ const Portfolio = () => {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    // Validate file sizes (max 20MB per file)
+    const validFiles = [];
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) {
+        toast({
+          variant: "destructive",
+          title: "ไฟล์มีขนาดใหญ่เกินกำหนด",
+          description: `ไฟล์ ${file.name} มีขนาดเกิน 20 MB`
+        });
+      } else {
+        validFiles.push(file);
+      }
+    }
+    setNewFiles(prev => [...prev, ...validFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveNewFile = (index) => {
+    setNewFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteExistingFile = async (fileId) => {
+    try {
+      await uploadService.deleteProjectFile(fileId);
+      setExistingFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({ title: "ลบไฟล์สำเร็จ", description: "ลบไฟล์แนบออกจากผลงานเรียบร้อยแล้ว" });
+      fetchProjects();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.response?.data?.message || "ไม่สามารถลบไฟล์ได้"
+      });
+    }
+  };
+
   const handleOpenAdd = () => {
     setCurrentProject(null);
     setEditStudentId(user?.student_id || user?.username || null);
+    setExistingFiles([]);
+    setNewFiles([]);
     setForm({
-      title: '', description: '', category: 'Coursework',
+      title: '', description: '', category: 'ผลงานระหว่างเทอม',
       academic_year: (new Date().getFullYear() + 543).toString(), semester: '1', course_name: '',
       technologies: '', github_url: '', demo_url: '', link_url: '',
       image_url: '', document_url: '', status: 'completed',
@@ -127,10 +211,12 @@ const Portfolio = () => {
   const handleOpenEdit = (project) => {
     setCurrentProject(project);
     setEditStudentId(project.student?.student_id || project.profile_id);
+    setExistingFiles(project.files || []);
+    setNewFiles([]);
     setForm({
       title: project.title || '',
       description: project.description || '',
-      category: project.category || 'Coursework',
+      category: getCategoryLabel(project.category),
       academic_year: project.academic_year?.toString() || '',
       semester: project.semester?.toString() || '1',
       course_name: project.course_name || '',
@@ -143,7 +229,7 @@ const Portfolio = () => {
       status: project.status || 'completed',
       skills_used: Array.isArray(project.skills_used) ? project.skills_used.join(', ') : '',
       internship_company: project.internship_company || '',
-      is_published: project.is_published !== undefined ? project.is_published : true,
+      is_published: project.is_published !== undefined ? Boolean(project.is_published) : true,
       year: project.year?.toString() || ''
     });
     setFormErrors({});
@@ -154,23 +240,40 @@ const Portfolio = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setUploadingFiles(true);
     const data = {
       ...form,
+      category: form.category,
       academic_year: parseInt(form.academic_year) || undefined,
       semester: parseInt(form.semester) || undefined,
       technologies: form.technologies ? form.technologies.split(',').map(t => t.trim()).filter(Boolean) : [],
       skills_used: form.skills_used ? form.skills_used.split(',').map(t => t.trim()).filter(Boolean) : [],
       year: parseInt(form.year) || undefined,
-      is_published: form.is_published
+      is_published: Boolean(form.is_published)
     };
 
     try {
       const studentId = editStudentId || user?.student_id || user?.username;
+      let projectId;
       let response;
+
       if (currentProject) {
-        response = await studentService.updateProject(studentId, currentProject.id, data);
+        projectId = currentProject.id;
+        response = await studentService.updateProject(studentId, projectId, data);
       } else {
         response = await studentService.createProject(studentId, data);
+        projectId = response.data?.id;
+      }
+
+      // Upload pending files if any
+      if (projectId && newFiles.length > 0) {
+        for (const file of newFiles) {
+          try {
+            await uploadService.uploadProjectFile(projectId, file);
+          } catch (uploadErr) {
+            console.error('File upload error:', uploadErr);
+          }
+        }
       }
 
       if (response.success) {
@@ -187,6 +290,8 @@ const Portfolio = () => {
         title: "เกิดข้อผิดพลาดในการบันทึก",
         description: error.response?.data?.message || "โปรดตรวจสอบข้อมูลอีกครั้ง"
       });
+    } finally {
+      setUploadingFiles(false);
     }
   };
 
@@ -221,7 +326,7 @@ const Portfolio = () => {
     return studentId === (user?.student_id || user?.username);
   };
 
-  // Filtered projects for local search
+  // Filtered projects for local search & filters
   const filteredProjects = projects.filter(p => {
     if (search) {
       const q = search.toLowerCase();
@@ -230,8 +335,164 @@ const Portfolio = () => {
       const studentName = (p.student?.name || '').toLowerCase();
       if (!title.includes(q) && !desc.includes(q) && !studentName.includes(q)) return false;
     }
+    if (filters.category) {
+      const label = getCategoryLabel(p.category);
+      if (label !== filters.category && p.category !== filters.category) return false;
+    }
     return true;
   });
+
+  // Grouped projects by Category for Category View
+  const groupedProjects = CATEGORIES.map(cat => {
+    const items = filteredProjects.filter(p => getCategoryLabel(p.category) === cat.label);
+    return {
+      category: cat.label,
+      items
+    };
+  }).filter(group => group.items.length > 0);
+
+  // Any projects that didn't match the standard categories
+  const otherItems = filteredProjects.filter(p => {
+    const label = getCategoryLabel(p.category);
+    return !CATEGORIES.some(cat => cat.label === label);
+  });
+  if (otherItems.length > 0) {
+    groupedProjects.push({
+      category: 'ผลงานอื่น ๆ',
+      items: otherItems
+    });
+  }
+
+  const renderProjectCard = (project) => {
+    const isOwner = canEdit(project);
+    const hasFiles = project.files && project.files.length > 0;
+    const firstImageFile = project.files?.find(f => f.file_type?.startsWith('image/'));
+    const bannerImage = project.image_url || (firstImageFile ? getFileUrl(firstImageFile.file_path) : null);
+
+    return (
+      <div key={project.id} className="border border-purple-100/70 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+        <div className="space-y-3">
+          {/* Optional banner image */}
+          {bannerImage && (
+            <div className="w-full h-36 rounded-xl overflow-hidden bg-purple-50 border border-purple-100/50 relative">
+              <img 
+                src={bannerImage} 
+                alt={project.title} 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </div>
+          )}
+
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-900 line-clamp-1 group-hover:text-purple-700 transition-colors">
+                {project.title}
+              </h3>
+              {project.student?.name && (
+                <p className="text-xs text-gray-500 mt-0.5">โดย {project.student.name}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <Button onClick={() => handleOpenDetail(project)} variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:bg-purple-50 rounded-lg" title="ดูรายละเอียด">
+                <Eye size={14} />
+              </Button>
+              {isOwner && (
+                <>
+                  <Button onClick={() => handleOpenEdit(project)} variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:bg-purple-50 rounded-lg" title="แก้ไข">
+                    <Edit2 size={14} />
+                  </Button>
+                  <Button onClick={() => handleOpenDelete(project)} variant="ghost" size="icon" className="h-7 w-7 text-rose-600 hover:bg-rose-50 rounded-lg" title="ลบ">
+                    <Trash2 size={14} />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {project.description && (
+            <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{project.description}</p>
+          )}
+
+          {/* Badges */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+              <Tag size={10} className="mr-1" />{getCategoryLabel(project.category)}
+            </span>
+            {project.academic_year && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                <Calendar size={10} className="mr-1" />ปี {project.academic_year}
+              </span>
+            )}
+            {hasFiles && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <Paperclip size={10} className="mr-1" />{project.files.length} ไฟล์แนบ
+              </span>
+            )}
+            {project.internship_company && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                <Building2 size={10} className="mr-1" />{project.internship_company}
+              </span>
+            )}
+            {project.is_published === false ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                <EyeOff size={10} className="mr-1" />ไม่แสดงใน Portfolio
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                <Eye size={10} className="mr-1" />แสดงใน Portfolio
+              </span>
+            )}
+          </div>
+
+          {/* Technologies */}
+          {Array.isArray(project.technologies) && project.technologies.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {project.technologies.slice(0, 4).map((tech, idx) => (
+                <span key={idx} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600 font-medium">
+                  {tech}
+                </span>
+              ))}
+              {project.technologies.length > 4 && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">
+                  +{project.technologies.length - 4}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Links & Action Footer */}
+        <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-purple-50 text-[11px]">
+          <div className="flex items-center gap-2">
+            {project.github_url && (
+              <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline flex items-center gap-0.5">
+                <ExternalLink size={11} /> GitHub
+              </a>
+            )}
+            {project.demo_url && (
+              <a href={project.demo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-0.5">
+                <ExternalLink size={11} /> Demo
+              </a>
+            )}
+            {project.link_url && (
+              <a href={project.link_url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center gap-0.5">
+                <ExternalLink size={11} /> ลิงก์
+              </a>
+            )}
+          </div>
+          <Button 
+            onClick={() => handleOpenDetail(project)} 
+            variant="ghost" 
+            size="sm" 
+            className="h-6 text-[11px] text-purple-700 hover:bg-purple-50 px-2 rounded-md"
+          >
+            ดูผลงาน &rarr;
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -243,43 +504,73 @@ const Portfolio = () => {
             ผลงาน / แฟ้มสะสมผลงาน (Portfolio)
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            จัดการผลงาน โปรเจกต์ระหว่างเรียน และแฟ้มสะสมผลงานสำหรับ Portfolio / Resume
+            จัดการผลงาน โปรเจกต์ระหว่างเรียน แนบไฟล์ผลงาน และเลือกผลงานที่จะแสดงใน Portfolio
           </p>
         </div>
         {(user?.role === 'admin' || user?.role === 'student' || user?.role === 'alumni') && (
           <Button
             onClick={handleOpenAdd}
-            className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md flex items-center gap-1.5 h-10"
+            className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md flex items-center gap-1.5 h-10 px-4"
           >
-            <Plus size={16} /> เพิ่มผลงาน
+            <Plus size={16} /> เพิ่มผลงานใหม่
           </Button>
         )}
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-          <Input
-            placeholder="ค้นหาผลงาน..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 border-purple-100 rounded-xl focus:ring-purple-500 h-10"
-          />
-        </form>
-        <select
-          value={filters.category}
-          onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-          className="border border-purple-100 rounded-xl px-3 py-2 text-sm text-gray-700 focus:ring-purple-500 bg-white h-10"
-        >
-          <option value="">ทุกประเภท</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {(search || filters.category || filters.academic_year) && (
-          <Button onClick={handleClearFilters} variant="ghost" className="text-gray-500 h-10 rounded-xl">
-            <X size={14} className="mr-1" /> ล้างตัวกรอง
-          </Button>
-        )}
+      {/* Search, Filter & View Toggle */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex flex-1 flex-col sm:flex-row gap-2">
+          <form onSubmit={handleSearchSubmit} className="flex-1 relative">
+            <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+            <Input
+              placeholder="ค้นหาชื่อผลงาน, รายละเอียด, ผู้จัดทำ..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 border-purple-100 rounded-xl focus:ring-purple-500 h-10 bg-white"
+            />
+          </form>
+          <select
+            value={filters.category}
+            onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+            className="border border-purple-100 rounded-xl px-3 py-2 text-sm text-gray-700 focus:ring-purple-500 bg-white h-10"
+          >
+            <option value="">ทุกหมวดหมู่ ({filteredProjects.length})</option>
+            {CATEGORIES.map(c => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          {(search || filters.category || filters.academic_year) && (
+            <Button onClick={handleClearFilters} variant="ghost" className="text-gray-500 h-10 rounded-xl">
+              <X size={14} className="mr-1" /> ล้างตัวกรอง
+            </Button>
+          )}
+        </div>
+
+        {/* View Mode Switcher */}
+        <div className="flex items-center bg-purple-50/80 p-1 rounded-xl border border-purple-100 shrink-0 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'grid' 
+                ? 'bg-white text-purple-700 shadow-sm' 
+                : 'text-gray-500 hover:text-purple-600'
+            }`}
+          >
+            <LayoutGrid size={14} /> ทั้งหมด
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('grouped')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'grouped' 
+                ? 'bg-white text-purple-700 shadow-sm' 
+                : 'text-gray-500 hover:text-purple-600'
+            }`}
+          >
+            <Layers size={14} /> แยกตามหมวดหมู่
+          </button>
+        </div>
       </div>
 
       {/* Results */}
@@ -289,212 +580,355 @@ const Portfolio = () => {
           <div className="text-gray-500 font-medium animate-pulse text-sm">กำลังโหลดผลงาน...</div>
         </div>
       ) : filteredProjects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-[40vh] space-y-3 text-gray-400">
-          <FolderGit2 size={48} className="text-gray-300" />
-          <p className="text-sm font-medium">ไม่พบผลงาน</p>
-          <p className="text-xs">ลองเปลี่ยนตัวกรองหรือเพิ่มผลงานใหม่</p>
+        <div className="flex flex-col items-center justify-center h-[40vh] space-y-3 text-gray-400 bg-white rounded-2xl border border-dashed border-purple-100 p-8">
+          <FolderGit2 size={48} className="text-purple-300" />
+          <p className="text-sm font-semibold text-gray-700">ไม่พบผลงานที่ค้นหา</p>
+          <p className="text-xs text-gray-400">ลองเปลี่ยนคำค้นหา หรือกดปุ่ม "เพิ่มผลงานใหม่" เพื่อบันทึกผลงานแรกของคุณ</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredProjects.map(project => (
-            <div key={project.id} className="border border-purple-100/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all p-5 space-y-3 group">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-gray-900 truncate">{project.title}</h3>
-                  {project.student?.name && (
-                    <p className="text-xs text-gray-500 mt-0.5">โดย {project.student.name}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                  <Button onClick={() => handleOpenDetail(project)} variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:bg-purple-50 rounded-lg">
-                    <Eye size={14} />
-                  </Button>
-                  {canEdit(project) && (
-                    <>
-                      <Button onClick={() => handleOpenEdit(project)} variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:bg-purple-50 rounded-lg">
-                        <Edit2 size={14} />
-                      </Button>
-                      <Button onClick={() => handleOpenDelete(project)} variant="ghost" size="icon" className="h-7 w-7 text-rose-600 hover:bg-rose-50 rounded-lg">
-                        <Trash2 size={14} />
-                      </Button>
-                    </>
-                  )}
+      ) : viewMode === 'grouped' ? (
+        /* Grouped by Category View */
+        <div className="space-y-8">
+          {groupedProjects.map((group) => (
+            <div key={group.category} className="space-y-4 bg-white/60 p-5 rounded-2xl border border-purple-100/60 shadow-sm">
+              <div className="flex items-center justify-between border-b border-purple-100/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+                  <h2 className="text-base font-bold text-gray-900">{group.category}</h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                    {group.items.length} รายการ
+                  </span>
                 </div>
               </div>
-
-              {project.description && (
-                <p className="text-xs text-gray-500 line-clamp-2">{project.description}</p>
-              )}
-
-              <div className="flex flex-wrap gap-1.5">
-                {project.category && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-100">
-                    <Tag size={10} className="mr-1" />{project.category}
-                  </span>
-                )}
-                {project.academic_year && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                    <Calendar size={10} className="mr-1" />ปี {project.academic_year}
-                  </span>
-                )}
-                {project.internship_company && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
-                    <Building2 size={10} className="mr-1" />{project.internship_company}
-                  </span>
-                )}
-                {project.is_published === false && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                    <EyeOff size={10} className="mr-1" />ส่วนตัว
-                  </span>
-                )}
-              </div>
-
-              {/* Technologies */}
-              {Array.isArray(project.technologies) && project.technologies.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {project.technologies.slice(0, 4).map((tech, idx) => (
-                    <span key={idx} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600 font-medium">
-                      {tech}
-                    </span>
-                  ))}
-                  {project.technologies.length > 4 && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">
-                      +{project.technologies.length - 4}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Links */}
-              <div className="flex items-center gap-2 pt-1">
-                {project.github_url && (
-                  <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-600 hover:underline flex items-center gap-0.5">
-                    <ExternalLink size={10} /> GitHub
-                  </a>
-                )}
-                {project.demo_url && (
-                  <a href={project.demo_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
-                    <ExternalLink size={10} /> Demo
-                  </a>
-                )}
-                {project.link_url && (
-                  <a href={project.link_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5">
-                    <ExternalLink size={10} /> ลิงก์ผลงาน
-                  </a>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {group.items.map(project => renderProjectCard(project))}
               </div>
             </div>
           ))}
         </div>
+      ) : (
+        /* Regular Flat Grid View */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredProjects.map(project => renderProjectCard(project))}
+        </div>
       )}
 
-      {/* Add/Edit Dialog */}
+      {/* Add / Edit Project Dialog */}
       <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white rounded-2xl p-6 shadow-xl border border-purple-100/50 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl bg-white rounded-2xl p-6 shadow-xl border border-purple-100/50 max-h-[90vh] overflow-y-auto">
           <DialogHeader className="pb-4 border-b border-purple-50">
-            <DialogTitle className="text-lg font-bold text-gray-900">
-              {currentProject ? 'แก้ไขผลงาน' : 'เพิ่มผลงานใหม่'}
+            <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <FolderGit2 className="text-purple-600 h-5 w-5" />
+              {currentProject ? 'แก้ไขข้อมูลผลงาน' : 'เพิ่มผลงานใหม่'}
             </DialogTitle>
-            <DialogDescription className="text-xs text-gray-400 mt-1">
-              กรอกข้อมูลผลงาน โปรเจกต์ หรือกิจกรรมระหว่างเรียน
+            <DialogDescription className="text-xs text-gray-500 mt-1">
+              กรอกข้อมูลผลงาน โครงงาน กิจกรรม และแนบไฟล์เอกสาร/รูปภาพผลงานของคุณ
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-4">
+            {/* Title */}
             <div className="space-y-1.5">
               <Label className="text-gray-700 text-xs font-semibold">ชื่อผลงาน *</Label>
-              <Input name="title" value={form.title} onChange={handleFormChange} placeholder="เช่น ระบบจัดการร้านอาหาร" className={`border-purple-100 rounded-xl ${formErrors.title ? 'border-rose-300' : 'focus:ring-purple-500'}`} />
-              {formErrors.title && <p className="text-rose-500 text-[11px] flex items-center gap-1"><AlertCircle size={12} /> {formErrors.title}</p>}
+              <Input 
+                name="title" 
+                value={form.title} 
+                onChange={handleFormChange} 
+                placeholder="เช่น ระบบฐานข้อมูลนักศึกษาและแฟ้มสะสมผลงาน" 
+                className={`border-purple-100 rounded-xl ${formErrors.title ? 'border-rose-300' : 'focus:ring-purple-500'}`} 
+              />
+              {formErrors.title && (
+                <p className="text-rose-500 text-[11px] flex items-center gap-1">
+                  <AlertCircle size={12} /> {formErrors.title}
+                </p>
+              )}
             </div>
 
+            {/* Description */}
             <div className="space-y-1.5">
               <Label className="text-gray-700 text-xs font-semibold">รายละเอียดผลงาน</Label>
-              <textarea name="description" value={form.description} onChange={handleFormChange} rows={3} placeholder="อธิบายรายละเอียดผลงาน..." className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none" />
+              <textarea 
+                name="description" 
+                value={form.description} 
+                onChange={handleFormChange} 
+                rows={3} 
+                placeholder="อธิบายรายละเอียด บทบาทหน้าที่ วัตถุประสงค์ หรือผลลัพธ์ของผลงานนี้..." 
+                className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none" 
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Category & Year */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">ประเภทผลงาน</Label>
-                <select name="category" value={form.category} onChange={handleFormChange} className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-purple-500 bg-white">
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <Label className="text-gray-700 text-xs font-semibold">หมวดหมู่ผลงาน (Category) *</Label>
+                <select 
+                  name="category" 
+                  value={form.category} 
+                  onChange={handleFormChange} 
+                  className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-purple-500 bg-white"
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-gray-700 text-xs font-semibold">ปีที่สร้างผลงาน (พ.ศ.)</Label>
-                <Input name="year" type="number" value={form.year} onChange={handleFormChange} placeholder="เช่น 2569" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Input 
+                  name="year" 
+                  type="number" 
+                  value={form.year} 
+                  onChange={handleFormChange} 
+                  placeholder="เช่น 2569" 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500" 
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            {/* Academic Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-gray-700 text-xs font-semibold">ปีการศึกษา</Label>
-                <Input name="academic_year" type="number" value={form.academic_year} onChange={handleFormChange} placeholder="2569" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Input 
+                  name="academic_year" 
+                  type="number" 
+                  value={form.academic_year} 
+                  onChange={handleFormChange} 
+                  placeholder="2569" 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500" 
+                />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">เทอม</Label>
-                <select name="semester" value={form.semester} onChange={handleFormChange} className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-purple-500 bg-white">
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">ฤดูร้อน</option>
+                <Label className="text-gray-700 text-xs font-semibold">ภาคเรียน / เทอม</Label>
+                <select 
+                  name="semester" 
+                  value={form.semester} 
+                  onChange={handleFormChange} 
+                  className="w-full border border-purple-100 rounded-xl px-3 py-2 text-sm focus:ring-purple-500 bg-white"
+                >
+                  <option value="1">ภาคเรียนที่ 1</option>
+                  <option value="2">ภาคเรียนที่ 2</option>
+                  <option value="3">ภาคฤดูร้อน</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">ชื่อวิชา</Label>
-                <Input name="course_name" value={form.course_name} onChange={handleFormChange} placeholder="เช่น Web Development" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Label className="text-gray-700 text-xs font-semibold">ชื่อวิชา / กิจกรรม</Label>
+                <Input 
+                  name="course_name" 
+                  value={form.course_name} 
+                  onChange={handleFormChange} 
+                  placeholder="เช่น Software Engineering" 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500" 
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Technologies & Skills */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">เทคโนโลยีที่ใช้ (คั่นด้วย ,)</Label>
-                <Input name="technologies" value={form.technologies} onChange={handleFormChange} placeholder="React, Node.js, MySQL" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Label className="text-gray-700 text-xs font-semibold">เทคโนโลยีที่ใช้ (คั่นด้วยเครื่องหมายจุลภาค ,)</Label>
+                <Input 
+                  name="technologies" 
+                  value={form.technologies} 
+                  onChange={handleFormChange} 
+                  placeholder="React, Node.js, Express, MySQL" 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500" 
+                />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">ทักษะที่ใช้ (คั่นด้วย ,)</Label>
-                <Input name="skills_used" value={form.skills_used} onChange={handleFormChange} placeholder="Web Dev, Database Design" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Label className="text-gray-700 text-xs font-semibold">ทักษะที่ใช้ (คั่นด้วยเครื่องหมายจุลภาค ,)</Label>
+                <Input 
+                  name="skills_used" 
+                  value={form.skills_used} 
+                  onChange={handleFormChange} 
+                  placeholder="Full-stack Development, API Design" 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500" 
+                />
               </div>
             </div>
 
+            {/* Internship Company */}
             <div className="space-y-1.5">
-              <Label className="text-gray-700 text-xs font-semibold">ที่ฝึกงาน (ถ้ามี)</Label>
-              <Input name="internship_company" value={form.internship_company} onChange={handleFormChange} placeholder="เช่น บริษัท ABC จำกัด" className="border-purple-100 rounded-xl focus:ring-purple-500" />
+              <Label className="text-gray-700 text-xs font-semibold">หน่วยงาน / สถานประกอบการ (ถ้าเกี่ยวข้องกับการฝึกงาน)</Label>
+              <Input 
+                name="internship_company" 
+                value={form.internship_company} 
+                onChange={handleFormChange} 
+                placeholder="เช่น บริษัท ศูนย์นวัตกรรมเทคโนโลยี จำกัด" 
+                className="border-purple-100 rounded-xl focus:ring-purple-500" 
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Links */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-gray-700 text-xs font-semibold">GitHub URL</Label>
-                <Input name="github_url" value={form.github_url} onChange={handleFormChange} placeholder="https://github.com/..." className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Input 
+                  name="github_url" 
+                  value={form.github_url} 
+                  onChange={handleFormChange} 
+                  placeholder="https://github.com/..." 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500 text-xs" 
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-gray-700 text-xs font-semibold">Demo URL</Label>
-                <Input name="demo_url" value={form.demo_url} onChange={handleFormChange} placeholder="https://..." className="border-purple-100 rounded-xl focus:ring-purple-500" />
+                <Input 
+                  name="demo_url" 
+                  value={form.demo_url} 
+                  onChange={handleFormChange} 
+                  placeholder="https://demo..." 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500 text-xs" 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-gray-700 text-xs font-semibold">ลิงก์ผลงานภายนอก</Label>
+                <Input 
+                  name="link_url" 
+                  value={form.link_url} 
+                  onChange={handleFormChange} 
+                  placeholder="https://..." 
+                  className="border-purple-100 rounded-xl focus:ring-purple-500 text-xs" 
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">ลิงก์ผลงาน</Label>
-                <Input name="link_url" value={form.link_url} onChange={handleFormChange} placeholder="https://..." className="border-purple-100 rounded-xl focus:ring-purple-500" />
+            {/* ===================== FEATURE 1: แนบไฟล์ผลงาน ===================== */}
+            <div className="border border-purple-100 rounded-xl p-4 bg-purple-50/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <Paperclip size={14} className="text-purple-600" /> แนบรูปภาพหรือไฟล์ผลงาน
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    รองรับรูปภาพ (JPG, PNG, WebP), ไฟล์เอกสาร PDF, DOC, DOCX (ขนาดไม่เกิน 20 MB ต่อไฟล์)
+                  </p>
+                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileSelect} 
+                  multiple 
+                  accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  className="hidden" 
+                />
+                <Button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white border-purple-200 text-purple-700 hover:bg-purple-100 text-xs rounded-xl flex items-center gap-1"
+                >
+                  <UploadCloud size={14} /> เลือกไฟล์แนบ
+                </Button>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-gray-700 text-xs font-semibold">URL เอกสาร</Label>
-                <Input name="document_url" value={form.document_url} onChange={handleFormChange} placeholder="https://..." className="border-purple-100 rounded-xl focus:ring-purple-500" />
-              </div>
+
+              {/* Existing files list (if editing) */}
+              {existingFiles.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-purple-100">
+                  <p className="text-[11px] font-semibold text-gray-700">ไฟล์ที่แนบอยู่ในระบบ ({existingFiles.length} ไฟล์):</p>
+                  <div className="space-y-1">
+                    {existingFiles.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-100 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {file.file_type?.startsWith('image/') ? (
+                            <ImageIcon size={14} className="text-purple-500 shrink-0" />
+                          ) : (
+                            <FileText size={14} className="text-blue-500 shrink-0" />
+                          )}
+                          <span className="font-medium text-gray-800 truncate">{file.original_name}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">({formatFileSize(file.file_size)})</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <a 
+                            href={getFileUrl(file.file_path)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-purple-600 hover:text-purple-800 p-1"
+                            title="เปิดดูไฟล์"
+                          >
+                            <Download size={13} />
+                          </a>
+                          <button 
+                            type="button" 
+                            onClick={() => handleDeleteExistingFile(file.id)} 
+                            className="text-rose-500 hover:text-rose-700 p-1"
+                            title="ลบไฟล์"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Newly selected files pending upload */}
+              {newFiles.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-purple-100">
+                  <p className="text-[11px] font-semibold text-purple-800">ไฟล์ที่เลือกใหม่ พร้อมอัปโหลดเมื่อบันทึก ({newFiles.length} ไฟล์):</p>
+                  <div className="space-y-1">
+                    {newFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-purple-100/50 px-3 py-1.5 rounded-lg text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip size={13} className="text-purple-600 shrink-0" />
+                          <span className="font-medium text-purple-950 truncate">{file.name}</span>
+                          <span className="text-[10px] text-purple-600 shrink-0">({formatFileSize(file.size)})</span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveNewFile(idx)} 
+                          className="text-gray-400 hover:text-rose-600 p-1"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="is_published" checked={form.is_published} onChange={handleFormChange} className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500" />
-                <span className="text-xs font-semibold text-gray-700">เผยแพร่ผลงาน (แสดงให้ผู้อื่นเห็น)</span>
+            {/* ===================== FEATURE 2: แสดงใน Portfolio ===================== */}
+            <div className="border border-purple-200/80 rounded-xl p-4 bg-purple-50/20">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  name="is_published" 
+                  checked={form.is_published} 
+                  onChange={handleFormChange} 
+                  className="w-5 h-5 rounded border-purple-300 text-purple-600 focus:ring-purple-500 mt-0.5" 
+                />
+                <div className="space-y-0.5">
+                  <span className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                    แสดงใน Portfolio
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    หากเลือก ผลงานนี้จะปรากฏในหน้ารวมแฟ้มสะสมผลงาน (Portfolio) ของนักศึกษา
+                  </p>
+                  <p className="text-[11px] text-purple-600 italic">
+                    * หากไม่เลือก ผลงานและไฟล์แนบทั้งหมดยังคงบันทึกอยู่ในระบบอย่างปลอดภัย โดยไม่ถูกลบออกจากฐานข้อมูล
+                  </p>
+                </div>
               </label>
             </div>
 
             <DialogFooter className="pt-4 border-t border-purple-50 gap-2">
-              <Button type="button" variant="ghost" onClick={() => setIsAddEditOpen(false)} className="text-gray-500 hover:bg-gray-100 rounded-xl">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={() => setIsAddEditOpen(false)} 
+                className="text-gray-500 hover:bg-gray-100 rounded-xl"
+                disabled={uploadingFiles}
+              >
                 ยกเลิก
               </Button>
-              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md">
-                {currentProject ? 'อัปเดตผลงาน' : 'บันทึกผลงาน'}
+              <Button 
+                type="submit" 
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md px-5"
+                disabled={uploadingFiles}
+              >
+                {uploadingFiles ? 'กำลังบันทึกและอัปโหลดไฟล์...' : (currentProject ? 'อัปเดตผลงาน' : 'บันทึกผลงาน')}
               </Button>
             </DialogFooter>
           </form>
@@ -505,51 +939,67 @@ const Portfolio = () => {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="sm:max-w-2xl bg-white rounded-2xl p-6 shadow-xl border border-purple-100/50 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-gray-900">{detailProject?.title}</DialogTitle>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                {getCategoryLabel(detailProject?.category)}
+              </span>
+              {detailProject?.is_published === false && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">
+                  ส่วนตัว (ไม่แสดงใน Portfolio)
+                </span>
+              )}
+            </div>
+            <DialogTitle className="text-xl font-bold text-gray-900 mt-2">{detailProject?.title}</DialogTitle>
             {detailProject?.student?.name && (
-              <DialogDescription className="text-sm text-gray-500">โดย {detailProject.student.name}</DialogDescription>
+              <DialogDescription className="text-xs text-gray-500">
+                เจ้าของผลงาน: {detailProject.student.name} {detailProject.student.student_id ? `(${detailProject.student.student_id})` : ''}
+              </DialogDescription>
             )}
           </DialogHeader>
 
           {detailProject && (
             <div className="space-y-4 pt-3">
-              {detailProject.description && (
-                <div>
-                  <h4 className="text-xs font-bold text-gray-700 mb-1">รายละเอียด</h4>
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{detailProject.description}</p>
+              {/* Optional Banner Image */}
+              {detailProject.image_url && (
+                <div className="w-full max-h-60 rounded-xl overflow-hidden bg-purple-50 border border-purple-100">
+                  <img src={detailProject.image_url} alt={detailProject.title} className="w-full h-full object-cover" />
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                {detailProject.category && (
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-1">ประเภท</h4>
-                    <p className="text-sm text-gray-600">{detailProject.category}</p>
-                  </div>
-                )}
-                {detailProject.academic_year && (
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-1">ปีการศึกษา / เทอม</h4>
-                    <p className="text-sm text-gray-600">{detailProject.academic_year} / {detailProject.semester || '-'}</p>
-                  </div>
-                )}
+              {detailProject.description && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-700 mb-1">รายละเอียด</h4>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{detailProject.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 bg-purple-50/30 p-4 rounded-xl border border-purple-100/50">
+                <div>
+                  <h4 className="text-xs font-bold text-gray-700 mb-0.5">หมวดหมู่</h4>
+                  <p className="text-xs text-gray-600">{getCategoryLabel(detailProject.category)}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-700 mb-0.5">ปีการศึกษา / ภาคเรียน</h4>
+                  <p className="text-xs text-gray-600">{detailProject.academic_year || '-'} / {detailProject.semester || '-'}</p>
+                </div>
                 {detailProject.course_name && (
                   <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-1">วิชา</h4>
-                    <p className="text-sm text-gray-600">{detailProject.course_name}</p>
+                    <h4 className="text-xs font-bold text-gray-700 mb-0.5">วิชา</h4>
+                    <p className="text-xs text-gray-600">{detailProject.course_name}</p>
                   </div>
                 )}
                 {detailProject.internship_company && (
                   <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-1">ที่ฝึกงาน</h4>
-                    <p className="text-sm text-gray-600">{detailProject.internship_company}</p>
+                    <h4 className="text-xs font-bold text-gray-700 mb-0.5">สถานที่ฝึกงาน</h4>
+                    <p className="text-xs text-gray-600">{detailProject.internship_company}</p>
                   </div>
                 )}
               </div>
 
+              {/* Technologies */}
               {Array.isArray(detailProject.technologies) && detailProject.technologies.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-gray-700 mb-1">เทคโนโลยี</h4>
+                  <h4 className="text-xs font-bold text-gray-700 mb-1">เทคโนโลยีที่ใช้</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {detailProject.technologies.map((tech, idx) => (
                       <span key={idx} className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-100 font-medium">{tech}</span>
@@ -558,22 +1008,51 @@ const Portfolio = () => {
                 </div>
               )}
 
-              {Array.isArray(detailProject.skills_used) && detailProject.skills_used.length > 0 && (
+              {/* Attached Files List */}
+              {Array.isArray(detailProject.files) && detailProject.files.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-gray-700 mb-1">ทักษะที่ใช้</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {detailProject.skills_used.map((skill, idx) => (
-                      <span key={idx} className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100 font-medium">{skill}</span>
-                    ))}
+                  <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-1.5">
+                    <Paperclip size={14} className="text-purple-600" /> ไฟล์แนบผลงาน ({detailProject.files.length} ไฟล์)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {detailProject.files.map((file) => {
+                      const isImg = file.file_type?.startsWith('image/');
+                      return (
+                        <div key={file.id} className="border border-purple-100 rounded-xl p-3 bg-white hover:border-purple-300 transition-colors flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isImg ? (
+                              <ImageIcon size={16} className="text-purple-600 shrink-0" />
+                            ) : (
+                              <FileText size={16} className="text-blue-600 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-gray-800 truncate" title={file.original_name}>
+                                {file.original_name}
+                              </p>
+                              <p className="text-[10px] text-gray-400">{formatFileSize(file.file_size)}</p>
+                            </div>
+                          </div>
+                          <a 
+                            href={getFileUrl(file.file_path)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            download 
+                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0"
+                          >
+                            <Download size={12} /> ดาวน์โหลด
+                          </a>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-3">
-                {detailProject.github_url && <a href={detailProject.github_url} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> GitHub</a>}
-                {detailProject.demo_url && <a href={detailProject.demo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> Demo</a>}
-                {detailProject.link_url && <a href={detailProject.link_url} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> ลิงก์ผลงาน</a>}
-                {detailProject.document_url && <a href={detailProject.document_url} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> เอกสาร</a>}
+              {/* External Links */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                {detailProject.github_url && <a href={detailProject.github_url} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> ดูโค้ดบน GitHub</a>}
+                {detailProject.demo_url && <a href={detailProject.demo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> ทดลองใช้งาน (Demo)</a>}
+                {detailProject.link_url && <a href={detailProject.link_url} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> ลิงก์ภายนอก</a>}
               </div>
             </div>
           )}
@@ -586,7 +1065,7 @@ const Portfolio = () => {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-gray-900">ยืนยันการลบผลงาน</DialogTitle>
             <DialogDescription className="text-sm text-gray-500 mt-2">
-              คุณแน่ใจหรือไม่ที่จะลบผลงานนี้? การดำเนินการนี้ไม่สามารถกู้คืนได้
+              คุณแน่ใจหรือไม่ที่จะลบผลงานนี้? การดำเนินการนี้จะลบไฟล์ที่แนบทั้งหมดและไม่สามารถกู้คืนได้
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-4 gap-2">

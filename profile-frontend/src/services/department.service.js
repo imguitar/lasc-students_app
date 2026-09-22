@@ -36,5 +36,14 @@ export const departmentService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  getCounts: async () => {
+    try {
+      const response = await api.get('/departments/counts');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 };

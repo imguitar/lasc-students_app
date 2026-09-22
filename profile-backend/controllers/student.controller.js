@@ -12,7 +12,7 @@ const findProfileByIdOrCode = async (idOrCode) => {
       addresses: true,
       studentSkills: { include: { skill: true } },
       internships: { orderBy: { start_date: 'desc' } },
-      studentProjects: { orderBy: { created_at: 'desc' } },
+      studentProjects: { orderBy: { created_at: 'desc' }, include: { files: true } },
       alumniEmployments: { orderBy: { is_current: 'desc' } }
     }
   });
@@ -23,24 +23,44 @@ const findProfileByIdOrCode = async (idOrCode) => {
 // @access  Private
 exports.getAllStudents = async (req, res) => {
   try {
-    const { faculty, department, department_id, year, status, search } = req.query;
+    const { faculty, department, department_id, year, status, search, type } = req.query;
+    const filterType = (type || 'current').toLowerCase().trim();
     const where = {};
 
-    // 1. Department Mapping
+    // 1. Department Mapping (รองรับทั้ง id ตัวเลข, department_id รหัสข้อความ, และชื่อสาขา)
     if (department_id && typeof department_id === 'string' && department_id.trim() !== '') {
-      const { getDepartmentNameById } = require('../utils/departments');
-      const deptName = getDepartmentNameById(department_id.trim());
+      const deptTrim = department_id.trim();
+      const parsedDeptNum = parseInt(deptTrim, 10);
       
       let targetDept = null;
-      if (deptName !== "ไม่ระบุสาขาวิชา") {
-        targetDept = await prisma.department.findFirst({
-          where: { department_name: deptName }
+      // ตรวจสอบตาม id ตัวเลข (Primary Key ในตาราง departments)
+      if (!isNaN(parsedDeptNum)) {
+        targetDept = await prisma.department.findUnique({
+          where: { id: parsedDeptNum }
         });
       }
-      
+
+      // ตรวจสอบตาม department_id code (เช่น 'DEPT-1')
       if (!targetDept) {
         targetDept = await prisma.department.findUnique({
-          where: { department_id: department_id.trim() }
+          where: { department_id: deptTrim }
+        });
+      }
+
+      // ตรวจสอบตาม mapping utility หรือชื่อสาขาวิชา
+      if (!targetDept) {
+        const { getDepartmentNameById } = require('../utils/departments');
+        const deptName = getDepartmentNameById(deptTrim);
+        if (deptName !== "ไม่ระบุสาขาวิชา") {
+          targetDept = await prisma.department.findFirst({
+            where: { department_name: deptName }
+          });
+        }
+      }
+
+      if (!targetDept) {
+        targetDept = await prisma.department.findFirst({
+          where: { department_name: { contains: deptTrim } }
         });
       }
 
@@ -76,13 +96,29 @@ exports.getAllStudents = async (req, res) => {
       ];
     }
 
-    // 2. Users filter
-    const userWhere = { role: 'student' };
+    // 2. Users filter — ครอบคลุมทั้ง role 'student' และ 'alumni' เพื่อรองรับข้อมูลจริงในระบบ
+    const userWhere = { role: { in: ['student', 'alumni'] } };
     if (status && typeof status === 'string' && status.trim() !== '') {
       userWhere.isActive = status.trim() === 'Active';
     }
     
     let users = await prisma.user.findMany({ where: userWhere });
+
+    // Dynamic Filter ตามรหัสรุ่นจาก Student ID / Username:
+    // current: 2 ตัวแรก >= 66
+    // alumni: 2 ตัวแรก < 66
+    // all: ไม่กรองรุ่น
+    if (filterType === 'current') {
+      users = users.filter(u => {
+        const match = u.username && u.username.match(/^(\d{2})/);
+        return match && parseInt(match[1], 10) >= 66;
+      });
+    } else if (filterType === 'alumni') {
+      users = users.filter(u => {
+        const match = u.username && u.username.match(/^(\d{2})/);
+        return (match && parseInt(match[1], 10) < 66) || u.role === 'alumni';
+      });
+    }
     
     if (year && typeof year === 'string' && year.trim() !== '') {
       const parsedYear = parseInt(year, 10);
@@ -114,6 +150,19 @@ exports.getAllStudents = async (req, res) => {
         orderBy: { profile_id: 'desc' }
       });
       profiles = profiles.concat(profilesChunk);
+    }
+
+    // กรอง Profile อีกชั้นหนึ่งเพื่อความถูกต้องสมบูรณ์
+    if (filterType === 'current') {
+      profiles = profiles.filter(p => {
+        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+        return match && parseInt(match[1], 10) >= 66;
+      });
+    } else if (filterType === 'alumni') {
+      profiles = profiles.filter(p => {
+        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+        return (match && parseInt(match[1], 10) < 66) || p.graduation_year !== null;
+      });
     }
 
     const faculties = await prisma.faculty.findMany();
@@ -148,8 +197,11 @@ exports.getAllStudents = async (req, res) => {
         department_id: p.department_id ? p.department_id.toString() : '',
         year: calYear,
         status: user.isActive ? 'Active' : 'Inactive',
-        email: user.email,
+        email: (user.email && !user.email.includes('@student.sskru.ac.th'))
+          ? user.email
+          : `stu${p.profile_id}@sskru.ac.th`,
         phone: p.phone || '',
+        avatar_url: p.avatar_url || '',
         userId: user.id
       };
     }).filter(Boolean);
@@ -228,7 +280,9 @@ exports.getStudent = async (req, res) => {
       department: profile.department?.department_name || '',
       department_id: profile.department?.department_id || '',
       contact_info: {
-        email: user?.email || `${profile.profile_id}@student.sskru.ac.th`,
+        email: (user?.email && !user?.email.includes('@student.sskru.ac.th'))
+          ? user.email
+          : `stu${profile.profile_id}@sskru.ac.th`,
         phone: profile.phone || '',
         linkedin: profile.linkedin_url || '',
         github: profile.github_url || '',
@@ -295,7 +349,9 @@ exports.getStudentByCode = async (req, res) => {
         faculty_id: profile.faculty_id,
         department: profile.department?.department_name || '',
         department_id: profile.department?.department_id || '',
-        email: user?.email || `${profile.profile_id}@student.sskru.ac.th`,
+        email: (user?.email && !user?.email.includes('@student.sskru.ac.th'))
+          ? user.email
+          : `stu${profile.profile_id}@sskru.ac.th`,
         phone: profile.phone || '',
         graduation_year: profile.graduation_year || null
       }
@@ -377,7 +433,9 @@ exports.getResume = async (req, res) => {
           ? `${profile.first_name_en} ${profile.last_name_en}`.trim() 
           : '',
         phone: profile.phone || '',
-        email: user?.email || `${profile.profile_id}@student.sskru.ac.th`,
+        email: (user?.email && !user?.email.includes('@student.sskru.ac.th'))
+          ? user.email
+          : `stu${profile.profile_id}@sskru.ac.th`,
         birth_date: profile.birth_date,
         avatar_url: profile.avatar_url || '',
         bio: profile.bio || 'มุ่งมั่นนำความรู้และทักษะด้านเทคโนโลยีสารสนเทศมาพัฒนาโซลูชันที่มีประสิทธิภาพ',
@@ -778,6 +836,7 @@ exports.getStudentProjects = async (req, res) => {
 
     const projects = await prisma.studentProject.findMany({
       where: { profile_id: profile.profile_id },
+      include: { files: true },
       orderBy: { created_at: 'desc' }
     });
 
@@ -894,9 +953,21 @@ exports.createStudent = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields (including department_id)' });
     }
 
-    const department = await prisma.department.findUnique({
-      where: { department_id: data.department_id }
-    });
+    let department = null;
+    if (data.department_id) {
+      const parsedId = parseInt(data.department_id, 10);
+      if (!isNaN(parsedId)) {
+        department = await prisma.department.findUnique({ where: { id: parsedId } });
+      }
+      if (!department) {
+        department = await prisma.department.findUnique({ where: { department_id: String(data.department_id) } });
+      }
+    }
+    if (!department && data.department) {
+      department = await prisma.department.findFirst({
+        where: { department_name: { contains: String(data.department).trim() } }
+      });
+    }
 
     if (!department) {
       return res.status(400).json({ success: false, message: 'Department not found' });
@@ -904,12 +975,16 @@ exports.createStudent = async (req, res) => {
 
     // Upsert User
     const existingUser = await prisma.user.findUnique({ where: { username: data.student_id } });
+    const studentEmail = (data.email && !data.email.includes('@student.sskru.ac.th'))
+      ? data.email
+      : `stu${data.student_id}@sskru.ac.th`;
+
     if (!existingUser) {
       const defaultPassword = await bcrypt.hash(data.student_id, 10);
       await prisma.user.create({
         data: {
           username: data.student_id,
-          email: data.email || `${data.student_id}@student.sskru.ac.th`,
+          email: studentEmail,
           password: defaultPassword,
           role: 'student',
           isActive: data.status === 'Active' || !data.status ? true : false
@@ -1004,15 +1079,21 @@ exports.updateStudent = async (req, res) => {
       }
     });
 
-    if (data.status || data.role) {
+    if (data.status || data.role || data.email) {
       const user = await prisma.user.findUnique({ where: { username: profile.profile_id } });
       if (user) {
+        const updateUserData = {
+          isActive: data.status ? data.status === 'Active' : user.isActive,
+          role: data.role || (data.status === 'Graduated' ? 'alumni' : user.role)
+        };
+        if (data.email) {
+          updateUserData.email = data.email.includes('@student.sskru.ac.th')
+            ? `stu${profile.profile_id}@sskru.ac.th`
+            : data.email;
+        }
         await prisma.user.update({
           where: { id: user.id },
-          data: {
-            isActive: data.status ? data.status === 'Active' : user.isActive,
-            role: data.role || (data.status === 'Graduated' ? 'alumni' : user.role)
-          }
+          data: updateUserData
         });
       }
     }

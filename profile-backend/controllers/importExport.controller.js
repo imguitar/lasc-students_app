@@ -303,19 +303,54 @@ exports.exportStudents = async (req, res) => {
     const { format = 'csv', faculty, department, year, status } = req.query;
     let where = {};
 
-    if (faculty) where.faculty = faculty;
-    if (department) where.department = department;
-    if (year) where.year = parseInt(year);
-    if (status) where.status = status;
+    if (faculty && faculty.trim()) {
+      const facultyNum = parseInt(faculty);
+      if (!isNaN(facultyNum)) {
+        where.faculty_id = facultyNum;
+      }
+    }
+    if (department && department.trim()) {
+      const deptNum = parseInt(department);
+      if (!isNaN(deptNum)) {
+        where.department_id = deptNum;
+      }
+    }
+    if (year && year.trim()) where.graduation_year = parseInt(year);
+    if (status && status.trim()) where.student_status = status;
 
-    const students = await prisma.student.findMany({ where });
+    const profiles = await prisma.profile.findMany({
+      where,
+      include: {
+        faculty: true,
+        department: true
+      }
+    });
+
+    // Flatten for export
+    const students = profiles.map(p => ({
+      profile_id: p.profile_id,
+      prefix: p.prefix || '',
+      firstname: p.firstname,
+      lastname: p.lastname,
+      first_name_en: p.first_name_en || '',
+      last_name_en: p.last_name_en || '',
+      faculty: p.faculty?.faculty_name || '',
+      department: p.department?.department_name || '',
+      phone: p.phone || '',
+      student_status: p.student_status || '',
+      graduation_year: p.graduation_year || '',
+      bio: p.bio || '',
+      linkedin_url: p.linkedin_url || '',
+      github_url: p.github_url || '',
+      portfolio_url: p.portfolio_url || ''
+    }));
 
     if (format === 'csv') {
       const json2csvParser = new Parser();
-      const csv = json2csvParser.parse(students);
+      const csvData = json2csvParser.parse(students);
       res.header('Content-Type', 'text/csv; charset=utf-8');
       res.attachment('students.csv');
-      return res.send('\ufeff' + csv);
+      return res.send('\ufeff' + csvData);
     } else if (format === 'xlsx') {
       const worksheet = XLSX.utils.json_to_sheet(students);
       const workbook = XLSX.utils.book_new();
@@ -328,6 +363,7 @@ exports.exportStudents = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid format. Use csv or xlsx.' });
     }
   } catch (error) {
+    console.error('Export students error:', error);
     res.status(500).json({ success: false, message: 'Error exporting students', error: error.message });
   }
 };
@@ -338,20 +374,52 @@ exports.exportStudents = async (req, res) => {
 exports.exportAlumni = async (req, res) => {
   try {
     const { format = 'csv', faculty, department, graduation_year } = req.query;
-    let where = {};
+    let where = {
+      student_status: 'alumni'
+    };
 
-    if (faculty) where.faculty = faculty;
-    if (department) where.department = department;
-    if (graduation_year) where.graduation_year = parseInt(graduation_year);
+    if (faculty && faculty.trim()) {
+      const facultyNum = parseInt(faculty);
+      if (!isNaN(facultyNum)) {
+        where.faculty_id = facultyNum;
+      }
+    }
+    if (department && department.trim()) {
+      const deptNum = parseInt(department);
+      if (!isNaN(deptNum)) {
+        where.department_id = deptNum;
+      }
+    }
+    if (graduation_year && graduation_year.trim()) where.graduation_year = parseInt(graduation_year);
 
-    const alumni = await prisma.alumni.findMany({ where });
+    const profiles = await prisma.profile.findMany({
+      where,
+      include: {
+        faculty: true,
+        department: true,
+        alumniEmployments: { where: { is_current: true }, take: 1 }
+      }
+    });
+
+    const alumni = profiles.map(p => ({
+      profile_id: p.profile_id,
+      prefix: p.prefix || '',
+      firstname: p.firstname,
+      lastname: p.lastname,
+      faculty: p.faculty?.faculty_name || '',
+      department: p.department?.department_name || '',
+      graduation_year: p.graduation_year || '',
+      phone: p.phone || '',
+      current_company: p.alumniEmployments?.[0]?.company_name || '',
+      current_position: p.alumniEmployments?.[0]?.position || ''
+    }));
 
     if (format === 'csv') {
       const json2csvParser = new Parser();
-      const csv = json2csvParser.parse(alumni);
+      const csvData = json2csvParser.parse(alumni);
       res.header('Content-Type', 'text/csv; charset=utf-8');
       res.attachment('alumni.csv');
-      return res.send('\ufeff' + csv);
+      return res.send('\ufeff' + csvData);
     } else if (format === 'xlsx') {
       const worksheet = XLSX.utils.json_to_sheet(alumni);
       const workbook = XLSX.utils.book_new();
@@ -362,6 +430,7 @@ exports.exportAlumni = async (req, res) => {
       return res.send(buffer);
     }
   } catch (error) {
+    console.error('Export alumni error:', error);
     res.status(500).json({ success: false, message: 'Error exporting alumni', error: error.message });
   }
 };
@@ -374,30 +443,36 @@ exports.exportProjects = async (req, res) => {
     const { format = 'csv', year, faculty, department } = req.query;
     let where = {};
 
-    if (year) where.year = parseInt(year);
-    if (faculty) where.faculty = faculty;
-    if (department) where.department = department;
+    if (year && year.trim()) where.year = parseInt(year);
 
-    const projects = await prisma.graduateProject.findMany({
+    const projects = await prisma.project.findMany({
       where,
       include: {
         advisor: true,
-        members: true
+        members: { include: { profile: true } }
       }
     });
 
     const flattenedProjects = projects.map(project => ({
-      ...project,
-      advisor_name: project.advisor?.name,
-      members_list: project.members?.map(m => `${m.first_name} ${m.last_name} (${m.student_id})`).join(', ')
+      project_id: project.project_id,
+      title_th: project.title_th,
+      title_en: project.title_en || '',
+      description: project.description || '',
+      year: project.year,
+      status: project.status,
+      type: project.type,
+      has_award: project.has_award ? 'Yes' : 'No',
+      advisor_name: project.advisor?.firstname ? `${project.advisor.prefix || ''} ${project.advisor.firstname} ${project.advisor.lastname || ''}`.trim() : '',
+      members_list: project.members?.map(m => `${m.profile?.firstname || ''} ${m.profile?.lastname || ''} (${m.profile_id})`).join(', ') || '',
+      document_url: project.document_url || ''
     }));
 
     if (format === 'csv') {
       const json2csvParser = new Parser();
-      const csv = json2csvParser.parse(flattenedProjects);
+      const csvData = json2csvParser.parse(flattenedProjects);
       res.header('Content-Type', 'text/csv; charset=utf-8');
       res.attachment('projects.csv');
-      return res.send('\ufeff' + csv);
+      return res.send('\ufeff' + csvData);
     } else if (format === 'xlsx') {
       const worksheet = XLSX.utils.json_to_sheet(flattenedProjects);
       const workbook = XLSX.utils.book_new();
@@ -408,6 +483,7 @@ exports.exportProjects = async (req, res) => {
       return res.send(buffer);
     }
   } catch (error) {
+    console.error('Export projects error:', error);
     res.status(500).json({ success: false, message: 'Error exporting projects', error: error.message });
   }
 };

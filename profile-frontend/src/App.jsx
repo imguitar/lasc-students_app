@@ -13,6 +13,7 @@ import Advisors from './pages/Advisors';
 import Profile from './pages/Profile';
 import Departments from './pages/Departments';
 import Portfolio from './pages/Portfolio';
+import NewsEvents from './pages/NewsEvents';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="students" element={<Students />} />
             <Route path="alumni" element={<Alumni />} />
             <Route path="projects" element={<Projects />} />
+            <Route path="news-events" element={<NewsEvents />} />
             <Route path="advisors" element={<Advisors />} />
             <Route path="profile" element={<Profile />} />
             <Route path="departments" element={<Departments />} />

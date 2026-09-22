@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
 
 // Load environment variables BEFORE importing prismaClient
@@ -61,6 +62,8 @@ const departmentRoutes = require('./routes/department.routes');
 const facultyRoutes = require('./routes/faculty.routes');
 const skillRoutes = require('./routes/skill.routes');
 const studentProjectRoutes = require('./routes/studentProject.routes');
+const uploadRoutes = require('./routes/upload.routes');
+const newsEventRoutes = require('./routes/newsEvent.routes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -75,6 +78,11 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/faculties', facultyRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/student-projects', studentProjectRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/news-events', newsEventRoutes);
+
+// Serve uploaded files as static assets
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check for the API and its database connection
 app.get('/api/health', async (req, res) => {

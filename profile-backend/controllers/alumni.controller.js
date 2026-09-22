@@ -38,24 +38,22 @@ exports.getAllAlumni = async (req, res) => {
   try {
     const { faculty, department, department_id, graduation_year, graduation_batch, employment_status, search } = req.query;
     
-    // Find all users with role 'alumni'
-    const alumniUsers = await prisma.user.findMany({
-      where: { role: 'alumni' },
-      select: { id: true, username: true, email: true, isActive: true }
+    // Find all users with role 'student' or 'alumni'
+    const users = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { id: true, username: true, email: true, isActive: true, role: true }
     });
-    const alumniUsernames = alumniUsers.map(u => u.username);
+    const userMap = {};
+    users.forEach(u => { userMap[u.username] = u; });
 
-    // Alumni are profiles that:
-    // 1. Have graduation_year set
-    // 2. OR have profile_id in alumniUsernames
-    // 3. OR have entries in alumniEmployments
-    const profiles = await prisma.profile.findMany({
+    // ดึง Profiles ของผู้ใช้ทั้งหมด แล้วแยกผู้ที่เป็นศิษย์เก่า:
+    // 1. profile_id ที่ขึ้นต้นด้วย 2 หลัก < 66 (เช่น 65, 64, 63, ...)
+    // 2. หรือ user.role เป็น 'alumni'
+    // 3. หรือมี graduation_year
+    // 4. หรือมีประวัติการทำงานใน alumniEmployments
+    const allProfiles = await prisma.profile.findMany({
       where: {
-        OR: [
-          { graduation_year: { not: null } },
-          { profile_id: { in: alumniUsernames } },
-          { alumniEmployments: { some: {} } }
-        ]
+        profile_id: { in: users.map(u => u.username) }
       },
       include: {
         faculty: true,
@@ -74,8 +72,13 @@ exports.getAllAlumni = async (req, res) => {
       orderBy: { profile_id: 'desc' }
     });
 
-    const userMap = {};
-    alumniUsers.forEach(u => { userMap[u.username] = u; });
+    const profiles = allProfiles.filter(p => {
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      if (match) {
+        return parseInt(match[1], 10) < 66;
+      }
+      return p.graduation_year !== null || userMap[p.profile_id]?.role === 'alumni' || (p.alumniEmployments && p.alumniEmployments.length > 0);
+    });
 
     let alumniList = profiles.map(p => {
       const user = userMap[p.profile_id];
@@ -106,6 +109,7 @@ exports.getAllAlumni = async (req, res) => {
         faculty_id: p.faculty_id,
         department: p.department?.department_name || '',
         department_id: p.department?.department_id || '',
+        department_numeric_id: p.department_id,
         graduation_year: gradYear || '',
         graduation_batch: p.graduation_batch || '',
         graduation_date: p.graduation_date,
@@ -140,16 +144,20 @@ exports.getAllAlumni = async (req, res) => {
 
     // 2. Filter by Department Name
     if (department && department.trim() !== '') {
-      alumniList = alumniList.filter(a => a.department === department.trim());
+      alumniList = alumniList.filter(a => 
+        a.department === department.trim() || 
+        a.department.includes(department.trim())
+      );
     }
 
-    // 3. Filter by Department Code / ID
+    // 3. Filter by Department Code / Numeric ID / Name
     if (department_id && department_id.trim() !== '') {
       const depCode = department_id.trim();
       alumniList = alumniList.filter(a => 
         a.department_id === depCode || 
+        String(a.department_numeric_id) === depCode ||
         String(a.department_id) === depCode ||
-        String(a.faculty_id) === depCode
+        a.department === depCode
       );
     }
 

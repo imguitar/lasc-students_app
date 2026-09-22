@@ -55,7 +55,8 @@ exports.getAllStudentProjects = async (req, res) => {
             faculty: true,
             department: true
           }
-        }
+        },
+        files: true
       },
       orderBy: [
         { academic_year: 'desc' },
@@ -83,6 +84,7 @@ exports.getAllStudentProjects = async (req, res) => {
       internship_company: p.internship_company,
       is_published: p.is_published,
       year: p.year,
+      files: p.files || [],
       created_at: p.created_at,
       student: {
         id: p.profile.id,

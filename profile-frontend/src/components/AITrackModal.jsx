@@ -54,7 +54,7 @@ const AITrackModal = ({ onClose, onImport }) => {
               faculty: s.faculty,
               department: s.department,
               year: extractYear(s.student_id),
-              email: `${s.student_id}@student.sskru.ac.th`,
+              email: `stu${s.student_id}@sskru.ac.th`,
               status: 'Active',
             });
             successCount++;

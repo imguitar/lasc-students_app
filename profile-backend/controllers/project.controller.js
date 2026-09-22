@@ -53,11 +53,16 @@ exports.getAllProjects = async (req, res) => {
     const mappedProjects = projects.map(p => ({
       ...p,
       advisor: p.advisor ? {
+        id: p.advisor.id,
+        advisor_id: p.advisor.profile_id,
         name: `${p.advisor.firstname} ${p.advisor.lastname}`.trim(),
         department: p.advisor.department?.department_name || '',
         faculty_id: p.advisor.faculty_id ? p.advisor.faculty_id.toString() : '',
-        department_id: p.advisor.department_id ? p.advisor.department_id.toString() : ''
+        department_id: p.advisor.department_id ? p.advisor.department_id.toString() : '',
+        email: p.advisor.email || ''
       } : null,
+      advisor_profile_id: p.advisor_profile_id || '',
+      created_by_profile_id: p.created_by_profile_id || '',
       members: p.members.map(m => {
         if (!m.profile) return null;
         return {
@@ -164,6 +169,13 @@ exports.createProject = async (req, res) => {
     const count = await prisma.project.count();
     const projectId = `PJ${String(count + 1).padStart(4, '0')}`;
 
+    const creatorUsername = req.user?.username;
+    if (req.user?.role === 'student' && creatorUsername) {
+      if (!memberProfileIds.includes(creatorUsername)) {
+        memberProfileIds.push(creatorUsername);
+      }
+    }
+
     const projectData = {
       project_id: projectId,
       title_th: data.title_th,
@@ -175,6 +187,7 @@ exports.createProject = async (req, res) => {
       type: data.type || 'individual',
       has_award: data.has_award === true || data.has_award === 'true',
       tags: data.tags || [],
+      created_by_profile_id: creatorUsername || null,
       members: {
         create: memberProfileIds.map(pid => ({ profile_id: pid }))
       }
@@ -211,6 +224,13 @@ exports.updateProject = async (req, res) => {
     const data = { ...req.body };
     const projectId = parseInt(req.params.id);
 
+    const existing = await prisma.project.findUnique({
+      where: { id: projectId }
+    });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
     let advisorProfileId = undefined;
     if (data.advisor !== undefined) {
       if (data.advisor) {
@@ -246,7 +266,8 @@ exports.updateProject = async (req, res) => {
       }
       updateData.status = normalizedStatus;
     }
-    if (data.type !== undefined) updateData.type = data.type;
+    if (data.project_type !== undefined) updateData.type = data.project_type.toLowerCase();
+    else if (data.type !== undefined) updateData.type = data.type;
     if (data.has_award !== undefined) updateData.has_award = data.has_award === true || data.has_award === 'true';
     if (data.tags !== undefined) updateData.tags = data.tags;
     if (advisorProfileId !== undefined) updateData.advisor_profile_id = advisorProfileId;
@@ -352,11 +373,18 @@ exports.getProjectsByStudent = async (req, res) => {
 
     const projects = await prisma.project.findMany({
       where: {
-        members: {
-          some: {
-            profile_id: profile.profile_id
+        OR: [
+          {
+            members: {
+              some: {
+                profile_id: profile.profile_id
+              }
+            }
+          },
+          {
+            created_by_profile_id: profile.profile_id
           }
-        }
+        ]
       },
       include: {
         advisor: {

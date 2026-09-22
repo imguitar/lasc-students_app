@@ -5,13 +5,52 @@ const prisma = require('../prismaClient');
 // @access  Private
 exports.getDashboardStats = async (req, res) => {
   try {
-    const totalProfiles = await prisma.profile.count();
-    const totalStudents = await prisma.user.count({ where: { role: 'student' } });
-    const totalAlumni = await prisma.user.count({ where: { role: 'alumni' } });
-    const activeStudents = await prisma.user.count({ where: { role: 'student', isActive: true } });
     const totalProjects = await prisma.project.count();
     const totalInternships = await prisma.internship.count();
     const totalStudentProjects = await prisma.studentProject.count();
+
+    // ดึงผู้ใช้ที่เป็น student หรือ alumni
+    const studentUsers = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { username: true, role: true, isActive: true }
+    });
+    const userMap = {};
+    studentUsers.forEach(u => { userMap[u.username] = u; });
+
+    // ดึง Profile เพื่อแยก Current Student (รุ่น >= 66) และ Alumni (รุ่น < 66)
+    const profiles = await prisma.profile.findMany({
+      where: {
+        profile_id: { in: studentUsers.map(u => u.username) }
+      },
+      select: {
+        profile_id: true,
+        graduation_year: true,
+        student_status: true
+      }
+    });
+
+    let currentStudentCount = 0;
+    let activeStudentCount = 0;
+    let alumniCount = 0;
+
+    profiles.forEach(p => {
+      const u = userMap[p.profile_id];
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      if (match) {
+        const batch = parseInt(match[1], 10);
+        if (batch >= 66) {
+          currentStudentCount++;
+          if (u ? u.isActive : true) activeStudentCount++;
+        } else {
+          alumniCount++;
+        }
+      } else if (p.graduation_year !== null || (u && u.role === 'alumni')) {
+        alumniCount++;
+      } else if (u && u.role === 'student') {
+        currentStudentCount++;
+        if (u.isActive) activeStudentCount++;
+      }
+    });
 
     // Count awarded projects
     const awardedProjects = await prisma.project.count({
@@ -30,18 +69,16 @@ exports.getDashboardStats = async (req, res) => {
     const totalFaculties = await prisma.faculty.count();
     const totalDepartments = await prisma.department.count();
 
-    const graduatedCount = await prisma.profile.count({
-      where: { graduation_year: { not: null } }
-    });
+    const totalAll = currentStudentCount + alumniCount;
 
     res.json({
       success: true,
       data: {
-        totalStudents: totalStudents || totalProfiles,
-        activeStudents: activeStudents || totalProfiles,
-        graduatedStudents: graduatedCount,
-        graduationRate: totalProfiles > 0 ? Math.round((graduatedCount / totalProfiles) * 100) : 0,
-        totalAlumni: totalAlumni || graduatedCount,
+        totalStudents: currentStudentCount,
+        activeStudents: activeStudentCount,
+        graduatedStudents: alumniCount,
+        graduationRate: totalAll > 0 ? Math.round((alumniCount / totalAll) * 100) : 0,
+        totalAlumni: alumniCount,
         totalProjects,
         totalInternships,
         totalStudentProjects,
@@ -73,27 +110,43 @@ exports.getDashboardStats = async (req, res) => {
 // @access  Private
 exports.getAlumniByFaculty = async (req, res) => {
   try {
-    const grouped = await prisma.profile.groupBy({
-      by: ['faculty_id'],
-      where: { graduation_year: { not: null } },
-      _count: { faculty_id: true },
-      orderBy: { _count: { faculty_id: 'desc' } }
+    const studentUsers = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { username: true, role: true }
+    });
+    const userMap = {};
+    studentUsers.forEach(u => { userMap[u.username] = u; });
+
+    const profiles = await prisma.profile.findMany({
+      where: { profile_id: { in: studentUsers.map(u => u.username) } },
+      select: { faculty_id: true, profile_id: true, graduation_year: true }
     });
 
     const faculties = await prisma.faculty.findMany();
     const facultyMap = {};
     faculties.forEach(f => { facultyMap[f.id] = f.faculty_name; });
 
-    const result = grouped.map(g => ({
-      faculty: facultyMap[g.faculty_id] || `คณะ ID ${g.faculty_id}`,
-      count: g._count.faculty_id
+    const counts = {};
+    faculties.forEach(f => { counts[f.id] = 0; });
+
+    profiles.forEach(p => {
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      const isAlumni = (match && parseInt(match[1], 10) < 66) || p.graduation_year !== null || userMap[p.profile_id]?.role === 'alumni';
+      if (isAlumni && counts[p.faculty_id] !== undefined) {
+        counts[p.faculty_id]++;
+      }
+    });
+
+    const result = faculties.map(f => ({
+      faculty: f.faculty_name,
+      count: counts[f.id] || 0
     }));
 
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching profiles by faculty',
+      message: 'Error fetching alumni by faculty',
       error: error.message
     });
   }
@@ -104,17 +157,38 @@ exports.getAlumniByFaculty = async (req, res) => {
 // @access  Private
 exports.getAlumniByYear = async (req, res) => {
   try {
-    const grouped = await prisma.profile.groupBy({
-      by: ['graduation_year'],
-      where: { graduation_year: { not: null } },
-      _count: { graduation_year: true },
-      orderBy: { graduation_year: 'asc' }
+    const studentUsers = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { username: true, role: true }
+    });
+    const userMap = {};
+    studentUsers.forEach(u => { userMap[u.username] = u; });
+
+    const profiles = await prisma.profile.findMany({
+      where: { profile_id: { in: studentUsers.map(u => u.username) } },
+      select: { profile_id: true, graduation_year: true }
     });
 
-    const result = grouped.map(g => ({
-      year: g.graduation_year,
-      count: g._count.graduation_year
-    }));
+    const yearCounts = {};
+    profiles.forEach(p => {
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      const batch = match ? parseInt(match[1], 10) : null;
+      const isAlumni = (batch !== null && batch < 66) || p.graduation_year !== null || userMap[p.profile_id]?.role === 'alumni';
+
+      if (isAlumni) {
+        let gradYear = p.graduation_year;
+        if (!gradYear && batch) {
+          gradYear = 2500 + batch + 4;
+        }
+        if (gradYear) {
+          yearCounts[gradYear] = (yearCounts[gradYear] || 0) + 1;
+        }
+      }
+    });
+
+    const result = Object.entries(yearCounts)
+      .map(([yr, count]) => ({ year: parseInt(yr, 10), count }))
+      .sort((a, b) => a.year - b.year);
 
     res.json({ success: true, data: result });
   } catch (error) {
@@ -126,31 +200,44 @@ exports.getAlumniByYear = async (req, res) => {
   }
 };
 
-// @desc    Get students by faculty
+// @desc    Get students by faculty (นักศึกษาปัจจุบัน รุ่น >= 66)
 // @route   GET /api/dashboard/students-by-faculty
 // @access  Private
 exports.getStudentsByFaculty = async (req, res) => {
   try {
-    const grouped = await prisma.profile.groupBy({
-      by: ['faculty_id'],
-      _count: { faculty_id: true },
-      orderBy: { _count: { faculty_id: 'desc' } }
+    const studentUsers = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { username: true, role: true }
+    });
+
+    const profiles = await prisma.profile.findMany({
+      where: { profile_id: { in: studentUsers.map(u => u.username) } },
+      select: { faculty_id: true, profile_id: true }
     });
 
     const faculties = await prisma.faculty.findMany();
-    const facultyMap = {};
-    faculties.forEach(f => { facultyMap[f.id] = f.faculty_name; });
+    const counts = {};
+    faculties.forEach(f => { counts[f.id] = 0; });
 
-    const result = grouped.map(g => ({
-      faculty: facultyMap[g.faculty_id] || `คณะ ID ${g.faculty_id}`,
-      count: g._count.faculty_id
+    profiles.forEach(p => {
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      if (match && parseInt(match[1], 10) >= 66) {
+        if (counts[p.faculty_id] !== undefined) {
+          counts[p.faculty_id]++;
+        }
+      }
+    });
+
+    const result = faculties.map(f => ({
+      faculty: f.faculty_name,
+      count: counts[f.id] || 0
     }));
 
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching profiles by faculty',
+      message: 'Error fetching students by faculty',
       error: error.message
     });
   }
@@ -239,26 +326,35 @@ exports.getStudentReport = async (req, res) => {
       else profileWhere.faculty_id = -1;
     }
     if (department_id && department_id.trim() !== '') {
+      const deptTrim = department_id.trim();
+      const parsedNum = parseInt(deptTrim, 10);
       const dept = await prisma.department.findFirst({
-        where: { OR: [{ department_id: department_id.trim() }, { department_name: { contains: department_id.trim() } }] }
+        where: {
+          OR: [
+            ...(!isNaN(parsedNum) ? [{ id: parsedNum }] : []),
+            { department_id: deptTrim },
+            { department_name: { contains: deptTrim } }
+          ]
+        }
       });
       if (dept) profileWhere.department_id = dept.id;
       else profileWhere.department_id = -1;
     }
 
-    // Get all users
-    const allStudentUsers = await prisma.user.findMany({
-      where: { role: 'student' },
-      select: { username: true, isActive: true }
+    // Get all users (student and alumni)
+    const allUsers = await prisma.user.findMany({
+      where: { role: { in: ['student', 'alumni'] } },
+      select: { username: true, role: true, isActive: true }
     });
-    const allAlumniUsers = await prisma.user.findMany({
-      where: { role: 'alumni' },
-      select: { username: true, isActive: true }
-    });
+    const userMap = {};
+    allUsers.forEach(u => { userMap[u.username] = u; });
 
     // Get profiles
     const allProfiles = await prisma.profile.findMany({
-      where: profileWhere,
+      where: {
+        ...profileWhere,
+        profile_id: { in: allUsers.map(u => u.username) }
+      },
       select: { 
         profile_id: true, 
         faculty_id: true, 
@@ -267,11 +363,6 @@ exports.getStudentReport = async (req, res) => {
         student_status: true 
       }
     });
-
-    const studentUsernames = new Set(allStudentUsers.map(u => u.username));
-    const alumniUsernames = new Set(allAlumniUsers.map(u => u.username));
-    const activeStudentUsernames = new Set(allStudentUsers.filter(u => u.isActive).map(u => u.username));
-    const inactiveStudentUsernames = new Set(allStudentUsers.filter(u => !u.isActive).map(u => u.username));
 
     // Filter by year (year level) if specified
     let filteredProfiles = allProfiles;
@@ -285,8 +376,6 @@ exports.getStudentReport = async (req, res) => {
       }
     }
 
-    const profileIds = new Set(filteredProfiles.map(p => p.profile_id));
-
     // Count statuses
     let totalStudents = 0;
     let activeCount = 0;
@@ -296,26 +385,31 @@ exports.getStudentReport = async (req, res) => {
     let suspendedCount = 0;
 
     filteredProfiles.forEach(p => {
-      if (studentUsernames.has(p.profile_id) || alumniUsernames.has(p.profile_id)) {
-        totalStudents++;
-        if (alumniUsernames.has(p.profile_id) || p.student_status === 'graduated') {
-          graduatedCount++;
-        } else if (activeStudentUsernames.has(p.profile_id)) {
-          if (p.student_status === 'suspended') {
-            suspendedCount++;
-          } else if (p.student_status === 'resigned') {
-            resignedCount++;
-          } else {
-            activeCount++;
-          }
-        } else if (inactiveStudentUsernames.has(p.profile_id)) {
-          if (p.student_status === 'resigned') {
-            resignedCount++;
-          } else if (p.student_status === 'suspended') {
-            suspendedCount++;
-          } else {
-            inactiveCount++;
-          }
+      const u = userMap[p.profile_id];
+      if (!u) return;
+
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      const batch = match ? parseInt(match[1], 10) : null;
+      const isAlumni = (batch !== null && batch < 66) || p.graduation_year !== null || u.role === 'alumni' || p.student_status === 'graduated';
+
+      totalStudents++;
+      if (isAlumni) {
+        graduatedCount++;
+      } else if (u.isActive) {
+        if (p.student_status === 'suspended') {
+          suspendedCount++;
+        } else if (p.student_status === 'resigned') {
+          resignedCount++;
+        } else {
+          activeCount++;
+        }
+      } else {
+        if (p.student_status === 'resigned') {
+          resignedCount++;
+        } else if (p.student_status === 'suspended') {
+          suspendedCount++;
+        } else {
+          inactiveCount++;
         }
       }
     });
@@ -323,28 +417,40 @@ exports.getStudentReport = async (req, res) => {
     // Graduated by year
     const graduatedByYear = {};
     filteredProfiles.forEach(p => {
-      if (p.graduation_year && (alumniUsernames.has(p.profile_id) || p.student_status === 'graduated')) {
-        graduatedByYear[p.graduation_year] = (graduatedByYear[p.graduation_year] || 0) + 1;
+      const u = userMap[p.profile_id];
+      if (!u) return;
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      const batch = match ? parseInt(match[1], 10) : null;
+      const isAlumni = (batch !== null && batch < 66) || p.graduation_year !== null || u.role === 'alumni' || p.student_status === 'graduated';
+
+      if (isAlumni) {
+        let gradYear = p.graduation_year;
+        if (!gradYear && batch) {
+          gradYear = 2500 + batch + 4;
+        }
+        if (gradYear) {
+          graduatedByYear[gradYear] = (graduatedByYear[gradYear] || 0) + 1;
+        }
       }
     });
 
     const graduatedByYearArray = Object.entries(graduatedByYear)
-      .map(([yr, count]) => ({ year: parseInt(yr), count }))
+      .map(([yr, count]) => ({ year: parseInt(yr, 10), count }))
       .sort((a, b) => a.year - b.year);
 
-    // Students by year level
+    // Students by year level (เฉพาะนักศึกษาปัจจุบัน รุ่น >= 66 ที่ยังคงสถานะ Active)
     const currentBE = new Date().getFullYear() + 543;
     const byYearLevel = {};
     filteredProfiles.forEach(p => {
-      if (studentUsernames.has(p.profile_id) && activeStudentUsernames.has(p.profile_id)) {
-        const entryBE = p.profile_id && /^\d{2}/.test(p.profile_id) 
-          ? 2500 + parseInt(p.profile_id.substring(0, 2), 10) 
-          : null;
-        if (entryBE) {
-          const yl = Math.max(1, currentBE - entryBE + 1);
-          const key = yl <= 5 ? `ชั้นปีที่ ${yl}` : 'ชั้นปีที่ 5+';
-          byYearLevel[key] = (byYearLevel[key] || 0) + 1;
-        }
+      const u = userMap[p.profile_id];
+      if (!u || !u.isActive) return;
+      const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+      const batch = match ? parseInt(match[1], 10) : null;
+      if (batch && batch >= 66) {
+        const entryBE = 2500 + batch;
+        const yl = Math.max(1, currentBE - entryBE + 1);
+        const key = yl <= 5 ? `ชั้นปีที่ ${yl}` : 'ชั้นปีที่ 5+';
+        byYearLevel[key] = (byYearLevel[key] || 0) + 1;
       }
     });
 

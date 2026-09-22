@@ -10,6 +10,7 @@ import {
   PieChart, AlertCircle, Layers, UserCheck, UserX
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import MonthlyNewsSection from '../components/MonthlyNewsSection';
 
 const PROJECT_STATUS_LABELS = {
   draft: { label: 'แบบร่าง', en: 'Draft', color: 'bg-slate-100 text-slate-700 border-slate-200', barColor: 'bg-slate-400' },
@@ -198,10 +199,10 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalStudents || 0}</div>
+            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalStudents ?? 0}</div>
             <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span>กำลังศึกษา: <strong>{stats?.activeStudents || 0}</strong> คน</span>
+              <span>กำลังศึกษา: <strong>{stats?.activeStudents ?? 0}</strong> คน</span>
             </p>
           </CardContent>
         </Card>
@@ -215,9 +216,9 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalAlumni || 0}</div>
+            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalAlumni ?? 0}</div>
             <p className="text-[11px] text-gray-500 mt-1">
-              อัตราจบการศึกษา: <strong>{stats?.graduationRate || 0}%</strong>
+              อัตราจบการศึกษา: <strong>{stats?.graduationRate ?? 0}%</strong>
             </p>
           </CardContent>
         </Card>
@@ -361,7 +362,7 @@ const Dashboard = () => {
                 <div className="bg-purple-50/40 border border-purple-100/60 rounded-xl p-4 flex flex-col justify-between">
                   <div className="text-xs font-semibold text-gray-500">รวมทั้งหมด</div>
                   <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-black text-gray-900">{studentSummary.total}</span>
+                    <span className="text-2xl font-black text-gray-900">{studentSummary.total ?? 0}</span>
                     <span className="text-xs text-gray-400">คน</span>
                   </div>
                   <div className="text-[11px] text-purple-700 font-medium mt-1">100% ของข้อมูลในตัวกรอง</div>
@@ -374,7 +375,7 @@ const Dashboard = () => {
                     กำลังศึกษา (Active)
                   </div>
                   <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-black text-emerald-950">{studentSummary.active}</span>
+                    <span className="text-2xl font-black text-emerald-950">{studentSummary.active ?? 0}</span>
                     <span className="text-xs text-emerald-700 font-semibold">{activePct}%</span>
                   </div>
                   <div className="text-[11px] text-emerald-700 mt-1">นักศึกษาในสถานะปกติ</div>
@@ -387,7 +388,7 @@ const Dashboard = () => {
                     สำเร็จการศึกษา (Graduated)
                   </div>
                   <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-black text-indigo-950">{studentSummary.graduated}</span>
+                    <span className="text-2xl font-black text-indigo-950">{studentSummary.graduated ?? 0}</span>
                     <span className="text-xs text-indigo-700 font-semibold">{gradPct}%</span>
                   </div>
                   <div className="text-[11px] text-indigo-700 mt-1">ปรับเป็นศิษย์เก่าแล้ว</div>
@@ -400,11 +401,11 @@ const Dashboard = () => {
                     พ้นสภาพ / ลาออก / อื่น ๆ
                   </div>
                   <div className="mt-2 flex items-baseline justify-between">
-                    <span className="text-2xl font-black text-rose-950">{studentSummary.inactive + studentSummary.resigned + studentSummary.suspended}</span>
+                    <span className="text-2xl font-black text-rose-950">{(studentSummary.inactive ?? 0) + (studentSummary.resigned ?? 0) + (studentSummary.suspended ?? 0)}</span>
                     <span className="text-xs text-rose-700 font-semibold">{otherPct}%</span>
                   </div>
                   <div className="text-[11px] text-rose-600 mt-1">
-                    ลาออก: {studentSummary.resigned} | พักการเรียน: {studentSummary.suspended}
+                    ลาออก: {studentSummary.resigned ?? 0} | พักการเรียน: {studentSummary.suspended ?? 0}
                   </div>
                 </div>
               </div>
@@ -821,6 +822,11 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
+
+      {/* ========================================================================= */}
+      {/* Monthly News & Events Section */}
+      {/* ========================================================================= */}
+      <MonthlyNewsSection />
     </div>
   );
 };
