@@ -9,6 +9,8 @@ import './DashboardPage.css';
 import '../../Admin/Shared/CheckInPage.css';
 import StudentSidebar from '../../../components/StudentSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
+import NotificationBell from '../../../components/NotificationBell';
+import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatusBadge from '../../../components/StatusBadge';
 import ModernButton from '../../../components/ModernButton';
 import AttendanceCalendar from '../../../components/AttendanceCalendar';
@@ -181,30 +183,19 @@ const StudentCheckInPage = () => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', bgcolor: '#ffffff', pt: '60px' }}>
       {/* Mobile top navbar */}
-      <Box
-        component="nav"
-        className="mobile-top-navbar"
-        sx={{
-          display: 'flex',
-          position: 'fixed',
-          top: 0, left: 0, right: 0,
-          height: 60,
-          alignItems: 'center',
-          gap: 1.5,
-          px: '12px',
-          bgcolor: '#ffffff',
-          borderBottom: '1px solid #e5e7eb',
-          zIndex: 1080,
-        }}
-      >
-        <Link to="/" className="mobile-top-logo" aria-label="LASC Home">
-          <img src={lascLogo} alt="LASC Logo" />
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: '8px' }}>
-          <UserProfileMenu />
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>☰</button>
+      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
+            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+          </Link>
         </div>
-      </Box>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <DateTimeIndicator />
+          <NotificationBell />
+          <UserProfileMenu />
+        </div>
+      </div>
 
       <StudentSidebar
         isMenuOpen={isMenuOpen}

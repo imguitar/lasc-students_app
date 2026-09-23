@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS `requests` (
   `internship_start_date` DATE DEFAULT NULL,
   `internship_end_date` DATE DEFAULT NULL,
   `evaluator_email` VARCHAR(191) DEFAULT NULL,
+  `company_email` VARCHAR(191) DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -436,4 +437,22 @@ CREATE TABLE IF NOT EXISTS `advisor_evaluations` (
   KEY `advisor_evaluations_request_id_idx` (`requestId`),
   CONSTRAINT `advisor_evaluations_request_id_fkey`
     FOREIGN KEY (`requestId`) REFERENCES `requests` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- การแจ้งเตือนในระบบ (Notification Center) — ผูกกับ user.id ของผู้รับโดยตรง
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `type` VARCHAR(50) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT DEFAULT NULL,
+  `link` VARCHAR(255) DEFAULT NULL,
+  `request_id` INT DEFAULT NULL,
+  `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `notifications_user_id_idx` (`user_id`),
+  KEY `notifications_user_unread_idx` (`user_id`, `is_read`),
+  CONSTRAINT `notifications_user_id_fkey`
+    FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1,8 +1,39 @@
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const { authenticate } = require('../middlewares/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
+const { createNotification, findUserIdByUsername } = require('../utils/notificationService');
+
+const getCompanyResponseToken = (details) => {
+  if (!details) return '';
+  try {
+    const parsed = typeof details === 'object' ? details : JSON.parse(details);
+    return parsed.companyResponseToken || '';
+  } catch (_) {
+    return '';
+  }
+};
+
+const matchesCompanyResponseToken = (details, token) => {
+  const storedToken = getCompanyResponseToken(details);
+  if (!storedToken || !token) return false;
+  const storedBuffer = Buffer.from(storedToken);
+  const tokenBuffer = Buffer.from(String(token));
+  return storedBuffer.length === tokenBuffer.length && crypto.timingSafeEqual(storedBuffer, tokenBuffer);
+};
+
+// Ensure company_email column exists in requests table (Idempotent)
+pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS company_email VARCHAR(191) DEFAULT NULL AFTER evaluator_email').catch(() => {});
+
+const serializeRequestRow = (row) => {
+  const parsed = parseRequestRow(row);
+  if (parsed?.details && typeof parsed.details === 'object') {
+    delete parsed.details.companyResponseToken;
+  }
+  return parsed;
+};
 
 // Helper to handle single request fetching
 const handleGetSingleRequest = async (req, res) => {
@@ -17,7 +48,11 @@ const handleGetSingleRequest = async (req, res) => {
       WHERE r.id = ?
     `, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลคำร้อง' });
-    res.json({ success: true, data: parseRequestRow(rows[0]) });
+    const isPublic = req.baseUrl.includes('public') || req.originalUrl.includes('public');
+    if (isPublic && getCompanyResponseToken(rows[0].details) && !matchesCompanyResponseToken(rows[0].details, req.query.responseToken)) {
+      return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้องหรือหมดอายุ' });
+    }
+    res.json({ success: true, data: serializeRequestRow(rows[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -77,7 +112,36 @@ router.get('/', authenticate, async (req, res) => {
 
     sql += ' ORDER BY r.updated_at DESC, r.id DESC';
     const [rows] = await pool.query(sql, params);
-    res.json({ success: true, data: rows.map(parseRequestRow) });
+    res.json({ success: true, data: rows.map(serializeRequestRow) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/:id/response-qr', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT details FROM requests WHERE id = ?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลคำร้อง' });
+
+    let details = {};
+    if (rows[0].details) {
+      try {
+        details = typeof rows[0].details === 'object' ? rows[0].details : JSON.parse(rows[0].details);
+      } catch (_) {}
+    }
+
+    let token = details.companyResponseToken;
+    if (!token) {
+      token = crypto.randomBytes(32).toString('hex');
+      details.companyResponseToken = token;
+      await pool.query('UPDATE requests SET details = ? WHERE id = ?', [JSON.stringify(details), req.params.id]);
+    }
+
+    const responsePath = `/coop/public/request/${req.params.id}?responseToken=${encodeURIComponent(token)}`;
+    res.json({
+      success: true,
+      data: { token, responseUrl: responsePath }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -97,19 +161,32 @@ router.post('/', authenticate, async (req, res) => {
   try {
     const {
       studentId, studentName, department, company, position,
-      submittedDate, details, status
+      submittedDate, details, status, company_email, companyEmail
     } = req.body;
 
     if (!studentId || !company) {
       return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน' });
     }
 
-    const detailsStr = typeof details === 'object' ? JSON.stringify(details) : (details || null);
+    let initialCompanyEmail = (company_email !== undefined ? company_email : companyEmail) || null;
+    let detailsObj = null;
+    if (typeof details === 'object' && details !== null) {
+      detailsObj = { ...details };
+    } else if (typeof details === 'string') {
+      try { detailsObj = JSON.parse(details); } catch (_) {}
+    }
+    if (!initialCompanyEmail && detailsObj?.contactEmail) {
+      initialCompanyEmail = detailsObj.contactEmail;
+    }
+    if (initialCompanyEmail && detailsObj && !detailsObj.companyEmail) {
+      detailsObj.companyEmail = initialCompanyEmail;
+    }
+    const detailsStr = detailsObj ? JSON.stringify(detailsObj) : (typeof details === 'string' ? details : null);
     const initialStatus = status || 'รออาจารย์ที่ปรึกษาอนุมัติ';
 
     const [result] = await pool.query(
-      `INSERT INTO requests (studentId, studentName, department, company, position, submittedDate, details, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO requests (studentId, studentName, department, company, position, submittedDate, details, status, company_email)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         studentId,
         studentName || null,
@@ -118,12 +195,76 @@ router.post('/', authenticate, async (req, res) => {
         position || null,
         submittedDate || new Date().toISOString().split('T')[0],
         detailsStr,
-        initialStatus
+        initialStatus,
+        initialCompanyEmail ? String(initialCompanyEmail).trim() : null
       ]
     );
 
     const [newRow] = await pool.query('SELECT * FROM requests WHERE id = ?', [result.insertId]);
-    res.status(201).json({ success: true, message: 'ยื่นคำร้องสำเร็จ', data: parseRequestRow(newRow[0]) });
+    res.status(201).json({ success: true, message: 'ยื่นคำร้องสำเร็จ', data: serializeRequestRow(newRow[0]) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH /api/requests/batch/internship-period — กำหนดวันฝึกงานให้หลายคำร้องพร้อมกัน (Admin)
+router.patch('/batch/internship-period', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { ids, startDate, endDate } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุรายการคำร้องที่ต้องการอัปเดต' });
+    }
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุวันเริ่มต้นและวันสิ้นสุดฝึกงาน' });
+    }
+
+    const [rows] = await pool.query('SELECT * FROM requests WHERE id IN (?)', [ids]);
+
+    for (const row of rows) {
+      let details = {};
+      if (row.details) {
+        try {
+          details = typeof row.details === 'object' ? row.details : JSON.parse(row.details);
+        } catch (_) {}
+      }
+      details.startDate = startDate;
+      details.endDate = endDate;
+
+      await pool.query(
+        'UPDATE requests SET internship_start_date = ?, internship_end_date = ?, details = ? WHERE id = ?',
+        [startDate, endDate, JSON.stringify(details), row.id]
+      );
+    }
+
+    const [updated] = await pool.query('SELECT * FROM requests WHERE id IN (?)', [ids]);
+    res.json({
+      success: true,
+      message: `กำหนดวันฝึกงานให้ ${updated.length} คำร้องเรียบร้อยแล้ว`,
+      data: updated.map(serializeRequestRow),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH /api/requests/batch/status — เปลี่ยนสถานะหลายคำร้องพร้อมกัน (Admin)
+router.patch('/batch/status', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุรายการคำร้องที่ต้องการอัปเดต' });
+    }
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสถานะที่ต้องการอัปเดต' });
+    }
+
+    await pool.query('UPDATE requests SET status = ? WHERE id IN (?)', [status, ids]);
+    const [updated] = await pool.query('SELECT * FROM requests WHERE id IN (?)', [ids]);
+    res.json({
+      success: true,
+      message: `อัปเดตสถานะให้ ${updated.length} คำร้องเรียบร้อยแล้ว`,
+      data: updated.map(serializeRequestRow),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -135,9 +276,12 @@ router.patch('/:id/status', async (req, res) => {
 
   const updateStatusHandler = async () => {
     try {
-      const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm, evaluatorEmail, evaluator_email, evaluatorName, evaluatorPosition } = req.body;
+      const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm, evaluatorEmail, evaluator_email, evaluatorName, evaluatorPosition, company_email, companyEmail } = req.body;
       const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
       if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+      if (isPublic && getCompanyResponseToken(rows[0].details) && !matchesCompanyResponseToken(rows[0].details, req.query.responseToken)) {
+        return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้องหรือหมดอายุ' });
+      }
 
       const updates = ['status = ?'];
       const params = [status];
@@ -147,6 +291,31 @@ router.patch('/:id/status', async (req, res) => {
         try {
           details = typeof rows[0].details === 'object' ? rows[0].details : JSON.parse(rows[0].details);
         } catch (_) {}
+      }
+
+      // อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน
+      const targetCompanyEmail = company_email !== undefined ? company_email : companyEmail;
+      const hasCompanyEmail = targetCompanyEmail !== undefined;
+      if (hasCompanyEmail) {
+        const cleanCompEmail = targetCompanyEmail ? String(targetCompanyEmail).trim() : null;
+        updates.push('company_email = ?');
+        params.push(cleanCompEmail);
+        details.companyEmail = cleanCompEmail;
+        if (cleanCompEmail) {
+          details.contactEmail = cleanCompEmail;
+        }
+
+        // หากมีการจัดเก็บ Master Data ของตารางสถานประกอบการ (companies) ให้อัปเดตจำอีเมลล่าสุดของสถานประกอบการแห่งนี้ไว้ด้วย
+        if (cleanCompEmail && rows[0].company) {
+          try {
+            await pool.query(
+              'UPDATE companies SET email = ? WHERE TRIM(name) = TRIM(?)',
+              [cleanCompEmail, rows[0].company]
+            );
+          } catch (compErr) {
+            console.warn('[Company Update] Failed to update company email in companies table:', compErr.message);
+          }
+        }
       }
 
       // อีเมลผู้ประเมิน — เฉพาะเจ้าหน้าที่/อาจารย์เท่านั้น นักศึกษาแก้ไม่ได้
@@ -179,11 +348,24 @@ router.patch('/:id/status', async (req, res) => {
         details.endDate = endDate;
       }
 
-      if (internshipTerm !== undefined) {
-        details.internshipTerm = internshipTerm;
-      }
+      if (req.body.studentPreparation !== undefined) details.studentPreparation = req.body.studentPreparation;
+      if (req.body.signature !== undefined) details.signature = req.body.signature;
+      if (req.body.signerName !== undefined) details.signerName = req.body.signerName;
+      if (req.body.signerPosition !== undefined) details.signerPosition = req.body.signerPosition;
+      if (req.body.companyResponse !== undefined) details.companyResponse = req.body.companyResponse;
 
-      if (startDate !== undefined || endDate !== undefined || internshipTerm !== undefined || hasEvalEmail) {
+      if (
+        startDate !== undefined ||
+        endDate !== undefined ||
+        internshipTerm !== undefined ||
+        hasEvalEmail ||
+        hasCompanyEmail ||
+        req.body.studentPreparation !== undefined ||
+        req.body.signature !== undefined ||
+        req.body.signerName !== undefined ||
+        req.body.signerPosition !== undefined ||
+        req.body.companyResponse !== undefined
+      ) {
         updates.push('details = ?');
         params.push(JSON.stringify(details));
       }
@@ -209,7 +391,7 @@ router.patch('/:id/status', async (req, res) => {
       await pool.query(`UPDATE requests SET ${updates.join(', ')} WHERE id = ?`, params);
 
       const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
-      res.json({ success: true, message: 'อัปเดตสถานะสำเร็จ', data: parseRequestRow(updated[0]) });
+      res.json({ success: true, message: 'อัปเดตสถานะสำเร็จ', data: serializeRequestRow(updated[0]) });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -222,7 +404,7 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 // PATCH /api/requests/:id/internship-period — กำหนดวันฝึกงาน (Admin)
-router.patch('/:id/internship-period', authenticate, async (req, res) => {
+router.patch('/:id/internship-period', authenticate, authorize('admin'), async (req, res) => {
   try {
     const { startDate, endDate, internshipTerm, note } = req.body;
     const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
@@ -249,7 +431,7 @@ router.patch('/:id/internship-period', authenticate, async (req, res) => {
     );
 
     const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'บันทึกกำหนดวันฝึกงานสำเร็จ', data: parseRequestRow(updated[0]) });
+    res.json({ success: true, message: 'บันทึกกำหนดวันฝึกงานสำเร็จ', data: serializeRequestRow(updated[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -288,7 +470,51 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
     const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
     if (!updated[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
-    res.json({ success: true, message: 'บันทึกวันนัดหมายและอาจารย์นิเทศสำเร็จ', data: parseRequestRow(updated[0]) });
+    // แจ้งเตือนอาจารย์ผู้ได้รับมอบหมายและนักศึกษาเจ้าของคำร้อง — ล้มเหลวได้โดยไม่กระทบการบันทึกวันนิเทศ
+    try {
+      const requestRow = updated[0];
+      const supervisionDateLabel = appointmentData.date
+        ? new Date(appointmentData.date).toLocaleDateString('th-TH')
+        : 'ยังไม่ระบุ';
+      let advisorUserId = appointmentData.advisorId ? Number(appointmentData.advisorId) : null;
+      if (!advisorUserId && appointmentData.advisorName) {
+        advisorUserId = await findUserIdByUsername(appointmentData.advisorName);
+        if (!advisorUserId) {
+          const [advRows] = await pool.query(
+            'SELECT u.id FROM `user` u LEFT JOIN profile p ON u.id = p.user_id WHERE CONCAT(p.firstname, " ", p.lastname) = ? OR u.username = ? LIMIT 1',
+            [appointmentData.advisorName, appointmentData.advisorName]
+          );
+          advisorUserId = advRows[0]?.id || null;
+        }
+      }
+
+      if (advisorUserId) {
+        await createNotification({
+          userId: advisorUserId,
+          type: 'supervision_assigned',
+          title: 'ได้รับมอบหมายนิเทศนักศึกษา',
+          message: `คุณได้รับมอบหมายให้นิเทศ ${requestRow.studentName || requestRow.studentId} วันที่ ${supervisionDateLabel} (${appointmentData.mode || '-'})`,
+          link: '/advisor-dashboard/supervision',
+          requestId: requestRow.id,
+        });
+      }
+
+      const studentUserId = await findUserIdByUsername(requestRow.studentId);
+      if (studentUserId) {
+        await createNotification({
+          userId: studentUserId,
+          type: 'supervision_assigned',
+          title: 'กำหนดวันนิเทศเรียบร้อยแล้ว',
+          message: `อาจารย์${appointmentData.advisorName ? ` ${appointmentData.advisorName} ` : ' '}จะนิเทศคุณวันที่ ${supervisionDateLabel} (${appointmentData.mode || '-'})`,
+          link: '/dashboard',
+          requestId: requestRow.id,
+        });
+      }
+    } catch (notifyErr) {
+      console.error('[Notification] แจ้งเตือนกำหนดวันนิเทศล้มเหลว:', notifyErr.message);
+    }
+
+    res.json({ success: true, message: 'บันทึกวันนัดหมายและอาจารย์นิเทศสำเร็จ', data: serializeRequestRow(updated[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -297,7 +523,11 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
 // PUT /api/requests/:id
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const { studentId, studentName, department, company, position, status, details, dispatchLetter, internship_start_date, internship_end_date, evaluator_email, evaluatorEmail } = req.body;
+    const {
+      studentId, studentName, department, company, position, status,
+      details, dispatchLetter, internship_start_date, internship_end_date,
+      evaluator_email, evaluatorEmail, company_email, companyEmail
+    } = req.body;
     const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
 
@@ -312,6 +542,14 @@ router.put('/:id', authenticate, async (req, res) => {
     if (status !== undefined) { updates.push('status = ?'); params.push(status); }
     if (internship_start_date !== undefined) { updates.push('internship_start_date = ?'); params.push(internship_start_date); }
     if (internship_end_date !== undefined) { updates.push('internship_end_date = ?'); params.push(internship_end_date); }
+
+    // อีเมลสถานประกอบการ
+    const targetCompEmail = company_email !== undefined ? company_email : companyEmail;
+    if (targetCompEmail !== undefined) {
+      const cleanCompEmail = targetCompEmail ? String(targetCompEmail).trim() : null;
+      updates.push('company_email = ?');
+      params.push(cleanCompEmail);
+    }
 
     // อีเมลผู้ประเมิน — เฉพาะ admin/advisor เท่านั้นที่เขียนได้
     // ตรวจการมีคีย์แยกจากค่า เพื่อให้ส่งค่าว่างมาเพื่อล้างอีเมลได้
@@ -329,6 +567,12 @@ router.put('/:id', authenticate, async (req, res) => {
         detailsObj = { ...details };
       } else if (typeof details === 'string') {
         try { detailsObj = JSON.parse(details) || {}; } catch (_) { detailsObj = {}; }
+      }
+
+      if (targetCompEmail !== undefined) {
+        const cleanCompEmail = targetCompEmail ? String(targetCompEmail).trim() : null;
+        detailsObj.companyEmail = cleanCompEmail;
+        if (cleanCompEmail) detailsObj.contactEmail = cleanCompEmail;
       }
 
       if (hasEvalEmail && canEditEvalEmail) {
@@ -359,7 +603,7 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'แก้ไขคำร้องสำเร็จ', data: parseRequestRow(updated[0]) });
+    res.json({ success: true, message: 'แก้ไขคำร้องสำเร็จ', data: serializeRequestRow(updated[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

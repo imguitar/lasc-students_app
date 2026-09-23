@@ -1,6 +1,6 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/Home/HomePage';
-import LoginPage from './pages/LoginPage';
+import LoginRedirect from './pages/LoginRedirect';
 import SsoLandingPage from './pages/SsoLandingPage';
 import DashboardPage from './pages/Student/Dashboard/DashboardPage';
 import ProfilePage from './pages/Student/Dashboard/ProfilePage';
@@ -12,7 +12,6 @@ import StudentListPage from './pages/Admin/Dashboard/StudentListPage';
 import PaymentProofPage from './pages/Student/Dashboard/PaymentProofPage';
 import AdminReportsPage from './pages/Admin/Dashboard/AdminReportsPage';
 import AdminAnnouncementsPage from './pages/Admin/Dashboard/AdminAnnouncementsPage';
-import AdminUserManagementPage from './pages/Admin/Dashboard/AdminUserManagementPage';
 import AdminProfilePage from './pages/Admin/Dashboard/AdminProfilePage';
 import AdminCompanyManagementPage from './pages/Admin/Dashboard/AdminCompanyManagementPage';
 import AdvisorStudentListPage from './pages/Advisor/AdvisorStudentListPage';
@@ -35,9 +34,10 @@ function App() {
     <Router basename="/coop">
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        {/* ปลายทาง SSO จากระบบฐานข้อมูลนักศึกษา */}
+        <Route path="/login" element={<LoginRedirect />} />
+        {/* ปลายทาง SSO จากระบบฐานข้อมูลนักศึกษา (Profile) */}
         <Route path="/sso" element={<SsoLandingPage />} />
+        <Route path="/sso-landing" element={<SsoLandingPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/dashboard/profile" element={<ProfilePage />} />
         <Route path="/dashboard/new-request" element={<NewRequestPage />} />
@@ -47,9 +47,10 @@ function App() {
         <Route path="/dashboard/student/:id" element={<StudentDetailsPage />} />
         <Route path="/dashboard/payment-proof" element={<PaymentProofPage />} />
         <Route path="/dashboard/check-in" element={<StudentCheckInPage />} />
+        <Route path="/dashboard/daily-reports" element={<StudentCheckInPage />} />
         <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin-dashboard/students" element={<StudentListPage />} />
-        <Route path="/admin-dashboard/users" element={<AdminUserManagementPage />} />
+        <Route path="/admin-dashboard/users" element={<Navigate to="/admin-dashboard" replace />} />
         <Route path="/admin-dashboard/companies" element={<AdminCompanyManagementPage />} />
         <Route path="/admin-dashboard/checkins" element={<AdminCheckInPage />} />
         <Route path="/admin-dashboard/attendance-overview" element={<AdminAttendanceOverviewPage />} />

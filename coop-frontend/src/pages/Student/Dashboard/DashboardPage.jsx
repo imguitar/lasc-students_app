@@ -34,8 +34,12 @@ import {
 } from '@heroicons/react/24/outline';
 import StudentSidebar from '../../../components/StudentSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
+import NotificationBell from '../../../components/NotificationBell';
+import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import StatCard from '../../../components/StatCard';
 import StatusBadge from '../../../components/StatusBadge';
+import { MessageSquareQuote, Info, ArrowRight, CalendarX } from 'lucide-react';
 
 const dataUrlToBlobUrl = (dataUrl) => {
   if (!dataUrl) return '';
@@ -77,13 +81,26 @@ const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่ง�
   }
 };
 
+const handleViewDocument = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
+  if (!dataUrl) return;
+  const isMobile = window.innerWidth < 768;
+
+  if (isMobile) {
+    // บน Mobile (< 768px): ให้ Trigger สั่งดาวน์โหลดไฟล์ลงเครื่องอัตโนมัติ
+    handleDownloadFile(dataUrl, fileName);
+  } else {
+    // บน Desktop: เปิดไฟล์ PDF แสดงผลเต็มจอในแท็บใหม่ของเบราว์เซอร์ทันที
+    const fileUrl = dataUrlToBlobUrl(dataUrl);
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  }
+};
+
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [studentName, setStudentName] = useState('');
   const [studentAvatar, setStudentAvatar] = useState(null);
   const [internshipRequests, setInternshipRequests] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
   // chart refs removed
 
   useEffect(() => {
@@ -112,10 +129,16 @@ const DashboardPage = () => {
               const studentId = user.student_code || user.studentId || user.username;
               const requestsRes = await api.get(`/requests?studentId=${studentId}`);
 
-              const myRequests = (requestsRes.data.data || []).map(req => ({
+              const myRequests = (requestsRes.data.data || []).map(req => {
+                const effectiveStatus = getEffectiveInternshipStatus(req);
+                const dispatchLetter = req.dispatchLetter || req.details?.dispatchLetter;
+                return {
                   ...req,
+                  status: effectiveStatus || req.status,
+                  dispatchLetter,
                   companyName: req.company || req.companyName,
-              }));
+                };
+              });
               setInternshipRequests(myRequests);
             } else {
               navigate('/login');
@@ -136,7 +159,12 @@ const DashboardPage = () => {
     if (!internshipRequests.length) return null;
 
     const prioritized = internshipRequests.filter(
-      (request) => request.status === 'ออกฝึกงาน' || request.status === 'ฝึกงานเสร็จแล้ว'
+      (request) =>
+        request.status === 'กำลังออกฝึกงาน' ||
+        request.status === 'ออกฝึกงาน' ||
+        request.status === 'อนุมัติแล้ว (รอออกฝึกงาน)' ||
+        request.status === 'สิ้นสุดการฝึกงาน (รอประเมิน)' ||
+        request.status === 'ฝึกงานเสร็จแล้ว'
     );
 
     if (prioritized.length > 0) {
@@ -152,15 +180,18 @@ const DashboardPage = () => {
     'รอผู้ดูแลระบบอนุมัติ',
     'รอสถานประกอบการตอบรับ',
     'รออาจารย์อนุมัติเริ่มฝึกงาน',
+    'COMPANY_ACCEPTED',
+    'รอแอดมินออกใบส่งตัว',
+    'อนุมัติแล้ว (รอออกฝึกงาน)',
   ];
   
     // Map extended status to steps (0-5)
   const getStepIndex = (status) => {
       if (!status) return 0;
       if (['รออาจารย์ที่ปรึกษาอนุมัติ', 'รอผู้ดูแลระบบตรวจสอบ', 'รอผู้ดูแลระบบอนุมัติ'].includes(status)) return 1;
-      if (['รอสถานประกอบการตอบรับ'].includes(status)) return 2;
-      if (['รออาจารย์อนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว', 'ออกฝึกงาน'].includes(status)) return 3;
-      if (['ประเมินเสร็จแล้ว'].includes(status)) return 4;
+      if (['รอสถานประกอบการตอบรับ', 'COMPANY_ACCEPTED', 'รอแอดมินออกใบส่งตัว'].includes(status)) return 2;
+      if (['รออาจารย์อนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว', 'อนุมัติแล้ว (รอออกฝึกงาน)', 'กำลังออกฝึกงาน', 'ออกฝึกงาน'].includes(status)) return 3;
+      if (['ประเมินเสร็จแล้ว', 'สิ้นสุดการฝึกงาน (รอประเมิน)'].includes(status)) return 4;
       if (['ฝึกงานเสร็จแล้ว'].includes(status)) return 5;
       if (status.includes('ไม่อนุมัติ') || status.includes('ปฏิเสธ')) return 1; 
       return 0;
@@ -170,11 +201,11 @@ const DashboardPage = () => {
 
   const steps = [
     { title: 'ส่งคำร้อง', icon: <PencilSquareIcon style={{width:24, height:24}} /> },
-    { title: 'รอตรวจสอบ', icon: '🕓︎' },
+    { title: 'รอตรวจสอบ', icon: <ClockIcon style={{width:24, height:24}} /> },
     { title: 'รอตอบรับ', icon: <EnvelopeIcon style={{width:24, height:24}} /> },
     { title: 'อนุมัติแล้ว', icon: <CheckCircleIcon style={{width:24, height:24}} /> },
     { title: 'ประเมินหลังฝึกงาน', icon: <DocumentTextIcon style={{width:24, height:24}} /> },
-    { title: 'เสร็จสิ้น', icon: '🏁︎' }
+    { title: 'เสร็จสิ้น', icon: <CheckCircleIcon style={{width:24, height:24}} /> }
   ];
 
 
@@ -230,6 +261,37 @@ const DashboardPage = () => {
     };
   }, [currentRequest]);
 
+  const scheduleData = useMemo(() => {
+    if (!currentRequest) return null;
+    const startDate = currentRequest.startDate || currentRequest.internship_start_date || currentRequest.details?.startDate;
+    const endDate = currentRequest.endDate || currentRequest.internship_end_date || currentRequest.details?.endDate;
+    const documentDeadline = currentRequest.documentDeadline || currentRequest.reportDeadline || currentRequest.details?.documentDeadline;
+    const academicYear = currentRequest.internshipTerm || currentRequest.academicYear || currentRequest.academic_year || null;
+
+    if (startDate && endDate) {
+      return {
+        startDate,
+        endDate,
+        documentDeadline: documentDeadline || null,
+        academicYear,
+      };
+    }
+    return null;
+  }, [currentRequest]);
+
+  const hasSchedule = Boolean(scheduleData?.startDate && scheduleData?.endDate);
+
+  const formatThaiDate = (dateVal) => {
+    if (!dateVal) return '-';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
   const notifications = useMemo(() => {
     const list = [];
     if (internshipRequests.some((request) => ['อนุมัติแล้ว', 'ออกฝึกงาน'].includes(request.status))) {
@@ -273,13 +335,17 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard-container">
-      <div className="mobile-top-navbar">
-        <Link to="/" className="mobile-top-logo" aria-label="LASC Home">
-          <img src={lascLogo} alt="LASC Logo" />
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: '8px' }}>
+      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
+            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <DateTimeIndicator />
+          <NotificationBell />
           <UserProfileMenu />
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>☰</button>
         </div>
       </div>
       <StudentSidebar
@@ -291,149 +357,182 @@ const DashboardPage = () => {
 
       <main className="dashboard-main">
         {/* Timeline & Important Schedule Card */}
-        <Paper
-          elevation={0}
-          sx={{
-            mb: 3,
-            p: { xs: 2, sm: 2.5 },
-            borderRadius: 3,
-            bgcolor: '#ffffff',
-            border: '1px solid #fde68a',
-            borderLeft: '5px solid #f59e0b',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+        <div
+          className="rounded-[24px] bg-white border border-violet-100 shadow-[0_8px_30px_rgba(124,58,237,0.04)] p-6 mb-6"
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            border: '1px solid #ede9fe',
+            boxShadow: '0 8px 30px rgba(124, 58, 237, 0.04)',
+            padding: '24px',
+            marginBottom: '24px',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.75 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box
-                sx={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 2,
-                  bgcolor: '#fffbeb',
-                  border: '1px solid #fde68a',
-                  color: '#d97706',
+          <div className="flex items-center justify-between flex-wrap gap-2.5 mb-5">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-2xl bg-violet-50 text-violet-600 border border-violet-200/80 flex items-center justify-center shrink-0"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 16,
+                  backgroundColor: '#f5f3ff',
+                  borderColor: 'rgba(221, 214, 254, 0.8)',
+                  color: '#7c3aed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
                 <CalendarIcon style={{ width: 22, height: 22 }} />
-              </Box>
+              </div>
               <div>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a', lineHeight: 1.25 }}>
                   กำหนดการสำคัญการฝึกประสบการณ์วิชาชีพ
                 </Typography>
-                <Typography variant="caption" sx={{ color: '#64748b' }}>
+                <Typography variant="caption" sx={{ color: '#64748b', mt: 0.5, display: 'block' }}>
                   ข้อมูลและกรอบระยะเวลาสำคัญที่นักศึกษาต้องติดตาม
                 </Typography>
               </div>
-            </Box>
-            <Chip
-              label="ปีการศึกษา 2569"
-              size="small"
-              sx={{
-                bgcolor: '#fef3c7',
-                color: '#92400e',
-                fontWeight: 700,
+            </div>
+            <span
+              className="bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-3 py-1 text-xs font-bold"
+              style={{
+                backgroundColor: '#f5f3ff',
+                color: '#6d28d9',
+                border: '1px solid #ddd6fe',
+                borderRadius: 9999,
+                padding: '4px 12px',
                 fontSize: '0.75rem',
-                border: '1px solid #fde68a',
-              }}
-            />
-          </Box>
-
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-              gap: 1.5,
-              pt: 1,
-              borderTop: '1px dashed #f1f5f9',
-            }}
-          >
-            {/* Timeline Item 1 */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1.5,
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                fontWeight: 700,
+                display: 'inline-block',
               }}
             >
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 1.5,
-                  bgcolor: '#eff6ff',
-                  color: '#2563eb',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  mt: 0.25,
-                }}
-              >
-                <ClockIcon style={{ width: 18, height: 18 }} />
-              </Box>
-              <div>
-                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
-                  ระยะเวลาฝึกงาน
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                  1 ธันวาคม 2569 – 31 มีนาคม 2570
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.25 }}>
-                  ปฏิบัติงานจริง ณ สถานประกอบการที่ได้รับการอนุมัติ
-                </Typography>
-              </div>
-            </Box>
+              ปีการศึกษา {scheduleData?.academicYear || '2569'}
+            </span>
+          </div>
 
-            {/* Timeline Item 2 */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1.5,
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+          {hasSchedule ? (
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-4 border-t border-dashed border-slate-100"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 14,
+                paddingTop: 16,
+                borderTop: '1px dashed #f1f5f9',
               }}
             >
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 1.5,
-                  bgcolor: '#fef2f2',
-                  color: '#dc2626',
+              {/* Timeline Item 1 */}
+              <div
+                className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 flex items-start gap-3.5"
+                style={{
+                  borderRadius: 16,
+                  border: '1px solid #f1f5f9',
+                  backgroundColor: 'rgba(248, 250, 252, 0.4)',
+                  padding: 16,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  mt: 0.25,
+                  alignItems: 'flex-start',
+                  gap: 14,
                 }}
               >
-                <DocumentTextIcon style={{ width: 18, height: 18 }} />
-              </Box>
-              <div>
-                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
-                  กำหนดส่งเอกสารประเมิน / เล่มรายงาน
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626' }}>
-                  ภายในวันที่ 15 เมษายน 2570
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.25 }}>
-                  ส่งแบบประเมินและเล่มรายงานการฝึกงานฉบับสมบูรณ์
-                </Typography>
+                <div
+                  className="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 mt-0.5"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    backgroundColor: '#f5f3ff',
+                    color: '#7c3aed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <ClockIcon style={{ width: 18, height: 18 }} />
+                </div>
+                <div>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+                    ระยะเวลาฝึกงาน
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800, color: '#1e293b', mt: 0.25 }}>
+                    {formatThaiDate(scheduleData.startDate)} – {formatThaiDate(scheduleData.endDate)}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
+                    ปฏิบัติงานจริง ณ สถานประกอบการที่ได้รับการอนุมัติ
+                  </Typography>
+                </div>
               </div>
-            </Box>
-          </Box>
-        </Paper>
+
+              {/* Timeline Item 2 */}
+              <div
+                className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 flex items-start gap-3.5"
+                style={{
+                  borderRadius: 16,
+                  border: '1px solid #f1f5f9',
+                  backgroundColor: 'rgba(248, 250, 252, 0.4)',
+                  padding: 16,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 mt-0.5"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    backgroundColor: '#fef2f2',
+                    color: '#dc2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <DocumentTextIcon style={{ width: 18, height: 18 }} />
+                </div>
+                <div>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+                    กำหนดส่งเอกสารประเมิน / เล่มรายงาน
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.25 }}>
+                    ภายในวันที่ {scheduleData.documentDeadline ? formatThaiDate(scheduleData.documentDeadline) : formatThaiDate(scheduleData.endDate)}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
+                    ส่งแบบประเมินและเล่มรายงานการฝึกงานฉบับสมบูรณ์
+                  </Typography>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/30 p-8 flex flex-col items-center justify-center text-center gap-2 mt-4"
+              style={{
+                borderRadius: '16px',
+                border: '1px dashed #ddd6fe',
+                backgroundColor: 'rgba(245, 243, 255, 0.3)',
+                padding: '32px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                gap: 8,
+              }}
+            >
+              <CalendarX className="w-8 h-8 text-violet-400" />
+              <div className="text-sm font-bold text-slate-700">
+                ยังไม่มีการประกาศกำหนดการ
+              </div>
+              <div className="text-xs text-slate-400">
+                ผู้ดูแลระบบยังไม่ได้กำหนดกรอบระยะเวลาการฝึกงานและวันส่งเอกสาร
+              </div>
+            </div>
+          )}
+        </div>
 
         {currentRequest?.supervisionAppointment?.date && (() => {
           const isCompleted = Boolean(currentRequest.supervisionReport || currentRequest.hasAdvisorEval);
@@ -670,162 +769,157 @@ const DashboardPage = () => {
             {internshipRequests.length > 0 ? (
               internshipRequests.map((request) => {
                 return (
-                  <Card key={request.id} className="request-card" elevation={2}>
-                    <CardContent style={{ padding: '1rem 1.25rem' }}>
-                      <Box className="request-header" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                        <div>
-                          <Typography component="h3" variant="h6" sx={{ marginBottom: '0.25rem', color: '#111827' }}>{request.companyName}</Typography>
-                          <Typography className="position" variant="body2" sx={{ color: '#374151' }}>{request.position}</Typography>
+                  <div
+                    key={request.id}
+                    className="rounded-[24px] bg-white border border-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-6 transition-all hover:shadow-[0_12px_36px_rgba(124,58,237,0.06)]"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '24px',
+                      border: '1px solid #f1f5f9',
+                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)',
+                      padding: '24px',
+                    }}
+                  >
+                    <div className="flex justify-between items-start gap-4 flex-wrap sm:flex-nowrap mb-2">
+                      <div>
+                        <h3 className="text-lg font-extrabold text-slate-900 mb-1 leading-snug">
+                          {request.companyName}
+                        </h3>
+                        <p className="text-sm font-medium text-slate-500 m-0">
+                          {request.position}
+                        </p>
+                      </div>
+                      <StatusBadge status={request.status} />
+                    </div>
+
+                    {/* Rejection Comments */}
+                    {(request.status === 'ไม่อนุมัติ (Admin)' && request.admin_comment) && (
+                      <div className="rounded-xl bg-rose-50/50 border border-rose-100/80 border-l-4 border-l-rose-500 p-3.5 flex flex-col gap-1 mt-3">
+                        <div className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>เหตุผลที่ไม่อนุมัติ (Admin):</span>
                         </div>
-                        <StatusBadge status={request.status} />
-                      </Box>
+                        <p className="text-xs text-slate-600 pl-6 leading-relaxed m-0">
+                          {request.admin_comment}
+                        </p>
+                      </div>
+                    )}
+                    {(request.status === 'ไม่อนุมัติ (อาจารย์)' && request.advisor_comment) && (
+                      <div className="rounded-xl bg-rose-50/50 border border-rose-100/80 border-l-4 border-l-rose-500 p-3.5 flex flex-col gap-1 mt-3">
+                        <div className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>เหตุผลที่ไม่อนุมัติ (อาจารย์):</span>
+                        </div>
+                        <p className="text-xs text-slate-600 pl-6 leading-relaxed m-0">
+                          {request.advisor_comment}
+                        </p>
+                      </div>
+                    )}
+                    {(request.status === 'ปฏิเสธ' && request.company_comment) && (
+                      <div className="rounded-xl bg-rose-50/50 border border-rose-100/80 border-l-4 border-l-rose-500 p-3.5 flex flex-col gap-1 mt-3">
+                        <div className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>เหตุผลที่ปฏิเสธ (บริษัท):</span>
+                        </div>
+                        <p className="text-xs text-slate-600 pl-6 leading-relaxed m-0">
+                          {request.company_comment}
+                        </p>
+                      </div>
+                    )}
 
-                      {(request.status === 'ไม่อนุมัติ (Admin)' && request.admin_comment) && (
-                        <Box sx={{ mt: 1.5, p: 1.5, backgroundColor: '#fef2f2', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                          <Typography variant="body2" sx={{ color: '#b91c1c', fontWeight: 600, mb: 0.5 }}>เหตุผลที่ไม่อนุมัติ (Admin):</Typography>
-                          <Typography variant="body2" sx={{ color: '#7f1d1d' }}>{request.admin_comment}</Typography>
-                        </Box>
-                      )}
-                      {(request.status === 'ไม่อนุมัติ (อาจารย์)' && request.advisor_comment) && (
-                        <Box sx={{ mt: 1.5, p: 1.5, backgroundColor: '#fef2f2', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                          <Typography variant="body2" sx={{ color: '#b91c1c', fontWeight: 600, mb: 0.5 }}>เหตุผลที่ไม่อนุมัติ (อาจารย์):</Typography>
-                          <Typography variant="body2" sx={{ color: '#7f1d1d' }}>{request.advisor_comment}</Typography>
-                        </Box>
-                      )}
-                      {request.status !== 'ไม่อนุมัติ (Admin)' && request.status !== 'ไม่อนุมัติ (อาจารย์)' && request.admin_comment && (
-                        <Box sx={{ mt: 1.5, p: 1.5, backgroundColor: '#eff6ff', borderRadius: '8px', borderLeft: '4px solid #2563eb' }}>
-                          <Typography variant="body2" sx={{ color: '#1e40af', fontWeight: 700, mb: 0.5 }}>📌 ข้อความ/คำแนะนำจากผู้ดูแลระบบ:</Typography>
-                          <Typography variant="body2" sx={{ color: '#1e3a8a' }}>{request.admin_comment}</Typography>
-                        </Box>
-                      )}
-                      {request.status !== 'ไม่อนุมัติ (Admin)' && request.status !== 'ไม่อนุมัติ (อาจารย์)' && request.advisor_comment && (
-                        <Box sx={{ mt: 1.5, p: 1.5, backgroundColor: '#f0fdf4', borderRadius: '8px', borderLeft: '4px solid #16a34a' }}>
-                          <Typography variant="body2" sx={{ color: '#15803d', fontWeight: 700, mb: 0.5 }}>📌 ข้อความ/คำแนะนำจากอาจารย์ที่ปรึกษา:</Typography>
-                          <Typography variant="body2" sx={{ color: '#14532d' }}>{request.advisor_comment}</Typography>
-                        </Box>
-                      )}
-                      {(request.status === 'ปฏิเสธ' && request.company_comment) && (
-                        <Box sx={{ mt: 1.5, p: 1.5, backgroundColor: '#fef2f2', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                          <Typography variant="body2" sx={{ color: '#b91c1c', fontWeight: 600, mb: 0.5 }}>เหตุผลที่ปฏิเสธ (บริษัท):</Typography>
-                          <Typography variant="body2" sx={{ color: '#7f1d1d' }}>{request.company_comment}</Typography>
-                        </Box>
-                      )}
+                    {/* Admin / Advisor Comments without emojis */}
+                    {request.status !== 'ไม่อนุมัติ (Admin)' && request.status !== 'ไม่อนุมัติ (อาจารย์)' && request.admin_comment && (
+                      <div className="rounded-xl bg-violet-50/50 border border-violet-100/80 border-l-4 border-l-violet-500 p-3.5 flex flex-col gap-1 mt-3">
+                        <div className="text-xs font-bold text-violet-900 flex items-center gap-2">
+                          <Info className="w-4 h-4 text-violet-600 shrink-0" />
+                          <span>ข้อความ/คำแนะนำจากผู้ดูแลระบบ:</span>
+                        </div>
+                        <p className="text-xs text-slate-600 pl-6 leading-relaxed m-0">
+                          {request.admin_comment}
+                        </p>
+                      </div>
+                    )}
+                    {request.status !== 'ไม่อนุมัติ (Admin)' && request.status !== 'ไม่อนุมัติ (อาจารย์)' && request.advisor_comment && (
+                      <div className="rounded-xl bg-violet-50/50 border border-violet-100/80 border-l-4 border-l-violet-500 p-3.5 flex flex-col gap-1 mt-3">
+                        <div className="text-xs font-bold text-violet-900 flex items-center gap-2">
+                          <MessageSquareQuote className="w-4 h-4 text-violet-600 shrink-0" />
+                          <span>ข้อความ/คำแนะนำจากอาจารย์ที่ปรึกษา:</span>
+                        </div>
+                        <p className="text-xs text-slate-600 pl-6 leading-relaxed m-0">
+                          {request.advisor_comment}
+                        </p>
+                      </div>
+                    )}
 
-                      {request.dispatchLetter && (
-                        <Box
-                          sx={{
-                            mt: 2,
-                            p: 2,
-                            bgcolor: '#fff1f2',
-                            borderRadius: '12px',
-                            border: '1.5px solid #fecdd3',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: 1.5,
-                            boxShadow: '0 2px 10px rgba(225, 29, 72, 0.06)'
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box
-                              sx={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: '10px',
-                                bgcolor: '#ffe4e6',
-                                color: '#be185d',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
+                    {/* Dispatch Letter Box */}
+                    {request.dispatchLetter && (
+                      <div className="mt-3.5 p-3.5 rounded-2xl border border-violet-100 bg-violet-50/30 flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-violet-100/70 text-violet-700 flex items-center justify-center shrink-0">
+                            <DocumentTextIcon style={{ width: 20, height: 20 }} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-slate-800">
+                              เอกสารหนังสือส่งตัวฝึกงาน (Dispatch Letter)
+                            </div>
+                            <div className="text-xs text-violet-600/80 font-medium">
+                              {request.dispatchLetter.fileName || 'หนังสือส่งตัวจากผู้ดูแลระบบ'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {request.dispatchLetter.dataUrl && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const letter = request.dispatchLetter;
+                                handleViewDocument(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
                               }}
+                              className="bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-none"
+                              style={{ backgroundColor: '#7c3aed', color: '#ffffff', border: 'none' }}
                             >
-                              <DocumentTextIcon style={{ width: 22, height: 22 }} />
-                            </Box>
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#881337', fontSize: '0.92rem' }}>
-                                เอกสารหนังสือส่งตัวฝึกงาน (Dispatch Letter)
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#be185d', display: 'block', fontWeight: 500 }}>
-                                {request.dispatchLetter.fileName || 'หนังสือส่งตัวจากผู้ดูแลระบบ'}
-                              </Typography>
-                            </Box>
-                          </Box>
+                              <EyeIcon style={{ width: 14, height: 14 }} />
+                              <span>ดูเอกสาร</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const letter = request.dispatchLetter;
+                                handleDownloadFile(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
+                              }}
+                              className="border border-violet-200 text-violet-700 hover:bg-violet-50 font-semibold text-xs py-1.5 px-3 rounded-lg transition flex items-center gap-1.5 cursor-pointer bg-white"
+                              style={{ border: '1px solid #ddd6fe', color: '#6d28d9', backgroundColor: '#ffffff' }}
+                            >
+                              <ArrowDownTrayIcon style={{ width: 14, height: 14 }} />
+                              <span>ดาวน์โหลด</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                          {request.dispatchLetter.dataUrl && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<EyeIcon style={{ width: 16, height: 16 }} />}
-                                onClick={() => {
-                                  const letter = request.dispatchLetter;
-                                  const blobUrl = dataUrlToBlobUrl(letter.dataUrl);
-                                  setDocModal({
-                                    open: true,
-                                    dataUrl: letter.dataUrl,
-                                    fileName: letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf',
-                                    blobUrl,
-                                  });
-                                }}
-                                sx={{
-                                  bgcolor: '#be185d',
-                                  '&:hover': { bgcolor: '#9d174d' },
-                                  textTransform: 'none',
-                                  fontWeight: 700,
-                                  fontSize: '0.85rem',
-                                  borderRadius: 2,
-                                  px: 2,
-                                  py: 0.6,
-                                  boxShadow: '0 2px 6px rgba(190, 24, 93, 0.25)'
-                                }}
-                              >
-                                ดูเอกสาร
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
-                                onClick={() => {
-                                  const letter = request.dispatchLetter;
-                                  handleDownloadFile(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
-                                }}
-                                sx={{
-                                  borderColor: '#be185d',
-                                  color: '#be185d',
-                                  '&:hover': { borderColor: '#9d174d', bgcolor: '#fff1f2' },
-                                  textTransform: 'none',
-                                  fontWeight: 700,
-                                  fontSize: '0.85rem',
-                                  borderRadius: 2,
-                                  px: 1.75,
-                                  py: 0.6,
-                                }}
-                              >
-                                ดาวน์โหลด
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-
-                      <Box className="request-footer" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', paddingTop: '0.75rem' }}>
-                        <div className="request-date">
-                          <span className="request-date-label"> ยื่นเมื่อ</span>
-                          <span className="request-date-text" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, color: '#111827' }}>
-                            <span>{formatThaiDateTime(request.submittedDate).date}</span>
-                            <span>{formatThaiDateTime(request.submittedDate).time}</span>
-                          </span>
-                        </div>
-                        <Button component={Link} to={`/dashboard/request/${request.id}`} variant="text" sx={{ textTransform: 'none', color: '#be185d', fontWeight: 600 }}>
-                          ดูรายละเอียด →
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
+                    {/* Card Footer */}
+                    <div className="flex justify-between items-center gap-4 pt-4 mt-4 border-t border-slate-100">
+                      <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span>ยื่นเมื่อ:</span>
+                        <span className="font-medium text-slate-600">
+                          {formatThaiDateTime(request.submittedDate).date} {formatThaiDateTime(request.submittedDate).time}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/dashboard/request/${request.id}`}
+                        className="text-violet-600 hover:text-violet-700 font-semibold text-xs transition flex items-center gap-1 no-underline group"
+                        style={{ color: '#7c3aed', textDecoration: 'none' }}
+                      >
+                        <span>ดูรายละเอียด</span>
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </div>
+                  </div>
                 );
               })
+
             ) : (
               <div className="empty-state">
                 <div className="empty-icon"></div>
@@ -838,71 +932,6 @@ const DashboardPage = () => {
             )}
           </div>
         </div>
-
-        {/* Document Preview Modal */}
-        <Dialog
-          open={docModal.open}
-          onClose={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })}
-          maxWidth="md"
-          fullWidth
-          disableScrollLock={true}
-          PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
-        >
-          <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid #f1f5f9' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  bgcolor: '#ffe4e6',
-                  color: '#be185d',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <DocumentTextIcon style={{ width: 18, height: 18 }} />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
-                {docModal.fileName || 'หนังสือส่งตัวฝึกงาน'}
-              </Typography>
-            </Box>
-            <Button size="small" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ color: '#64748b', fontWeight: 700 }}>
-              ปิด
-            </Button>
-          </DialogTitle>
-          <DialogContent sx={{ p: 2, bgcolor: '#f8fafc', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '65vh' }}>
-            {docModal.open && (docModal.blobUrl || docModal.dataUrl) && (
-              docModal.dataUrl?.startsWith('data:image/') ? (
-                <img
-                  src={docModal.dataUrl}
-                  alt={docModal.fileName}
-                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
-                />
-              ) : (
-                <iframe
-                  src={docModal.blobUrl || docModal.dataUrl}
-                  title={docModal.fileName}
-                  style={{ width: '100%', height: '70vh', border: 'none', borderRadius: '8px', backgroundColor: '#fff' }}
-                />
-              )
-            )}
-          </DialogContent>
-          <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between' }}>
-            <Button
-              variant="contained"
-              startIcon={<ArrowDownTrayIcon style={{ width: 18, height: 18 }} />}
-              onClick={() => handleDownloadFile(docModal.dataUrl, docModal.fileName)}
-              sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5 }}
-            >
-              ดาวน์โหลดไฟล์
-            </Button>
-            <Button variant="outlined" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b', borderColor: '#cbd5e1' }}>
-              ปิดหน้าต่าง
-            </Button>
-          </DialogActions>
-        </Dialog>
 
         <footer className="dashboard-footer">
           <div className="footer-inner">© 2026 ระบบคำร้องฝึกงานวิชาชีพ. All rights reserved.</div>

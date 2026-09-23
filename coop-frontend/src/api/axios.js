@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { redirectToProfileLogin } from '../utils/sso';
 
 const getApiBaseUrl = () => {
   let url = import.meta.env.VITE_API_BASE_URL || 'https://students.sci-sskru.com/coop/api';
@@ -20,15 +21,23 @@ const api = axios.create({
 
 // Auto-attach JWT token from localStorage
 api.interceptors.request.use((config) => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      if (user.token) {
-        config.headers.Authorization = `Bearer ${user.token}`;
+  if (!config.headers.Authorization) {
+    let token = localStorage.getItem('token');
+    if (!token) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user.token) {
+            token = user.token;
+          }
+        } catch (e) {
+          // ignore
+        }
       }
-    } catch (e) {
-      // ignore
+    }
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
   }
   return config;
@@ -42,8 +51,8 @@ api.interceptors.response.use(
       const path = window.location.pathname;
       if (!path.startsWith('/coop/public/')) {
         localStorage.removeItem('user');
-        if (path !== '/coop/login' && path !== '/coop/') {
-          window.location.href = '/coop/login';
+        if (path !== '/coop/' && !path.includes('/sso')) {
+          redirectToProfileLogin();
         }
       }
     }

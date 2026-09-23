@@ -1,10 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
 
 // Load environment variables BEFORE importing prismaClient
 // so DATABASE_URL is available when PrismaClient is instantiated
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const prisma = require('./prismaClient');
 

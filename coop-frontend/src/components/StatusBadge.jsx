@@ -1,42 +1,135 @@
 import React from 'react';
 
-const STATUS_STYLES = {
-  'รออาจารย์ที่ปรึกษาอนุมัติ': { bg: 'linear-gradient(135deg, #fde68a 0%, #f59e0b 100%)', color: '#78350f' },
-  'รอผู้ดูแลระบบตรวจสอบ': { bg: 'linear-gradient(135deg, #93c5fd 0%, #3b82f6 100%)', color: '#ffffff' },
-  'รอผู้ดูแลระบบอนุมัติ': { bg: 'linear-gradient(135deg, #7dd3fc 0%, #0284c7 100%)', color: '#ffffff' },
-  'รอสถานประกอบการตอบรับ': { bg: 'linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 100%)', color: '#ffffff' },
-  'รออาจารย์อนุมัติเริ่มฝึกงาน': { bg: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 100%)', color: '#064e3b', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
-  'รอแอดมินอนุมัติเริ่มฝึกงาน': { bg: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 100%)', color: '#064e3b', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
-  'อนุมัติแล้ว': { bg: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 100%)', color: '#064e3b', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
-  'ประเมินเสร็จแล้ว': { bg: 'linear-gradient(135deg, #c7d2fe 0%, #6366f1 100%)', color: '#1e1b4b' },
-  'ไม่อนุมัติ (อาจารย์)': { bg: 'linear-gradient(135deg, #fda4af 0%, #f43f5e 100%)', color: '#ffffff' },
-  'ไม่อนุมัติ (Admin)': { bg: 'linear-gradient(135deg, #fb7185 0%, #e11d48 100%)', color: '#ffffff' },
-  'ปฏิเสธ': { bg: 'linear-gradient(135deg, #fb7185 0%, #be123c 100%)', color: '#ffffff' },
-  'ออกฝึกงาน': { bg: 'linear-gradient(135deg, #67e8f9 0%, #0ea5e9 100%)', color: '#083344' },
-  'ฝึกงานเสร็จแล้ว': { bg: 'linear-gradient(135deg, #f9a8d4 0%, #ec4899 100%)', color: '#831843' }
+const getStatusBadgeStyle = (status) => {
+  const s = String(status || '').trim();
+
+  if (
+    s === 'อนุมัติแล้ว (รอออกฝึกงาน)' ||
+    s.includes('รอออกฝึกงาน')
+  ) {
+    return {
+      className: 'bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5',
+      dotClass: 'bg-amber-500',
+      label: 'อนุมัติแล้ว (รอออกฝึกงาน)',
+    };
+  }
+
+  if (
+    s === 'กำลังออกฝึกงาน' ||
+    s === 'ออกฝึกงาน'
+  ) {
+    return {
+      className: 'bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5',
+      dotClass: 'bg-emerald-500',
+      label: 'กำลังออกฝึกงาน',
+    };
+  }
+
+  if (
+    s === 'สิ้นสุดการฝึกงาน (รอประเมิน)' ||
+    s.includes('สิ้นสุดการฝึกงาน')
+  ) {
+    return {
+      className: 'bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5',
+      dotClass: 'bg-violet-500',
+      label: 'สิ้นสุดการฝึกงาน (รอประเมิน)',
+    };
+  }
+
+  if (s === 'อนุมัติแล้ว' || s.includes('เสร็จสมบูรณ์')) {
+    return {
+      className: 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-emerald-500',
+      label: s === 'อนุมัติแล้ว' ? 'อนุมัติแล้ว' : s,
+    };
+  }
+
+  if (
+    s.includes('รออนุมัติ') ||
+    s.includes('รอดำเนินการ') ||
+    s === 'รอผู้ดูแลระบบตรวจสอบ' ||
+    s === 'รอผู้ดูแลระบบอนุมัติ' ||
+    s === 'รออาจารย์ที่ปรึกษาอนุมัติ'
+  ) {
+    return {
+      className: 'bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5',
+      dotClass: 'bg-amber-500',
+      label: s,
+    };
+  }
+
+  if (
+    s === 'COMPANY_ACCEPTED' ||
+    s.includes('สถานประกอบการตอบรับแล้ว') ||
+    s.includes('รอผู้ดูแลระบบกำหนดวัน') ||
+    s.includes('รอแอดมินออกใบส่งตัว') ||
+    s.includes('รอออกใบส่งตัว') ||
+    s === 'ตอบรับแล้ว'
+  ) {
+    return {
+      className: 'bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs',
+      dotClass: 'bg-indigo-500',
+      label: 'รอแอดมินออกใบส่งตัว',
+    };
+  }
+
+  if (s === 'รอสถานประกอบการตอบรับ') {
+    return {
+      className: 'bg-violet-50 text-violet-700 border border-violet-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-violet-500',
+      label: s,
+    };
+  }
+
+  if (s.includes('รอแอดมินอนุมัติ') || s.includes('รออาจารย์อนุมัติเริ่ม')) {
+    return {
+      className: 'bg-sky-50 text-sky-700 border border-sky-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-sky-500',
+      label: 'รอแอดมินอนุมัติการออกฝึกงาน',
+    };
+  }
+
+  if (s === 'ออกฝึกงาน') {
+    return {
+      className: 'bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-blue-500',
+      label: s,
+    };
+  }
+
+  if (s.includes('ประเมิน') || s.includes('เสร็จ')) {
+    return {
+      className: 'bg-purple-50 text-purple-700 border border-purple-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-purple-500',
+      label: s,
+    };
+  }
+
+  if (s.includes('ไม่อนุมัติ') || s.includes('ปฏิเสธ') || s.includes('ยกเลิก')) {
+    return {
+      className: 'bg-rose-50 text-rose-700 border border-rose-100 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+      dotClass: 'bg-rose-500',
+      label: s,
+    };
+  }
+
+  return {
+    className: 'bg-slate-50 text-slate-700 border border-slate-200 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5',
+    dotClass: 'bg-slate-400',
+    label: s || 'ไม่ทราบสถานะ',
+  };
 };
 
 const StatusBadge = ({ status, style = {}, className = '' }) => {
-  const normalizedStatus = String(status || '').trim();
-  const statusInfo = STATUS_STYLES[normalizedStatus] || { bg: 'linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%)', color: '#111827' };
-  const displayLabel = statusInfo.label || normalizedStatus;
+  const { className: badgeClass, dotClass, label } = getStatusBadgeStyle(status);
 
   return (
     <span
-      className={className}
-      style={{
-        background: statusInfo.bg,
-        color: statusInfo.color,
-        display: 'inline-block',
-        padding: '6px 12px',
-        borderRadius: '999px',
-        fontSize: '0.875rem',
-        fontWeight: '600',
-        lineHeight: 1.2,
-        ...style
-      }}
+      className={`${badgeClass} ${className}`}
+      style={style}
     >
-      {displayLabel || 'ไม่ทราบสถานะ'}
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+      <span>{label}</span>
     </span>
   );
 };

@@ -4,6 +4,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow } = require('../utils/helpers');
 const { sendEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
+const { createNotification, findUserIdsByRole } = require('../utils/notificationService');
 
 // รอบการประเมินที่เปิดใช้งานอยู่ — ถ้ายังไม่เคยตั้งรอบไว้เลยจะได้ null (ไม่ปิดกั้นการประเมิน)
 const getActiveEvaluationRound = async () => {
@@ -285,6 +286,28 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
       }
     } catch (mailErr) {
       console.error('[AdvisorEvaluation] ส่งอีเมลแบบประเมินไม่สำเร็จ:', mailErr.message);
+    }
+
+    // แจ้งเตือน Admin ทุกคนว่าอาจารย์บันทึกผลนิเทศแล้ว — ห้ามใส่ URL แบบประเมินของสถานประกอบการ
+    // ในการแจ้งเตือนนี้เด็ดขาด (ลิงก์นั้นมีไว้สำหรับผู้ประเมินฝั่งสถานประกอบการเท่านั้น) และห้ามส่งแจ้งเตือนนี้ถึงนักศึกษา
+    try {
+      const emailStatusText = emailSent
+        ? 'ระบบส่งแบบประเมินให้สถานประกอบการทางอีเมลแล้ว'
+        : recipientEmail
+          ? 'ส่งอีเมลแบบประเมินไปยังสถานประกอบการไม่สำเร็จ กรุณาตรวจสอบอีเมลผู้ประเมิน'
+          : 'ยังไม่มีอีเมลผู้ประเมินของสถานประกอบการในระบบ จึงยังไม่ได้ส่งแบบประเมิน';
+
+      const adminUserIds = await findUserIdsByRole('admin');
+      await Promise.all(adminUserIds.map((adminId) => createNotification({
+        userId: adminId,
+        type: 'supervision_completed',
+        title: 'อาจารย์ประเมินนิเทศแล้ว',
+        message: `${advisorName || 'อาจารย์ที่ปรึกษา'} ประเมินนิเทศคำร้องเลขที่ ${reqId} แล้ว — ${emailStatusText}`,
+        link: `/dashboard/request/${reqId}`,
+        requestId: Number(reqId),
+      })));
+    } catch (notifyErr) {
+      console.error('[Notification] แจ้งเตือน Admin เรื่องผลนิเทศล้มเหลว:', notifyErr.message);
     }
 
     let message = 'บันทึกผลการนิเทศสำเร็จ';

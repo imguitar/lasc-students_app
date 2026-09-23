@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert } from '@mui/material';
-import { QRCodeSVG } from 'qrcode.react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Box, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert } from '@mui/material';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
 import PrintableEvaluationForm from '../../../components/PrintableEvaluationForm';
-import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
+import { Pencil, CalendarDays, Check, X } from 'lucide-react';
+import { formatAddress } from '../../../utils/formatters';
+import { isStudentEditableStatus } from '../../Student/Dashboard/MyRequestsPage';
 
 const dataUrlToBlobUrl = (dataUrl) => {
   if (!dataUrl) return '';
@@ -38,7 +41,7 @@ const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่ง�
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  } catch (err) {
+  } catch {
     const a = document.createElement('a');
     a.href = dataUrl;
     a.download = fileName;
@@ -51,7 +54,6 @@ const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่ง�
 const RequestDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [userRole, setUserRole] = useState('student');
   const [request, setRequest] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
@@ -59,7 +61,7 @@ const RequestDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [rejectModal, setRejectModal] = useState({ open: false, reason: '' });
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
-  const [qrModal, setQrModal] = useState({ open: false, link: '' });
+  const [qrModal, setQrModal] = useState({ open: false, link: '', loading: false, error: '', navigateOnClose: false });
   const [editEvalEmailModal, setEditEvalEmailModal] = useState({ open: false, email: '', submitting: false, error: '' });
   const [dispatchModal, setDispatchModal] = useState({ open: false, file: null, comment: '', startDate: '', endDate: '', submitting: false, error: '' });
   const [scheduleModal, setScheduleModal] = useState({
@@ -75,6 +77,7 @@ const RequestDetailsPage = () => {
   const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
   const dispatchFileInputRef = useRef(null);
   const printRef = useRef(null);
+  const qrCanvasRef = useRef(null);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -294,8 +297,7 @@ const RequestDetailsPage = () => {
       handleDispatchModalClose();
 
       if (!isStartInternshipWaiting) {
-        const link = `${window.location.origin}/coop/public/request/${id}`;
-        setQrModal({ open: true, link });
+        await handleOpenResponseQr(true);
       } else {
         navigate(-1);
       }
@@ -304,12 +306,47 @@ const RequestDetailsPage = () => {
     }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(qrModal.link).then(() => {
+  const handleOpenResponseQr = async (navigateOnClose = false) => {
+    setQrModal({ open: true, link: '', loading: true, error: '', navigateOnClose });
+    try {
+      const res = await api.post(`/requests/${id}/response-qr`);
+      const responseUrl = res.data?.data?.responseUrl;
+      if (!responseUrl) throw new Error('ไม่พบ URL สำหรับตอบรับ');
+      const link = /^https?:\/\//i.test(responseUrl)
+        ? responseUrl
+        : new URL(responseUrl, window.location.origin).href;
+      setQrModal({ open: true, link, loading: false, error: '', navigateOnClose });
+    } catch (err) {
+      setQrModal({
+        open: true,
+        link: '',
+        loading: false,
+        error: err.response?.data?.message || err.message || 'ไม่สามารถสร้าง QR Code ได้',
+        navigateOnClose
+      });
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(qrModal.link);
       setToast({ open: true, message: 'คัดลอกลิงก์แล้ว', severity: 'success' });
-    }).catch(() => {
+    } catch {
       setToast({ open: true, message: 'ไม่สามารถคัดลอกลิงก์ได้', severity: 'error' });
-    });
+    }
+  };
+
+  const handleDownloadQr = () => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) {
+      setToast({ open: true, message: 'ไม่สามารถดาวน์โหลด QR Code ได้', severity: 'error' });
+      return;
+    }
+    const link = document.createElement('a');
+    link.download = `company-response-qr-${id}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    setToast({ open: true, message: 'ดาวน์โหลด QR Code แล้ว', severity: 'success' });
   };
 
   // อีเมลผู้ประเมินจากสถานประกอบการ — backend อนุญาตเฉพาะ admin/advisor
@@ -349,8 +386,9 @@ const RequestDetailsPage = () => {
   };
 
   const handleCloseQrModal = () => {
-    setQrModal({ open: false, link: '' });
-    navigate(-1);
+    const shouldNavigate = qrModal.navigateOnClose;
+    setQrModal({ open: false, link: '', loading: false, error: '', navigateOnClose: false });
+    if (shouldNavigate) navigate(-1);
   };
 
   const handleReject = () => {
@@ -393,8 +431,11 @@ const RequestDetailsPage = () => {
     const statusStyles = {
       'รออาจารย์ที่ปรึกษาอนุมัติ': { bg: '#fff3cd', color: '#856404' },
       'รอผู้ดูแลระบบตรวจสอบ': { bg: '#c3dafe', color: '#434190' },
-      'รอผู้ดูแลระบบอนุมัติ': { bg: '#c3dafe', color: '#434190' }, // Legacy support
       'รอสถานประกอบการตอบรับ': { bg: '#e2e8f0', color: '#2d3748' },
+      'สถานประกอบการตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'COMPANY_ACCEPTED': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'รอแอดมินออกใบส่งตัว': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'ตอบรับแล้ว': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
       'รออาจารย์อนุมัติเริ่มฝึกงาน': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'รอแอดมินอนุมัติเริ่มฝึกงาน': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'อนุมัติแล้ว': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
@@ -409,21 +450,6 @@ const RequestDetailsPage = () => {
     return { ...style, label: style.label || status };
   };
 
-  const formatAddress = (address) => {
-    if (!address) return '-';
-    if (typeof address === 'string') return address;
-
-    const parts = [];
-    if (address.house) parts.push(`บ้านเลขที่ ${address.house}`);
-    if (address.moo) parts.push(`หมู่ ${address.moo}`);
-    if (address.tambon) parts.push(`ตำบล ${address.tambon}`);
-    if (address.amphur) parts.push(`อำเภอ ${address.amphur}`);
-    if (address.province) parts.push(`จังหวัด ${address.province}`);
-    if (address.postal) parts.push(`รหัสไปรษณีย์ ${address.postal}`);
-    if (address.detail) parts.push(address.detail);
-
-    return parts.length ? parts.join(' ') : '-';
-  };
 
   if (loading || !request) return <div className="loading">กำลังโหลดข้อมูล...</div>;
 
@@ -433,10 +459,12 @@ const RequestDetailsPage = () => {
   const studentAddress = formatAddress(details.student_info?.address);
   const companyAddress = formatAddress(details.companyAddress || details.address);
   const internshipTermLabel = details.internshipTerm === 'term1'
-    ? 'เทอม 1 (7–15 ส.ค.)'
+    ? 'ภาคการศึกษาที่ 1'
     : details.internshipTerm === 'term2'
-      ? 'เทอม 2 (3–10 ม.ค.)'
-      : '';
+      ? 'ภาคการศึกษาที่ 2'
+      : details.internshipTerm === 'summer'
+        ? 'ภาคฤดูร้อน'
+        : (details.internshipTerm || '');
 
   // Determine if current user can execute actions
   const isAdvisorPending = normalizedStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ' || normalizedStatus === 'รออนุมัติ';
@@ -448,24 +476,24 @@ const RequestDetailsPage = () => {
   return (
     <div className="request-details-container">
       <div className="details-card">
-        <header className="details-header" style={{ position: 'relative', minHeight: '140px', paddingRight: details.studentPhoto?.dataUrl ? '130px' : '20px' }}>
-          <div>
+        <header className="details-header">
+          <div className="details-header-text">
             <h2>รายละเอียดคำร้องฝึกงาน</h2>
-            <p style={{ color: '#718096', marginTop: '5px' }}>เลขที่คำร้อง: {request.id} (ยื่นเมื่อ: {new Date(request.submittedDate).toLocaleDateString('th-TH')})</p>
-            <span className="status-badge-lg" style={{ backgroundColor: statusInfo.bg, color: statusInfo.color, marginTop: '10px', display: 'inline-block' }}>
+            <p>เลขที่คำร้อง: {request.id} (ยื่นเมื่อ: {new Date(request.submittedDate).toLocaleDateString('th-TH')})</p>
+            <span className="status-badge-lg" style={{ backgroundColor: statusInfo.bg, color: statusInfo.color }}>
               {statusInfo.label}
             </span>
           </div>
           {details.studentPhoto?.dataUrl && (
-            <div 
-              style={{ position: 'absolute', top: '20px', right: '20px', cursor: 'pointer' }} 
+            <div
+              className="student-photo-btn"
               onClick={() => setImageModal(true)}
               title="คลิกเพื่อดูรูปขยาย"
             >
-              <img 
-                src={details.studentPhoto.dataUrl} 
-                alt="รูปนักศึกษา" 
-                style={{ width: '100px', height: '120px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} 
+              <img
+                src={details.studentPhoto.dataUrl}
+                alt="รูปนักศึกษา"
+                className="student-photo-thumb"
               />
             </div>
           )}
@@ -583,7 +611,7 @@ const RequestDetailsPage = () => {
                   gap: '4px'
                 }}
               >
-                📅 กำหนด / แก้ไขวันฝึกงาน
+                <CalendarDays size={15} /> กำหนด / แก้ไขวันฝึกงาน
               </Button>
             )}
           </div>
@@ -814,28 +842,56 @@ const RequestDetailsPage = () => {
             ย้อนกลับ
           </Button>
           
-          {normalizedStatus === 'รอสถานประกอบการตอบรับ' && (
-            <Button 
-              variant="contained" 
-              sx={{ bgcolor: '#10b981', '&:hover': { bgcolor: '#059669' }, color: 'white' }}
-              onClick={() => {
-                const link = `${window.location.origin}/coop/public/request/${id}`;
-                setQrModal({ open: true, link });
-              }}
+          {userRole === 'admin' && (
+            <Button
+              variant="contained"
+              startIcon={<QrCodeIcon style={{ width: 19, height: 19 }} />}
+              sx={{ bgcolor: '#111827', '&:hover': { bgcolor: '#000' }, color: 'white' }}
+              onClick={() => handleOpenResponseQr(false)}
             >
-              ดู QR Code
+              ดู QR Code ตอบรับล่วงหน้า
             </Button>
           )}
           
           {canApprove && (
             <>
-              <Button variant="contained" color="error" className="btn-reject-lg" onClick={handleReject}>
-                ✗ ไม่อนุมัติ
+              <Button variant="contained" color="error" className="btn-reject-lg" startIcon={<X size={17} />} onClick={handleReject}>
+                ไม่อนุมัติ
               </Button>
-              <Button variant="contained" color="success" className="btn-approve-lg" onClick={handleApprove}>
-                ✓ อนุมัติคำร้อง
+              <Button variant="contained" color="success" className="btn-approve-lg" startIcon={<Check size={17} />} onClick={handleApprove}>
+                อนุมัติคำร้อง
               </Button>
             </>
+          )}
+          {userRole === 'student' && isStudentEditableStatus(request?.status) && (
+            <Button
+              variant="contained"
+              startIcon={<Pencil size={18} />}
+              sx={{
+                bgcolor: '#7c3aed',
+                '&:hover': { bgcolor: '#6d28d9' },
+                color: 'white',
+                borderRadius: 2,
+                px: 2.5
+              }}
+              onClick={() => navigate(`/dashboard/edit-request/${request.id}`)}
+            >
+              แก้ไขคำร้อง
+            </Button>
+          )}
+          {userRole === 'student' && !isStudentEditableStatus(request?.status) && (
+            <Button
+              variant="outlined"
+              disabled
+              sx={{
+                borderColor: '#cbd5e1 !important',
+                color: '#64748b !important',
+                borderRadius: 2,
+                px: 2.5
+              }}
+            >
+              โหมดอ่านอย่างเดียว (อนุมัติแล้ว)
+            </Button>
           )}
         </footer>
       </div>
@@ -937,8 +993,8 @@ const RequestDetailsPage = () => {
 
           {['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status) && (
             <Box sx={{ mb: 2, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1 }}>
-                📅 ตรวจสอบ / กำหนดวันฝึกงานจริง
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <CalendarDays size={16} /> ตรวจสอบ / กำหนดวันฝึกงานจริง
               </Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
                 <TextField
@@ -1007,7 +1063,7 @@ const RequestDetailsPage = () => {
         fullWidth
       >
         <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span>📅</span> กำหนดวันฝึกงาน (สำหรับ Admin)
+          <CalendarDays size={20} /> กำหนดวันฝึกงาน (สำหรับ Admin)
         </DialogTitle>
         <DialogContent sx={{ py: 2 }}>
           <Box sx={{ mb: 2.5, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
@@ -1144,47 +1200,68 @@ const RequestDetailsPage = () => {
       </Dialog>
 
       {/* QR Code Modal */}
-      <Dialog open={qrModal.open} onClose={handleCloseQrModal} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700 }}>คำร้องอนุมัติแล้ว</DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', py: 3 }}>
+      <Dialog open={qrModal.open} onClose={handleCloseQrModal} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700 }}>QR Code แบบตอบรับสถานประกอบการ</DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', px: { xs: 2, sm: 4 }, py: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            แชร์ QR Code หรือลิงก์นี้ให้สถานประกอบการเพื่อตอบรับหรือปฏิเสธนักศึกษา
+            ใช้ QR Code หรือลิงก์นี้ในเอกสารขอความอนุเคราะห์ เพื่อให้สถานประกอบการตอบรับหรือปฏิเสธนักศึกษา
           </Typography>
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-            <Box sx={{ p: 2, bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 2 }}>
-              <QRCodeSVG value={qrModal.link} size={200} />
+          {qrModal.loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 7 }}>
+              <CircularProgress />
             </Box>
-          </Box>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              bgcolor: '#f5f5f5',
-              borderRadius: 2,
-              p: 1.5,
-              border: '1px solid #e0e0e0',
-            }}
-          >
-            <Typography
-              variant="body2"
-              sx={{
-                flex: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-              }}
-            >
-              {qrModal.link}
-            </Typography>
-            <Button variant="contained" size="small" onClick={handleCopyLink} sx={{ flexShrink: 0, bgcolor: '#111', '&:hover': { bgcolor: '#000' } }}>
-              คัดลอก
-            </Button>
-          </Box>
+          )}
+          {qrModal.error && <Alert severity="error">{qrModal.error}</Alert>}
+          {!qrModal.loading && !qrModal.error && qrModal.link && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                <Box sx={{ p: 2, bgcolor: '#fff', border: '1px solid #e2e8f0', borderRadius: 2, boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)' }}>
+                  <QRCodeCanvas ref={qrCanvasRef} value={qrModal.link} size={220} level="H" marginSize={1} />
+                </Box>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: 'stretch',
+                  gap: 1,
+                  bgcolor: '#f8fafc',
+                  borderRadius: 2,
+                  p: 1.5,
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflowWrap: 'anywhere',
+                    textAlign: 'left',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    p: 0.5,
+                  }}
+                >
+                  {qrModal.link}
+                </Typography>
+                <Button variant="contained" size="small" onClick={handleCopyLink} sx={{ flexShrink: 0, bgcolor: '#111827', '&:hover': { bgcolor: '#000' } }}>
+                  คัดลอกลิงก์
+                </Button>
+              </Box>
+            </>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'center' }}>
+        <DialogActions sx={{ px: { xs: 2, sm: 4 }, pb: 3, justifyContent: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<ArrowDownTrayIcon style={{ width: 18, height: 18 }} />}
+            onClick={handleDownloadQr}
+            disabled={qrModal.loading || Boolean(qrModal.error) || !qrModal.link}
+            sx={{ bgcolor: '#0284c7', '&:hover': { bgcolor: '#0369a1' } }}
+          >
+            ดาวน์โหลด QR Code
+          </Button>
           <Button variant="outlined" onClick={handleCloseQrModal}>ปิด</Button>
         </DialogActions>
       </Dialog>

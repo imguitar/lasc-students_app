@@ -24,7 +24,7 @@ const questions = [
   { id: 'q20', label: '20. คุณธรรมและจริยธรรม' }
 ];
 
-const PrintableEvaluationForm = React.forwardRef(({ request, evaluation }, ref) => {
+const PrintableEvaluationForm = ({ request, evaluation, ref }) => {
   if (!request || !evaluation) return <div ref={ref}></div>;
 
   return (
@@ -93,6 +93,6 @@ const PrintableEvaluationForm = React.forwardRef(({ request, evaluation }, ref) 
 
     </div>
   );
-});
+};
 
 export default PrintableEvaluationForm;

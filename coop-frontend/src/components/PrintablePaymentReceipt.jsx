@@ -210,7 +210,7 @@ const SingleReceipt = ({ student, index, total }) => {
   );
 };
 
-const PrintablePaymentReceipt = React.forwardRef(({ students = [] }, ref) => {
+const PrintablePaymentReceipt = ({ students = [], ref }) => {
   if (!students || students.length === 0) return <div ref={ref}></div>;
 
   return (
@@ -225,6 +225,6 @@ const PrintablePaymentReceipt = React.forwardRef(({ students = [] }, ref) => {
       ))}
     </div>
   );
-});
+};
 
 export default PrintablePaymentReceipt;

@@ -30,6 +30,8 @@ import { STAT_EMOJI } from '../../utils/statEmojis';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
+import NotificationBell from '../../components/NotificationBell';
+import DateTimeIndicator from '../../components/DateTimeIndicator';
 import StatCard from '../../components/StatCard';
 
 const AdvisorSupervisionPage = () => {
@@ -45,7 +47,9 @@ const AdvisorSupervisionPage = () => {
         requestId: null,
         date: '',
         mode: 'Online',
-        note: ''
+        note: '',
+        advisorName: '',
+        advisorId: ''
     });
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
@@ -157,7 +161,9 @@ const AdvisorSupervisionPage = () => {
             requestId: request.id,
             date: request.supervisionAppointment?.date || '',
             mode: request.supervisionAppointment?.mode || 'Online',
-            note: request.supervisionAppointment?.note || ''
+            note: request.supervisionAppointment?.note || '',
+            advisorName: request.supervisionAppointment?.advisorName || '',
+            advisorId: request.supervisionAppointment?.advisorId || ''
         });
     };
 
@@ -167,7 +173,9 @@ const AdvisorSupervisionPage = () => {
             requestId: null,
             date: '',
             mode: 'Online',
-            note: ''
+            note: '',
+            advisorName: '',
+            advisorId: ''
         });
     };
 
@@ -181,7 +189,9 @@ const AdvisorSupervisionPage = () => {
             await api.patch(`/requests/${appointmentDialog.requestId}/appointment`, {
                 date: appointmentDialog.date,
                 mode: appointmentDialog.mode,
-                note: appointmentDialog.note
+                note: appointmentDialog.note,
+                advisorName: appointmentDialog.advisorName,
+                advisorId: appointmentDialog.advisorId
             });
 
             persistRequests((allRequests) =>
@@ -193,6 +203,8 @@ const AdvisorSupervisionPage = () => {
                                     date: appointmentDialog.date,
                                     mode: appointmentDialog.mode,
                                     note: appointmentDialog.note,
+                                    advisorName: appointmentDialog.advisorName,
+                                    advisorId: appointmentDialog.advisorId,
                                     updatedAt: new Date().toISOString()
                                 }
                             }
@@ -229,13 +241,17 @@ const AdvisorSupervisionPage = () => {
 
     return (
         <div className="admin-dashboard-container">
-            <div className="mobile-top-navbar">
-                <Link to="/" className="mobile-top-logo" aria-label="LASC Home">
-                    <img src={lascLogo} alt="LASC Logo" />
-                </Link>
-                <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: '8px' }}>
+            <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
+                <div className="flex items-center gap-3">
+                    <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+                    <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
+                        <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+                    </Link>
+                </div>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <DateTimeIndicator />
+                    <NotificationBell />
                     <UserProfileMenu />
-                    <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>☰</button>
                 </div>
             </div>
             <AdvisorSidebar

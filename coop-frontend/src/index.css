@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400&family=Kanit:wght@300;400;500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -7,67 +7,148 @@
 }
 
 :root {
-  --bg: linear-gradient(135deg, #f4e8ff 0%, #fcfdfd 35%, #fef9c3 100%);
-  --text: #1a237e;
-  --muted: #4c1d95;
-  --surface: rgba(255, 255, 255, 0.8);
-  --surface-muted: rgba(243, 244, 246, 0.7);
-  --border: #e9d5ff;
-  --primary: #111111;
+  --bg: #f8f9fc;
+  --text: #0f172a;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border: #f1f5f9;
+  --primary: #7c3aed;
   --primary-contrast: #ffffff;
-  --danger: #b91c1c;
-  --success: #166534;
-  --warning: #a16207;
+  --danger: #e11d48;
+  --success: #059669;
+  --warning: #d97706;
+}
+
+body,
+input,
+button,
+select,
+textarea,
+.MuiTypography-root,
+.MuiButton-root,
+.MuiInputBase-root,
+.MuiTableCell-root,
+.MuiMenuItem-root {
+  font-family: 'Prompt', 'Kanit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 body {
   margin: 0;
-  font-family: 'Sarabun', 'Kanit', 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  /* NOTE: overflow-x: hidden removed – it blocks vertical scroll on iOS/iPad */
-  background: var(--bg);
-  color: var(--text);
+  background-color: #f8f9fc;
+  color: #0f172a;
 }
 
 a {
-  color: var(--text);
+  color: inherit;
+  text-decoration: none;
 }
 
-button,
-.btn-submit,
-.btn-primary,
-.btn-add,
-.btn-login,
-.btn-primary-small,
-.btn-save-profile,
-.btn-approve {
+/* Headings typography */
+h1, h2, h3, h4, h5, h6,
+.heading-primary {
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+/* Data Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead,
+.MuiTableHead-root {
+  background: rgba(248, 250, 252, 0.8) !important;
+}
+
+th,
+.MuiTableCell-head {
+  color: #94a3b8 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  padding: 0.875rem 1rem !important;
+  background: rgba(248, 250, 252, 0.8) !important;
+}
+
+td,
+.MuiTableCell-body {
+  color: #334155 !important;
+  font-size: 0.8125rem !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  padding: 0.875rem 1rem !important;
+}
+
+tr:hover,
+.MuiTableRow-root:hover {
+  background-color: rgba(248, 250, 252, 0.6) !important;
+  transition: background-color 0.2s ease;
+}
+
+/* Modern Inputs & Dropdowns */
+.MuiOutlinedInput-root {
+  border-radius: 0.75rem !important;
+  background-color: #f8fafc !important;
+  font-size: 0.8125rem !important;
+  color: #334155 !important;
+  transition: all 0.2s ease !important;
+}
+
+.MuiOutlinedInput-root fieldset {
+  border-color: #e2e8f0 !important;
+}
+
+.MuiOutlinedInput-root:hover fieldset {
+  border-color: #cbd5e1 !important;
+}
+
+.MuiOutlinedInput-root.Mui-focused {
+  background-color: #ffffff !important;
+}
+
+.MuiOutlinedInput-root.Mui-focused fieldset {
+  border-color: #7c3aed !important;
+  border-width: 1.5px !important;
+}
+
+.MuiInputLabel-root {
+  font-size: 0.875rem !important;
+  color: #94a3b8 !important;
+}
+
+.MuiInputLabel-root.Mui-focused {
+  color: #7c3aed !important;
+}
+
+.MuiMenuItem-root {
+  font-size: 0.8125rem !important;
+  color: #334155 !important;
+}
+
+.MuiMenuItem-root.Mui-selected {
+  background-color: #f5f3ff !important;
+  color: #7c3aed !important;
+  font-weight: 600 !important;
+}
+
+/* Surfaces and Cards */
+.modern-card,
+.content-section,
+.MuiPaper-elevation0 {
+  background-color: #ffffff;
+}
+
+button:where(:not([class])) {
   background: var(--primary);
   color: var(--primary-contrast);
   border-color: var(--primary);
-}
-
-.btn-cancel,
-.btn-secondary,
-.btn-signup,
-.btn-cancel-profile,
-.logout-btn {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--text);
-}
-
-.btn-reject,
-.btn-delete {
-  background: var(--danger);
-  color: #ffffff;
-  border-color: var(--danger);
-}
-
-.footer {
-  background: #000000;
-  color: #ffffff;
 }
 
 img,
@@ -79,8 +160,7 @@ svg {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 /* Global overflow guards */
@@ -131,4 +211,51 @@ code {
 .status-badge,
 .checkin-status {
   white-space: nowrap;
+}
+
+@tailwind utilities;
+
+@media (max-width: 639px) {
+  .mobile-top-navbar.flex {
+    padding-inline: 8px;
+    gap: 4px;
+  }
+
+  .mobile-top-navbar > div:first-child,
+  .mobile-top-navbar > div:last-child {
+    gap: 4px;
+  }
+
+  .mobile-top-navbar .mobile-top-logo img {
+    max-width: 44px;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+@media (max-width: 380px) {
+  .mobile-top-navbar .mobile-top-logo {
+    display: none;
+  }
 }

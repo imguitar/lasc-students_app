@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { API_BASE } from '../../../api/axios';
@@ -11,6 +12,7 @@ import {
   ArrowDownTrayIcon,
   PrinterIcon,
 } from '@heroicons/react/24/outline';
+import { MoreVertical, Eye, Trash2 } from 'lucide-react';
 import {
   Box,
   Paper,
@@ -41,6 +43,8 @@ import './AdminDashboardPage.css';
 import './StudentListPage.css';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
+import NotificationBell from '../../../components/NotificationBell';
+import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const dataUrlToBlob = (dataUrl) => {
   if (!dataUrl) return null;
@@ -113,6 +117,53 @@ const StudentListPage = () => {
   });
 
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
+  const menuPanelRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (event.target?.closest?.('.action-menu-trigger')) return;
+      if (menuPanelRef.current && !menuPanelRef.current.contains(event.target)) {
+        setActionMenu({ id: null, top: 0, left: 0 });
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!actionMenu.id) return;
+    const closeMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [actionMenu.id]);
+
+  const handleToggleActionMenu = (e, menuId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (actionMenu.id === menuId) {
+      setActionMenu({ id: null, top: 0, left: 0 });
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 160; // w-40
+    const menuHeight = 110;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= menuHeight + 8
+      ? rect.bottom + 4
+      : Math.max(8, rect.top - menuHeight - 4);
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      window.innerWidth - menuWidth - 8
+    );
+    setActionMenu({ id: menuId, top, left });
+  };
+
+  const closeActionMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
 
   const getToken = () => {
     try {
@@ -278,6 +329,10 @@ const StudentListPage = () => {
   const filteredWithSlips = useMemo(() => {
     return filteredStudents.filter(s => Boolean(s.paymentSlip));
   }, [filteredStudents]);
+
+  const activeMenuStudent = filteredStudents.find(
+    (s) => (s.student_code || s.username) === actionMenu.id
+  );
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -476,13 +531,17 @@ const StudentListPage = () => {
 
   return (
     <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar">
-        <Link to="/" className="mobile-top-logo" aria-label="LASC Home">
-          <img src={lascLogo} alt="LASC Logo" />
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: '8px' }}>
+      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
+            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <DateTimeIndicator />
+          <NotificationBell />
           <UserProfileMenu />
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>☰</button>
         </div>
       </div>
       <AdminSidebar
@@ -730,21 +789,15 @@ const StudentListPage = () => {
                         </div>
                       </TableCell>
                       <TableCell align="center">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          <Link to={`/dashboard/student/${student.student_code || student.username}`} className="btn-view" style={{ border: '1px solid #ddd', padding: '6px 10px', borderRadius: 6, fontSize: '12px' }}>
-                            ดูรายละเอียด
-                          </Link>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            onClick={() => handleOpenDeleteSingle(student)}
-                            startIcon={<TrashIcon style={{ width: 14, height: 14 }} />}
-                            sx={{ minWidth: 'auto', px: 1, py: 0.5, fontSize: '12px', borderRadius: 1.5 }}
-                          >
-                            ลบข้อมูล
-                          </Button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleActionMenu(e, studentCode)}
+                          className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent outline-none inline-flex items-center justify-center"
+                          aria-label="ตัวเลือกการจัดการ"
+                          title="การกระทำ"
+                        >
+                          <MoreVertical className="w-4 h-4 stroke-[2]" />
+                        </button>
                       </TableCell>
                     </TableRow>
                   );
@@ -1117,6 +1170,49 @@ const StudentListPage = () => {
           <PrintablePaymentReceipt ref={printReceiptRef} students={receiptStudents} />
         </div>
       </main>
+
+      {/* Action Dropdown Panel — เรนเดอร์ผ่าน Portal เพื่อหลบการถูก clip โดย overflow ของตาราง */}
+      {actionMenu.id && activeMenuStudent && createPortal(
+        <div
+          ref={menuPanelRef}
+          className="w-40 bg-white rounded-2xl p-1.5 border border-violet-100 z-[99] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            position: 'fixed',
+            top: actionMenu.top,
+            left: actionMenu.left,
+            backgroundColor: '#ffffff',
+            boxShadow: '0 12px 32px rgba(124, 58, 237, 0.12)',
+            borderColor: '#ede9fe',
+          }}
+        >
+          {/* รายการที่ 1: ดูรายละเอียด */}
+          <Link
+            to={`/dashboard/student/${activeMenuStudent.student_code || activeMenuStudent.username}`}
+            onClick={closeActionMenu}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition text-left no-underline cursor-pointer"
+          >
+            <Eye className="w-4 h-4 text-slate-400" />
+            <span>ดูรายละเอียด</span>
+          </Link>
+
+          {/* เส้นคั่นบางๆ */}
+          <div className="border-t border-slate-100 my-0.5" />
+
+          {/* รายการที่ 2: ลบข้อมูล (เปิด Confirmation Dialog ยืนยันก่อนลบทุกครั้ง) */}
+          <button
+            type="button"
+            onClick={() => {
+              closeActionMenu();
+              handleOpenDeleteSingle(activeMenuStudent);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition text-left cursor-pointer border-none bg-transparent outline-none"
+          >
+            <Trash2 className="w-4 h-4 text-rose-500" />
+            <span>ลบข้อมูล</span>
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

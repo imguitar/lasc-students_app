@@ -86,6 +86,13 @@ function GlobalAlertModalProvider({ children }) {
         ? incomingMessage
         : JSON.stringify(incomingMessage);
 
+      // ป้องกันการแสดง Modal ซ้ำซ้อนสำหรับการยืนยันการออกจากระบบ
+      // ให้เปิด Logout Modal ตัวใหม่ใน UserProfileMenu แทน
+      if (options.title === 'ยืนยันการออกจากระบบ' || normalizedMessage === 'คุณต้องการออกจากระบบใช่หรือไม่?') {
+        window.dispatchEvent(new CustomEvent('request-logout-confirm'));
+        return Promise.resolve(true);
+      }
+
       return new Promise((resolve) => {
         confirmQueueRef.current.push({
           message: normalizedMessage,
@@ -110,18 +117,7 @@ function GlobalAlertModalProvider({ children }) {
       event.preventDefault();
       event.stopPropagation();
 
-      window
-        .showMuiConfirm('คุณต้องการออกจากระบบใช่หรือไม่?', {
-          title: 'ยืนยันการออกจากระบบ',
-          confirmText: 'ออกจากระบบ',
-          cancelText: 'ยกเลิก',
-        })
-        .then((confirmed) => {
-          if (!confirmed) return;
-          logoutElement.dataset.skipLogoutConfirm = '1';
-          logoutElement.click();
-          delete logoutElement.dataset.skipLogoutConfirm;
-        });
+      window.dispatchEvent(new CustomEvent('request-logout-confirm'));
     };
 
     document.addEventListener('click', logoutClickCapture, true);

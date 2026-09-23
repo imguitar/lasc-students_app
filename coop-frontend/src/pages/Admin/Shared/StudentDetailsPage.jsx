@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle, DialogActions, Button, Typography, 
 import { ChartBarIcon, DocumentTextIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
+import { formatAddress } from '../../../utils/formatters';
 
 const dataUrlToBlobUrl = (dataUrl) => {
   if (!dataUrl) return '';
@@ -168,8 +169,11 @@ const StudentDetailsPage = () => {
       'ยังไม่ได้ยื่นคำร้อง': { bg: '#f1f5f9', color: '#64748b' },
       'รออาจารย์ที่ปรึกษาอนุมัติ': { bg: '#fff3cd', color: '#856404' },
       'รอผู้ดูแลระบบตรวจสอบ': { bg: '#c3dafe', color: '#434190' },
-      'รอผู้ดูแลระบบอนุมัติ': { bg: '#c3dafe', color: '#434190' },
       'รอสถานประกอบการตอบรับ': { bg: '#e2e8f0', color: '#2d3748' },
+      'สถานประกอบการตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'COMPANY_ACCEPTED': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'รอแอดมินออกใบส่งตัว': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
+      'ตอบรับแล้ว': { bg: '#e0e7ff', color: '#4338ca', label: 'รอแอดมินออกใบส่งตัว' },
       'รออาจารย์อนุมัติเริ่มฝึกงาน': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'รอแอดมินอนุมัติเริ่มฝึกงาน': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'อนุมัติแล้ว': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
@@ -184,20 +188,6 @@ const StudentDetailsPage = () => {
     return { ...style, label: style.label || status || 'ยังไม่ได้ยื่นคำร้อง' };
   };
 
-  const formatAddress = (address) => {
-    if (!address) return '-';
-    if (typeof address === 'string') return address;
-
-    const parts = [];
-    if (address.house) parts.push(`บ้านเลขที่ ${address.house}`);
-    if (address.moo) parts.push(`หมู่ ${address.moo}`);
-    if (address.tambon) parts.push(`ตำบล ${address.tambon}`);
-    if (address.amphur) parts.push(`อำเภอ ${address.amphur}`);
-    if (address.province) parts.push(`จังหวัด ${address.province}`);
-    if (address.postal) parts.push(`รหัสไปรษณีย์ ${address.postal}`);
-
-    return parts.length > 0 ? parts.join(' ') : '-';
-  };
 
   if (loading) {
     return (

@@ -2,7 +2,7 @@
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #ffffff;
+  background: #f8f9fc;
   padding-top: 60px;
 }
 
@@ -105,14 +105,17 @@
 }
 
 .admin-header h1 {
-  color: #111111;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  color: #0f172a;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.25rem;
   word-break: break-word;
 }
 
 .admin-header p {
-  color: #333333;
+  color: #94a3b8;
+  font-size: 0.875rem;
 }
 
 .home-link {
@@ -211,24 +214,36 @@ table {
   border-collapse: collapse;
 }
 
-thead {
-  background: #f3f4f6;
+thead,
+.compact-table thead {
+  background: rgba(248, 250, 252, 0.8) !important;
 }
 
-th {
-  padding: 1rem;
+th,
+.compact-table th {
+  padding: 0.875rem 1rem !important;
   text-align: left;
-  color: #111111;
-  font-weight: 600;
-  border-bottom: 2px solid #e5e7eb;
+  color: #94a3b8 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 1px solid #f1f5f9 !important;
   white-space: nowrap;
 }
 
-td {
-  padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  color: #333333;
+td,
+.compact-table td {
+  padding: 0.875rem 1rem !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+  font-size: 0.8125rem !important;
   white-space: nowrap;
+}
+
+tr:hover,
+.compact-table tr:hover {
+  background-color: rgba(248, 250, 252, 0.6) !important;
 }
 
 .modal-overlay {
@@ -528,10 +543,10 @@ tbody tr:hover {
   right: 0;
   height: 60px;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0 12px;
+  justify-content: space-between;
+  padding: 0 16px;
   background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #f1f5f9;
   z-index: 1080;
 }
 
@@ -554,11 +569,13 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .mobile-top-logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   height: 38px;
   flex: 0 0 auto;
   text-decoration: none;
@@ -588,8 +605,13 @@ tbody tr:hover {
 @media (max-width: 1199px) {
   .mobile-menu-btn {
     display: flex;
-    margin-left: auto;
+    margin-left: 0;
     z-index: 1090;
+  }
+
+  .mobile-top-logo {
+    position: static;
+    transform: none;
   }
 
   .sidebar {

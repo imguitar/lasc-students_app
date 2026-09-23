@@ -2,7 +2,7 @@
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #ffffff;
+  background: #f8f9fc;
   padding-top: 60px;
   overflow-x: hidden;
 }
@@ -11,7 +11,7 @@
 .sidebar {
   width: 260px;
   background: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
   height: calc(100dvh - 60px);
@@ -22,39 +22,44 @@
 }
 
 .sidebar-header {
-  padding: 2rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .sidebar-header h2 {
-  color: #111111;
-  font-size: 1.5rem;
+  color: #0f172a;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
 }
 
 .sidebar-nav {
-  padding: 1rem 0;
+  padding: 0.75rem 0.625rem;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.875rem 1.5rem;
-  color: #111111;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  margin: 0.125rem 0;
+  color: #64748b;
   text-decoration: none;
-  transition: all 0.3s;
-  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .nav-item:hover {
-  background: #f3f4f6;
-  color: #111111;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .nav-item.active {
-  background: #f3f4f6;
-  color: #111111;
-  border-left-color: #111111;
+  background: #faf5ff;
+  color: #7c3aed;
   font-weight: 600;
 }
 
@@ -63,26 +68,27 @@
 }
 
 .sidebar-footer {
-  padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  padding: 1rem 0.75rem;
+  border-top: 1px solid #f1f5f9;
   margin-top: auto;
 }
 
 .logout-btn {
   width: 100%;
-  padding: 0.875rem;
-  background: #f3f4f6;
-  border: none;
-  border-radius: 8px;
-  color: #111111;
+  padding: 0.625rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 0.75rem;
+  color: #64748b;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .logout-btn:hover {
-  background: #ef4444;
-  color: #ffffff;
+  background: #fef2f2;
+  color: #e11d48;
+  border-color: #fecdd3;
 }
 
 /* Main Content */
@@ -106,13 +112,16 @@
 }
 
 .dashboard-header h1 {
-  color: #111111;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  color: #0f172a;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.25rem;
 }
 
 .dashboard-header p {
-  color: #333333;
+  color: #94a3b8;
+  font-size: 0.875rem;
 }
 
 .home-link {
@@ -236,18 +245,17 @@
 
 .request-card {
   padding: 1.5rem;
-  background: linear-gradient(135deg, #fff1f2 0%, #ffedd5 40%, #fef3c7 100%);
-  border-radius: 12px;
-  border: none;
-  border-left: none;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
-  transition: all 0.3s;
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
 }
 
 .request-card:hover {
-  background: linear-gradient(135deg, #ffe4e6 0%, #ffedd5 45%, #fde68a 100%);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-  transform: translateX(4px);
+  background: #ffffff;
+  box-shadow: 0 12px 36px rgba(124, 58, 237, 0.06);
+  transform: translateY(-2px);
 }
 
 .request-header {
@@ -517,10 +525,10 @@
   right: 0;
   height: 60px;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0 12px;
+  justify-content: space-between;
+  padding: 0 16px;
   background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #f1f5f9;
   z-index: 1080;
 }
 
@@ -543,11 +551,13 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .mobile-top-logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   height: 38px;
   flex: 0 0 auto;
   text-decoration: none;
@@ -577,8 +587,13 @@
 @media (max-width: 1199px) {
   .mobile-menu-btn {
     display: flex;
-    margin-left: auto;
+    margin-left: 0;
     z-index: 1090;
+  }
+
+  .mobile-top-logo {
+    position: static;
+    transform: none;
   }
 
   .sidebar {

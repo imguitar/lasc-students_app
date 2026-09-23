@@ -10,6 +10,7 @@
 - `migrations/20260916-add-evaluation-rounds.sql` เพิ่มตาราง `evaluation_rounds` สำหรับกำหนดช่วงเวลาเปิดประเมิน
 - `migrations/20260916-add-resume-skills-internships.sql` เพิ่มข้อมูล resume ใน `profile` และตารางใหม่ 6 ตาราง
 - `migrations/20260916-graduation-portfolio-and-status.sql` เพิ่มข้อมูลสำเร็จการศึกษา/portfolio และ **แปลงค่า `projects.status`**
+- `migrations/20260923-add-notifications.sql` เพิ่มตาราง `notifications` สำหรับระบบแจ้งเตือนในแอป
 
 MySQL Docker image จะรันไฟล์ที่อยู่ในโฟลเดอร์นี้โดยตรงตามลำดับชื่อ เฉพาะตอนสร้าง data volume ครั้งแรกเท่านั้น
 และจะไม่ลงไปใน `migrations/` ไฟล์ใน `migrations/` จึงต้องรันเองเสมอ
@@ -29,6 +30,7 @@ mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluation-rounds.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-resume-skills-internships.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-graduation-portfolio-and-status.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260923-add-notifications.sql
 ```
 
 ## ประธานสาขาวิชา (Department Head)
@@ -90,3 +92,19 @@ Completed  -> completed
 
 ฝั่ง API รับค่าตัวใหญ่แบบเดิมได้ (`Completed` -> `completed`) แต่ค่าที่ไม่รู้จักจะถูกปฏิเสธด้วย HTTP 400
 ไม่ถูกแปลงเป็น `draft` แบบเงียบ ๆ
+
+## การแจ้งเตือนในแอป (Notifications)
+
+`notifications` เก็บการแจ้งเตือนแบบผูกกับ `user.id` ของผู้รับโดยตรง (ไม่ใช่ studentId/username)
+สร้างผ่าน `coop-backend/src/utils/notificationService.js` เท่านั้น การสร้างการแจ้งเตือนล้มเหลวต้องไม่ทำให้
+Business Logic หลัก (เช่น การกำหนดวันนิเทศ หรือการบันทึกผลนิเทศ) ล้มเหลวตามไปด้วย
+
+Trigger ที่มีอยู่ในปัจจุบัน:
+
+- **กำหนดอาจารย์นิเทศ/วันนิเทศ** (`PATCH /api/requests/:id/appointment`) — แจ้งเตือนอาจารย์ที่ได้รับมอบหมาย
+  (ต้องส่ง `advisorId` เป็น `user.id` มาด้วย) และแจ้งเตือนนักศึกษาเจ้าของคำร้อง
+- **บันทึกผลนิเทศเสร็จสิ้น** (`POST /api/advisor-evaluations/request/:requestId`) — แจ้งเตือนผู้ใช้ทุกคนที่มี
+  `role = 'admin'` พร้อมระบุว่าระบบส่งแบบประเมินให้สถานประกอบการทางอีเมลแล้วหรือไม่
+
+**ข้อกำหนดสำคัญ**: ห้ามใส่ URL แบบประเมินของสถานประกอบการ (`buildEvaluationUrl`) ลงในการแจ้งเตือนที่ส่งถึง
+นักศึกษาโดยเด็ดขาด ลิงก์นั้นมีไว้สำหรับพี่เลี้ยง/ผู้ประเมินฝั่งสถานประกอบการเท่านั้น

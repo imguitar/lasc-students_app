@@ -13,6 +13,7 @@ const evaluationRoutes = require('./routes/evaluationRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const companyRoutes = require('./routes/companyRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Import Cron
 const initCronJobs = require('./cron/internshipCron');
@@ -77,6 +78,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/payment-proofs', paymentRoutes);
 app.use('/api/public', companyRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api', evaluationRoutes);
 app.use('/api', announcementRoutes);
 
