@@ -210,14 +210,16 @@ model ProjectMember {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique @db.VarChar(191)
-  email     String   @unique @db.VarChar(191)
-  password  String   @db.VarChar(191)
-  role      Role     @default(student)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         Int         @id @default(autoincrement())
+  username   String      @unique @db.VarChar(191)
+  email      String      @unique @db.VarChar(191)
+  password   String      @db.VarChar(191)
+  role       Role        @default(student)
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  newsEvents NewsEvent[]
 
   @@map("user")
 }
@@ -289,8 +291,24 @@ model StudentProject {
   updated_at         DateTime @updatedAt
 
   profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+  files   StudentProjectFile[]
 
   @@map("student_projects")
+}
+
+model StudentProjectFile {
+  id            Int      @id @default(autoincrement())
+  project_id    Int
+  file_name     String   @db.VarChar(255)
+  original_name String   @db.VarChar(500)
+  file_type     String   @db.VarChar(100)
+  file_size     Int
+  file_path     String   @db.VarChar(1000)
+  created_at    DateTime @default(now())
+
+  project StudentProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("student_project_files")
 }
 
 model Internship {
@@ -336,3 +354,26 @@ model AlumniEmployment {
 
   @@map("alumni_employments")
 }
+
+model NewsEvent {
+  id             Int       @id @default(autoincrement())
+  title          String    @db.VarChar(255)
+  description    String    @db.Text
+  type           String    @db.VarChar(100)
+  event_date     DateTime  @db.Date
+  start_time     String?   @db.VarChar(20)
+  end_time       String?   @db.VarChar(20)
+  location       String?   @db.VarChar(255)
+  image_url      String?   @db.VarChar(500)
+  attachment_url String?   @db.VarChar(500)
+  is_pinned      Boolean   @default(false)
+  is_published   Boolean   @default(true)
+  created_by     Int?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  creator        User?     @relation(fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("news_events")
+}
+

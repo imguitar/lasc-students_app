@@ -317,6 +317,65 @@ export const advisorService = {
 export { departmentService } from './department.service';
 export { facultyService } from './faculty.service';
 
+export const uploadService = {
+  // Avatar
+  uploadAvatar: async (profileId, file) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('profile_id', profileId);
+    const response = await api.post('/upload/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  deleteAvatar: async (profileId) => {
+    const response = await api.delete(`/upload/avatar/${profileId}`);
+    return response.data;
+  },
+
+  // Project Files
+  uploadProjectFile: async (projectId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/upload/project-file/${projectId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  getProjectFiles: async (projectId) => {
+    const response = await api.get(`/upload/project-files/${projectId}`);
+    return response.data;
+  },
+
+  deleteProjectFile: async (fileId) => {
+    const response = await api.delete(`/upload/project-file/${fileId}`);
+    return response.data;
+  },
+
+  // News & Events upload
+  uploadNewsImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/upload/news-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  uploadNewsAttachment: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/upload/news-attachment', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  }
+};
+
+export { newsEventService } from './newsEvent.service';
+
 // เข้าระบบศูนย์ฝึกประสบการณ์โดยไม่ต้องล็อกอินใหม่
 export const coopSsoService = {
   // ขอตั๋วอายุสั้นจากระบบนี้ แล้วเปิดระบบศูนย์ฝึกพร้อมตั๋ว

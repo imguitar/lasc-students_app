@@ -3,5 +3,10 @@
 .DS_Store
 node_modules/
 
+# Local database dumps and backups (schema/migrations remain tracked)
+db/*dump*.sql
+db/backup_*.sql
+db/lascstudent.sql
+
 # Separate development repositories maintained by other teams
 *_dev/

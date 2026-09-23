@@ -61,7 +61,8 @@ exports.getAllAdvisors = async (req, res) => {
       return {
         id: p.id,
         advisor_id: p.profile_id,
-        name: `${p.firstname} ${p.lastname}`.trim(),
+        prefix: p.prefix || '',
+        name: `${p.prefix ? p.prefix + ' ' : ''}${p.firstname} ${p.lastname}`.trim(),
         first_name: p.firstname,
         last_name: p.lastname,
         faculty: facultyMap[p.faculty_id] || '',
@@ -70,6 +71,8 @@ exports.getAllAdvisors = async (req, res) => {
         department_id: p.department_id ? p.department_id.toString() : '',
         isActive: user.isActive,
         email: user.email,
+        phone: p.phone || '',
+        avatar_url: p.avatar_url || '',
         userId: user.id,
         is_department_head: !!headDeptMap[p.id],
         head_of_department: headDeptMap[p.id] || null

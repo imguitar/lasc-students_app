@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,10 +8,10 @@ import {
   User, Mail, Shield, Phone, Save, KeyRound, FileText, Download, Edit, 
   Plus, Trash2, Code2, Briefcase, FolderGit2, Award, ExternalLink, 
   CheckCircle2, BookOpen, Sparkles, Building2, Calendar, Layers, Star, 
-  Clock, Globe, ArrowRight, RefreshCw, X, AlertCircle
+  Clock, Globe, ArrowRight, RefreshCw, X, AlertCircle, Camera, UploadCloud, Image as ImageIcon
 } from 'lucide-react';
 import api from '../services/api';
-import { studentService, skillService } from '../services';
+import { studentService, skillService, uploadService, projectService } from '../services';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '../components/ui/dialog';
@@ -32,36 +32,49 @@ const SKILL_CATEGORIES = [
   { id: 'other', label: 'ทักษะอื่นๆ (Other)' }
 ];
 
+const getFileUrl = (filePath) => {
+  if (!filePath) return '';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
+  const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+  return `${backendBase}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+};
+
 const Profile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef(null);
 
-  const [activeTab, setActiveTab] = useState('overview');
-  const [profileLoading, setProfileLoading] = useState(false);
+  // Avatar upload states
+  const [isAvatarOpen, setIsAvatarOpen] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  const [activeTab, setActiveTab] = useState('overview'); // overview, skills, projects, internship, thesis
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeSubmitLoading, setResumeSubmitLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
-  // Resume full payload from /students/:id/resume
+  // Resume full data from backend
   const [resumeData, setResumeData] = useState(null);
   const [skillsList, setSkillsList] = useState([]);
-  const [masterSkills, setMasterSkills] = useState([]);
   const [internshipsList, setInternshipsList] = useState([]);
   const [studentProjectsList, setStudentProjectsList] = useState([]);
   const [thesisProject, setThesisProject] = useState(null);
+  const [masterSkills, setMasterSkills] = useState([]);
 
-  // Dialog states
-  const [isResumeOpen, setIsResumeOpen] = useState(false);
+  // Dialog Controls
   const [isEditResumeOpen, setIsEditResumeOpen] = useState(false);
   const [isAddSkillOpen, setIsAddSkillOpen] = useState(false);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
   const [isAddInternshipOpen, setIsAddInternshipOpen] = useState(false);
+  const [isEditThesisOpen, setIsEditThesisOpen] = useState(false);
+  const [isResumeOpen, setIsResumeOpen] = useState(false);
 
   // Forms
-  const [passwordForm, setPasswordForm] = useState({
-    password: '',
-    confirmPassword: ''
-  });
-
   const [resumeForm, setResumeForm] = useState({
     phone: '',
     first_name_en: '',
@@ -91,6 +104,26 @@ const Profile = () => {
     demo_url: ''
   });
 
+  const [editProjectForm, setEditProjectForm] = useState({
+    title: '',
+    course_name: '',
+    category: 'Coursework',
+    academic_year: new Date().getFullYear() + 543,
+    semester: 1,
+    description: '',
+    technologies: '',
+    github_url: '',
+    demo_url: ''
+  });
+
+  const [thesisForm, setThesisForm] = useState({
+    title_th: '',
+    title_en: '',
+    description: '',
+    document_url: '',
+    tags: ''
+  });
+
   const [internshipForm, setInternshipForm] = useState({
     company_name: '',
     position: '',
@@ -102,6 +135,13 @@ const Profile = () => {
     description: '',
     evaluation_status: 'passed'
   });
+
+  const [passwordForm, setPasswordForm] = useState({
+    password: '',
+    confirmPassword: ''
+  });
+
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const studentIdentifier = user?.student_id || user?.username;
 
@@ -350,6 +390,130 @@ const Profile = () => {
     }
   };
 
+  // Open Edit Semester Project Modal
+  const handleOpenEditProject = (project) => {
+    setEditingProject(project);
+    let techStr = '';
+    if (Array.isArray(project.technologies)) {
+      techStr = project.technologies.join(', ');
+    } else if (typeof project.technologies === 'string') {
+      try {
+        const parsed = JSON.parse(project.technologies);
+        techStr = Array.isArray(parsed) ? parsed.join(', ') : project.technologies;
+      } catch (e) {
+        techStr = project.technologies;
+      }
+    }
+
+    setEditProjectForm({
+      title: project.title || '',
+      course_name: project.course_name || '',
+      category: project.category || 'Coursework',
+      academic_year: project.academic_year || new Date().getFullYear() + 543,
+      semester: project.semester || 1,
+      description: project.description || '',
+      technologies: techStr,
+      github_url: project.github_url || '',
+      demo_url: project.demo_url || ''
+    });
+    setIsEditProjectOpen(true);
+  };
+
+  // Submit Update Semester Project
+  const handleUpdateProject = async (e) => {
+    e.preventDefault();
+    if (!editingProject) return;
+    try {
+      const techArray = typeof editProjectForm.technologies === 'string'
+        ? editProjectForm.technologies.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+
+      const payload = {
+        ...editProjectForm,
+        technologies: techArray,
+        academic_year: parseInt(editProjectForm.academic_year),
+        semester: parseInt(editProjectForm.semester)
+      };
+
+      const res = await studentService.updateProject(studentIdentifier, editingProject.id, payload);
+      if (res.success) {
+        toast({
+          title: "แก้ไขผลงานสำเร็จ",
+          description: "ปรับปรุงข้อมูลผลงานโครงการเรียบร้อยแล้ว"
+        });
+        setIsEditProjectOpen(false);
+        setEditingProject(null);
+        fetchFullStudentData();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ไม่สามารถแก้ไขผลงานได้",
+        description: error.response?.data?.message || error.message
+      });
+    }
+  };
+
+  // Open Edit Senior Project (Thesis)
+  const handleOpenEditThesis = () => {
+    if (!thesisProject) return;
+    let tagStr = '';
+    if (Array.isArray(thesisProject.tags)) {
+      tagStr = thesisProject.tags.join(', ');
+    } else if (typeof thesisProject.tags === 'string') {
+      try {
+        const parsed = JSON.parse(thesisProject.tags);
+        tagStr = Array.isArray(parsed) ? parsed.join(', ') : thesisProject.tags;
+      } catch (e) {
+        tagStr = thesisProject.tags;
+      }
+    }
+
+    setThesisForm({
+      title_th: thesisProject.title_th || '',
+      title_en: thesisProject.title_en || '',
+      description: thesisProject.description || '',
+      document_url: thesisProject.document_url || '',
+      tags: tagStr
+    });
+    setIsEditThesisOpen(true);
+  };
+
+  // Submit Update Senior Project (Thesis)
+  const handleUpdateThesis = async (e) => {
+    e.preventDefault();
+    if (!thesisProject) return;
+    try {
+      const tagArray = typeof thesisForm.tags === 'string'
+        ? thesisForm.tags.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+
+      const payload = {
+        title_th: thesisForm.title_th,
+        title_en: thesisForm.title_en,
+        description: thesisForm.description,
+        document_url: thesisForm.document_url,
+        tags: tagArray
+      };
+
+      const res = await projectService.update(thesisProject.id, payload);
+      if (res.success) {
+        toast({
+          title: "แก้ไขโปรเจคจบสำเร็จ",
+          description: "ปรับปรุงข้อมูลโครงงานปริญญานิพนธ์เรียบร้อยแล้ว"
+        });
+        setIsEditThesisOpen(false);
+        fetchFullStudentData();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ไม่สามารถแก้ไขโครงงานได้",
+        description: error.response?.data?.message || error.message
+      });
+    }
+  };
+
   // Add Internship
   const handleAddInternship = async (e) => {
     e.preventDefault();
@@ -474,6 +638,123 @@ const Profile = () => {
   const avatarInitials = ((user?.profile?.firstname || user?.firstName || user?.username || 'U').charAt(0) +
     (user?.profile?.lastname || user?.lastName || '').charAt(0)).toUpperCase() || 'U';
 
+  const currentAvatarUrl = resumeData?.profile?.avatar_url || user?.profile?.avatar_url || user?.avatar_url;
+
+  const handleAvatarFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        variant: "destructive",
+        title: "ประเภทไฟล์ไม่ถูกต้อง",
+        description: "กรุณาเลือกไฟล์ภาพประเภท JPG, PNG หรือ WebP เท่านั้น"
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "ไฟล์มีขนาดใหญ่เกินไป",
+        description: "ขนาดรูปภาพต้องไม่เกิน 5 MB"
+      });
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!avatarFile) return;
+    setAvatarLoading(true);
+    try {
+      const profileId = user?.profile?.profile_id || user?.student_id || user?.username;
+      const res = await uploadService.uploadAvatar(profileId, avatarFile);
+      if (res.success) {
+        const newAvatarUrl = res.data?.avatar_url;
+        toast({
+          title: "อัปโหลดรูปโปรไฟล์สำเร็จ",
+          description: "เปลี่ยนรูปประจำตัวเรียบร้อยแล้ว"
+        });
+        if (resumeData?.profile) {
+          setResumeData(prev => ({
+            ...prev,
+            profile: {
+              ...prev.profile,
+              avatar_url: newAvatarUrl
+            }
+          }));
+        }
+        if (updateUser) {
+          updateUser({
+            avatar_url: newAvatarUrl,
+            profile: {
+              ...user?.profile,
+              avatar_url: newAvatarUrl
+            }
+          });
+        }
+        setIsAvatarOpen(false);
+        setAvatarFile(null);
+        setAvatarPreview(null);
+      }
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: err.response?.data?.message || "ไม่สามารถอัปโหลดรูปโปรไฟล์ได้"
+      });
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    setAvatarLoading(true);
+    try {
+      const profileId = user?.profile?.profile_id || user?.student_id || user?.username;
+      const res = await uploadService.deleteAvatar(profileId);
+      if (res.success) {
+        toast({
+          title: "ลบรูปโปรไฟล์สำเร็จ",
+          description: "รีเซ็ตรูปประจำตัวเป็นรูปเริ่มต้นแล้ว"
+        });
+        if (resumeData?.profile) {
+          setResumeData(prev => ({
+            ...prev,
+            profile: {
+              ...prev.profile,
+              avatar_url: null
+            }
+          }));
+        }
+        if (updateUser) {
+          updateUser({
+            avatar_url: null,
+            profile: {
+              ...user?.profile,
+              avatar_url: null
+            }
+          });
+        }
+        setIsAvatarOpen(false);
+        setAvatarFile(null);
+        setAvatarPreview(null);
+      }
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: err.response?.data?.message || "ไม่สามารถลบรูปโปรไฟล์ได้"
+      });
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-12">
       <style>{`
@@ -488,9 +769,34 @@ const Profile = () => {
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl font-extrabold shadow-inner text-purple-200">
-              {avatarInitials}
+            {/* Avatar with edit overlay */}
+            <div className="relative group/avatar cursor-pointer" onClick={() => setIsAvatarOpen(true)}>
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white/10 backdrop-blur-md border-2 border-white/30 flex items-center justify-center overflow-hidden shadow-xl text-3xl font-extrabold text-purple-200 relative">
+                {currentAvatarUrl ? (
+                  <img 
+                    src={getFileUrl(currentAvatarUrl)} 
+                    alt={userFullName} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <span>{avatarInitials}</span>
+                )}
+                {/* Hover overlay with camera icon */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold gap-1 backdrop-blur-xs">
+                  <Camera className="w-5 h-5" />
+                  <span>เปลี่ยนรูป</span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="absolute -bottom-1 -right-1 bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded-full border-2 border-white shadow-md transition-transform group-hover/avatar:scale-110"
+                title="อัปโหลดรูปโปรไฟล์"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
             </div>
+
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
@@ -519,25 +825,35 @@ const Profile = () => {
             </div>
           </div>
 
-          {(user?.role === 'student' || user?.role === 'alumni') && (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                onClick={() => setIsEditResumeOpen(true)}
-                variant="outline"
-                className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-xl h-10 px-4 text-xs font-semibold backdrop-blur-sm"
-              >
-                <Edit className="w-3.5 h-3.5 mr-1.5" />
-                แก้ไขข้อมูล Bio / โซเชียล
-              </Button>
-              <Button
-                onClick={() => setIsResumeOpen(true)}
-                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 h-10 px-4 text-xs font-bold"
-              >
-                <FileText className="w-4 h-4 mr-1.5" />
-                ดู & ส่งออก Resume / CV
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => setIsAvatarOpen(true)}
+              variant="outline"
+              className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-xl h-10 px-4 text-xs font-semibold backdrop-blur-sm"
+            >
+              <Camera className="w-3.5 h-3.5 mr-1.5" />
+              เปลี่ยนรูปโปรไฟล์
+            </Button>
+            {(user?.role === 'student' || user?.role === 'alumni') && (
+              <>
+                <Button
+                  onClick={() => setIsEditResumeOpen(true)}
+                  variant="outline"
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-xl h-10 px-4 text-xs font-semibold backdrop-blur-sm"
+                >
+                  <Edit className="w-3.5 h-3.5 mr-1.5" />
+                  แก้ไขข้อมูล Bio
+                </Button>
+                <Button
+                  onClick={() => setIsResumeOpen(true)}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 h-10 px-4 text-xs font-bold"
+                >
+                  <FileText className="w-4 h-4 mr-1.5" />
+                  ดู & ส่งออก Resume
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Quick Stats Banner for Students */}
@@ -860,13 +1176,22 @@ const Profile = () => {
                       <span className="text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-0.5 rounded-lg">
                         ภาคเรียนที่ {p.semester}/{p.academic_year}
                       </span>
-                      <button
-                        onClick={() => handleDeleteProject(p.id)}
-                        className="text-gray-300 hover:text-rose-600 transition-colors p-1 rounded-lg hover:bg-rose-50"
-                        title="ลบโครงการนี้"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditProject(p)}
+                          className="text-gray-400 hover:text-purple-600 transition-colors p-1 rounded-lg hover:bg-purple-50"
+                          title="แก้ไขโครงการนี้"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProject(p.id)}
+                          className="text-gray-300 hover:text-rose-600 transition-colors p-1 rounded-lg hover:bg-rose-50"
+                          title="ลบโครงการนี้"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -1013,16 +1338,28 @@ const Profile = () => {
       {/* Tab 5: Thesis Project */}
       {activeTab === 'thesis' && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-purple-100/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">โครงงานปริญญานิพนธ์ / โปรเจคจบ (Senior Project)</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              ข้อมูลโครงงานจบที่ลงทะเบียนในระบบ พร้อมสถานะกระบวนการสอบและอาจารย์ที่ปรึกษา
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-purple-100/50 shadow-sm">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">โครงงานปริญญานิพนธ์ / โปรเจคจบ (Senior Project)</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                ข้อมูลโครงงานจบที่ลงทะเบียนในระบบ พร้อมสถานะกระบวนการสอบและอาจารย์ที่ปรึกษา
+              </p>
+            </div>
+            {thesisProject && (
+              <Button
+                onClick={handleOpenEditThesis}
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs h-9 px-4 flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>แก้ไขข้อมูลโปรเจคจบ</span>
+              </Button>
+            )}
           </div>
 
-          {thesisProject ? (
-            <div className="bg-white border border-purple-100/70 p-6 rounded-2xl shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-50 pb-4">
+        {thesisProject ? (
+          <div className="bg-white border border-purple-100/70 p-6 rounded-2xl shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-50 pb-4">
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1 rounded-xl">
                   ปีการศึกษา {thesisProject.year}
                 </span>
@@ -1030,6 +1367,16 @@ const Profile = () => {
                   สถานะ: {thesisProject.status}
                 </span>
               </div>
+              <Button
+                onClick={handleOpenEditThesis}
+                variant="outline"
+                size="sm"
+                className="text-purple-700 border-purple-200 hover:bg-purple-50 rounded-xl text-xs h-8 flex items-center gap-1.5"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>แก้ไขข้อมูล</span>
+              </Button>
+            </div>
 
               <div>
                 <h3 className="text-xl font-bold text-gray-900 leading-snug">{thesisProject.title_th}</h3>
@@ -1301,6 +1648,215 @@ const Profile = () => {
               </Button>
               <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
                 บันทึกผลงาน
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 2.1: Edit Semester Project Dialog */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditProjectOpen} onOpenChange={setIsEditProjectOpen}>
+        <DialogContent className="sm:max-w-lg bg-white rounded-2xl p-6 shadow-2xl border border-purple-100 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-purple-950 flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4 text-purple-600" />
+              แก้ไขผลงานโครงการระหว่างภาคเรียน
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              ปรับปรุงรายละเอียดผลงาน โปรเจกต์ หรือโครงงานย่อยที่คุณพัฒนาในรายวิชา
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateProject} className="space-y-4 pt-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editProjTitle" className="text-xs text-gray-700 font-semibold">ชื่อโครงงาน / ชิ้นงาน *</Label>
+              <Input
+                id="editProjTitle"
+                placeholder="เช่น ระบบจองคิวออนไลน์..."
+                value={editProjectForm.title}
+                onChange={(e) => setEditProjectForm({ ...editProjectForm, title: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="editCourseName" className="text-xs text-gray-700 font-semibold">ชื่อวิชาที่สร้างผลงาน</Label>
+                <Input
+                  id="editCourseName"
+                  placeholder="เช่น การพัฒนาเว็บขั้นสูง..."
+                  value={editProjectForm.course_name}
+                  onChange={(e) => setEditProjectForm({ ...editProjectForm, course_name: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="editAcademicYear" className="text-xs text-gray-700 font-semibold">ปีการศึกษา</Label>
+                  <Input
+                    id="editAcademicYear"
+                    type="number"
+                    value={editProjectForm.academic_year}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, academic_year: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="editSemester" className="text-xs text-gray-700 font-semibold">ภาคเรียน</Label>
+                  <select
+                    id="editSemester"
+                    value={editProjectForm.semester}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, semester: e.target.value })}
+                    className="flex h-9 w-full rounded-xl border border-purple-100 bg-white px-2 text-xs focus:outline-none"
+                  >
+                    <option value="1">เทอม 1</option>
+                    <option value="2">เทอม 2</option>
+                    <option value="3">ฤดูร้อน</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editTechnologies" className="text-xs text-gray-700 font-semibold">เทคโนโลยีที่ใช้ (คั่นด้วยจุลภาค ,)</Label>
+              <Input
+                id="editTechnologies"
+                placeholder="เช่น React, Node.js, Tailwind CSS, MySQL"
+                value={editProjectForm.technologies}
+                onChange={(e) => setEditProjectForm({ ...editProjectForm, technologies: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editProjDesc" className="text-xs text-gray-700 font-semibold">คำอธิบายสรุปผลงาน</Label>
+              <textarea
+                id="editProjDesc"
+                rows={3}
+                placeholder="อธิบายฟังก์ชันเด่น ปัญหาที่แก้ไข และบทบาทหน้าที่ในการพัฒนา..."
+                value={editProjectForm.description}
+                onChange={(e) => setEditProjectForm({ ...editProjectForm, description: e.target.value })}
+                className="flex w-full rounded-xl border border-purple-100 bg-white p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="editGithubUrl" className="text-xs text-gray-700 font-semibold">ลิงก์ GitHub / Repository</Label>
+                <Input
+                  id="editGithubUrl"
+                  placeholder="https://github.com/..."
+                  value={editProjectForm.github_url}
+                  onChange={(e) => setEditProjectForm({ ...editProjectForm, github_url: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editDemoUrl" className="text-xs text-gray-700 font-semibold">ลิงก์ Demo / Website</Label>
+                <Input
+                  id="editDemoUrl"
+                  placeholder="https://myproject.vercel.app"
+                  value={editProjectForm.demo_url}
+                  onChange={(e) => setEditProjectForm({ ...editProjectForm, demo_url: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button type="button" variant="ghost" onClick={() => setIsEditProjectOpen(false)} className="text-xs rounded-xl h-9">
+                ยกเลิก
+              </Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
+                บันทึกการแก้ไข
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 2.2: Edit Senior Project / Thesis Dialog */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditThesisOpen} onOpenChange={setIsEditThesisOpen}>
+        <DialogContent className="sm:max-w-lg bg-white rounded-2xl p-6 shadow-2xl border border-purple-100 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-purple-950 flex items-center gap-2">
+              <Award className="w-4 h-4 text-purple-600" />
+              แก้ไขข้อมูลโครงงานจบ (Senior Project)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              แก้ไขชื่อเรื่อง บทคัดย่อ และลิงก์เอกสารรายงานโครงงานปริญญานิพนธ์
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateThesis} className="space-y-4 pt-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="thesisTitleTh" className="text-xs text-gray-700 font-semibold">ชื่อโครงงาน (ภาษาไทย) *</Label>
+              <Input
+                id="thesisTitleTh"
+                placeholder="ชื่อโครงงานภาษาไทย..."
+                value={thesisForm.title_th}
+                onChange={(e) => setThesisForm({ ...thesisForm, title_th: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="thesisTitleEn" className="text-xs text-gray-700 font-semibold">ชื่อโครงงาน (ภาษาอังกฤษ)</Label>
+              <Input
+                id="thesisTitleEn"
+                placeholder="Senior Project Title in English..."
+                value={thesisForm.title_en}
+                onChange={(e) => setThesisForm({ ...thesisForm, title_en: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="thesisTags" className="text-xs text-gray-700 font-semibold">คำสำคัญ / เทคโนโลยี (คั่นด้วยจุลภาค ,)</Label>
+              <Input
+                id="thesisTags"
+                placeholder="เช่น AI, Machine Learning, Python, FastAPI"
+                value={thesisForm.tags}
+                onChange={(e) => setThesisForm({ ...thesisForm, tags: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="thesisDesc" className="text-xs text-gray-700 font-semibold">บทคัดย่อ / สรุปโครงการ</Label>
+              <textarea
+                id="thesisDesc"
+                rows={4}
+                placeholder="ระบุวัตถุประสงค์ ขอบเขต และผลลัพธ์ของโครงงาน..."
+                value={thesisForm.description}
+                onChange={(e) => setThesisForm({ ...thesisForm, description: e.target.value })}
+                className="flex w-full rounded-xl border border-purple-100 bg-white p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="thesisDocUrl" className="text-xs text-gray-700 font-semibold">ลิงก์เอกสารรายงานฉบับสมบูรณ์ (PDF / Google Drive)</Label>
+              <Input
+                id="thesisDocUrl"
+                placeholder="https://..."
+                value={thesisForm.document_url}
+                onChange={(e) => setThesisForm({ ...thesisForm, document_url: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button type="button" variant="ghost" onClick={() => setIsEditThesisOpen(false)} className="text-xs rounded-xl h-9">
+                ยกเลิก
+              </Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
+                บันทึกการแก้ไข
               </Button>
             </DialogFooter>
           </form>
@@ -1707,6 +2263,98 @@ const Profile = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Avatar Upload Dialog */}
+      <Dialog open={isAvatarOpen} onOpenChange={setIsAvatarOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl p-6 shadow-xl border border-purple-100">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Camera className="text-purple-600 w-5 h-5" />
+              อัปโหลดรูปประจำตัว (Profile Photo)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              อัปโหลดรูปประจำตัวของคุณเพื่อแสดงในระบบและหน้าทำเนียบ
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center space-y-4 py-4">
+            {/* Preview Box */}
+            <div className="w-36 h-36 rounded-2xl bg-purple-50 border-2 border-dashed border-purple-200 flex items-center justify-center overflow-hidden relative shadow-inner">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+              ) : currentAvatarUrl ? (
+                <img src={getFileUrl(currentAvatarUrl)} alt="Current" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-purple-300">
+                  <User size={48} />
+                  <span className="text-[10px] text-gray-400 mt-1">ยังไม่มีรูป</span>
+                </div>
+              )}
+            </div>
+
+            {/* Validation information */}
+            <div className="text-center text-xs text-gray-500 space-y-0.5">
+              <p className="font-semibold text-gray-700">รองรับไฟล์ JPG, JPEG, PNG หรือ WebP</p>
+              <p className="text-[11px] text-gray-400">ขนาดไฟล์ไม่เกิน 5 MB (แนะนำรูปภาพจัตุรัส 1:1)</p>
+            </div>
+
+            {/* File input */}
+            <input 
+              type="file" 
+              ref={avatarInputRef} 
+              onChange={handleAvatarFileSelect} 
+              accept="image/jpeg,image/png,image/webp,image/jpg" 
+              className="hidden" 
+            />
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => avatarInputRef.current?.click()}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 text-xs rounded-xl h-9 flex items-center gap-1.5"
+              >
+                <UploadCloud size={14} /> เลือกรูปจากอุปกรณ์
+              </Button>
+
+              {currentAvatarUrl && !avatarPreview && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleDeleteAvatar}
+                  disabled={avatarLoading}
+                  className="text-rose-600 hover:bg-rose-50 text-xs rounded-xl h-9"
+                >
+                  <Trash2 size={14} className="mr-1" /> ลบรูปเดิม
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-purple-50 gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsAvatarOpen(false);
+                setAvatarFile(null);
+                setAvatarPreview(null);
+              }}
+              className="text-gray-500 rounded-xl"
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              type="button"
+              onClick={handleUploadAvatar}
+              disabled={!avatarFile || avatarLoading}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-5"
+            >
+              {avatarLoading ? 'กำลังอัปโหลด...' : 'บันทึกรูปโปรไฟล์'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
