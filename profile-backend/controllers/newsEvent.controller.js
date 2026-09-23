@@ -179,7 +179,7 @@ exports.createNewsEvent = async (req, res) => {
       data: {
         title: title.trim(),
         type: type.trim(),
-        description: description ? description.trim() : null,
+        description: description ? description.trim() : '',
         event_date: parsedDate,
         start_time: start_time ? start_time.trim() : null,
         end_time: end_time ? end_time.trim() : null,
@@ -250,7 +250,7 @@ exports.updateNewsEvent = async (req, res) => {
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
     if (type !== undefined) updateData.type = type.trim();
-    if (description !== undefined) updateData.description = description ? description.trim() : null;
+    if (description !== undefined) updateData.description = description ? description.trim() : '';
     if (event_date !== undefined) {
       const parsedDate = new Date(event_date);
       if (isNaN(parsedDate.getTime())) {
