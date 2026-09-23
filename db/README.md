@@ -10,6 +10,8 @@
 - `migrations/20260916-add-evaluation-rounds.sql` เพิ่มตาราง `evaluation_rounds` สำหรับกำหนดช่วงเวลาเปิดประเมิน
 - `migrations/20260916-add-resume-skills-internships.sql` เพิ่มข้อมูล resume ใน `profile` และตารางใหม่ 6 ตาราง
 - `migrations/20260916-graduation-portfolio-and-status.sql` เพิ่มข้อมูลสำเร็จการศึกษา/portfolio และ **แปลงค่า `projects.status`**
+- `migrations/20260920-add-file-uploads.sql` เพิ่มตาราง `student_project_files` สำหรับไฟล์แนบผลงานนักศึกษา
+- `migrations/20260920-add-news-events.sql` เพิ่มตาราง `news_events` สำหรับข่าวสารและกิจกรรม
 
 MySQL Docker image จะรันไฟล์ที่อยู่ในโฟลเดอร์นี้โดยตรงตามลำดับชื่อ เฉพาะตอนสร้าง data volume ครั้งแรกเท่านั้น
 และจะไม่ลงไปใน `migrations/` ไฟล์ใน `migrations/` จึงต้องรันเองเสมอ
@@ -29,6 +31,8 @@ mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluator-email.
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-evaluation-rounds.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-add-resume-skills-internships.sql
 mysql -ulascstudent -p lascstudent < db/migrations/20260916-graduation-portfolio-and-status.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260920-add-file-uploads.sql
+mysql -ulascstudent -p lascstudent < db/migrations/20260920-add-news-events.sql
 ```
 
 ## ประธานสาขาวิชา (Department Head)
