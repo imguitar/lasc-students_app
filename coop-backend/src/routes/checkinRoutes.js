@@ -50,7 +50,7 @@ router.post('/', authenticate, async (req, res) => {
     // Check internship start date
     if (studentId) {
       const [reqRows] = await pool.query(
-        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
+        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
         [studentId, studentId]
       );
       if (reqRows[0]) {
@@ -104,7 +104,7 @@ router.patch('/batch-sign', authenticate, async (req, res) => {
     let validDates = dates;
     if (studentId && dates.length > 0) {
       const [reqRows] = await pool.query(
-        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
+        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
         [studentId, studentId]
       );
       if (reqRows[0]) {

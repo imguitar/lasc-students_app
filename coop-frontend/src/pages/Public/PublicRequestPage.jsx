@@ -1,10 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Box, Paper, Typography, Chip, Divider, Stack, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Alert } from '@mui/material';
+import { Box, Paper, Typography, Chip, CircularProgress, Button, Dialog, Alert } from '@mui/material';
 import api from '../../api/axios';
-import { DocumentTextIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { CheckCircle2, RotateCcw, PenTool, FileText, Mail } from 'lucide-react';
-import '../Admin/Shared/RequestDetailsPage.css';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { CheckCircle2, RotateCcw, PenTool, FileText, Mail, X, XCircle } from 'lucide-react';
 import { formatAddress } from '../../utils/formatters';
 
 const PublicRequestPage = () => {
@@ -33,6 +32,20 @@ const PublicRequestPage = () => {
   const [imageModal, setImageModal] = useState({ open: false, src: '', title: '' });
 
   useEffect(() => {
+    if (!imageModal.open) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setImageModal({ open: false, src: '', title: '' });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [imageModal.open]);
+
+  useEffect(() => {
     api.get(`/public/requests/${id}${responseTokenQuery}`)
       .then((res) => {
         if (res.data.data) {
@@ -42,8 +55,8 @@ const PublicRequestPage = () => {
         }
         setLoading(false);
       })
-      .catch(() => {
-        setError('ไม่พบข้อมูลคำร้อง หรือลิงก์ไม่ถูกต้อง');
+      .catch((err) => {
+        setError(err.response?.data?.message || 'ไม่พบข้อมูลคำร้อง หรือลิงก์ไม่ถูกต้อง');
         setLoading(false);
       });
   }, [id, responseTokenQuery]);
@@ -310,265 +323,221 @@ const PublicRequestPage = () => {
         : (details.internshipTerm || '');
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f7fa', py: 4 }}>
-      <div className="request-details-container">
-        <div className="details-card">
-          <header className="details-header" style={{ position: 'relative', minHeight: '140px', paddingRight: details.studentPhoto?.dataUrl ? '130px' : '20px' }}>
-            <div>
-              <h2>รายละเอียดคำร้องฝึกงาน</h2>
-              <p style={{ color: '#718096', marginTop: '5px' }}>เลขที่คำร้อง: {request.id} (ยื่นเมื่อ: {new Date(request.submittedDate).toLocaleDateString('th-TH')})</p>
-              <span className="status-badge-lg" style={{ marginTop: '10px', display: 'inline-block' }}>
-                {getStatusChip(request.status)}
-              </span>
+    <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 flex justify-center">
+      <div className="w-full max-w-4xl space-y-6">
+        {/* Header */}
+        <header className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight m-0">รายละเอียดคำร้องฝึกงาน</h2>
+            <p className="text-xs text-slate-400 mt-1 m-0">
+              เลขที่คำร้อง: {request.id} • ยื่นเมื่อ: {new Date(request.submittedDate).toLocaleDateString('th-TH')}
+            </p>
+            <div className="mt-2">{getStatusChip(request.status)}</div>
+          </div>
+          {details.studentPhoto?.dataUrl && (
+            <button
+              type="button"
+              onClick={() => setImageModal({ open: true, src: details.studentPhoto.dataUrl, title: `รูปถ่ายนักศึกษา: ${request.studentName}` })}
+              title="คลิกเพื่อดูรูปขนาดเต็ม"
+              className="w-20 h-24 sm:w-24 sm:h-28 rounded-2xl border border-slate-200 overflow-hidden shadow-xs shrink-0 cursor-pointer p-0 bg-transparent"
+            >
+              <img src={details.studentPhoto.dataUrl} alt="รูปนักศึกษา" className="w-full h-full object-cover" />
+            </button>
+          )}
+        </header>
+
+        {/* ข้อมูลนักศึกษา */}
+        <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
+          <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">ข้อมูลนักศึกษา</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <InfoItem label="ชื่อ-นามสกุล" value={request.studentName} />
+            <InfoItem label="รหัสนักศึกษา" value={request.studentId} />
+            <InfoItem label="สาขาวิชา" value={request.department} />
+            <InfoItem label="เกรดเฉลี่ยเทอมล่าสุด" value={studentInfo.lastSemesterGrade} />
+            <div className="sm:col-span-2">
+              <InfoItem
+                label="โทรศัพท์ / อีเมลติดต่อ"
+                value={`${studentInfo.phone || request.studentPhone || '-'} / ${studentInfo.email || request.studentEmail || '-'}`}
+              />
             </div>
-            {details.studentPhoto?.dataUrl && (
-              <div 
-                style={{ position: 'absolute', top: '20px', right: '20px', cursor: 'pointer' }}
-                onClick={() => setImageModal({ open: true, src: details.studentPhoto.dataUrl, title: `รูปถ่ายนักศึกษา: ${request.studentName}` })}
-                title="คลิกเพื่อดูรูปขนาดเต็ม"
+            <div className="sm:col-span-3">
+              <InfoItem label="ที่อยู่ปัจจุบัน" value={studentAddress} />
+            </div>
+          </div>
+        </section>
+
+        {/* รายละเอียดสถานประกอบการ */}
+        <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
+          <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">รายละเอียดสถานประกอบการ</h3>
+          <div className="space-y-4">
+            <InfoItem
+              label="1. ชื่อบุคคล / ชื่อตำแหน่งงานติดต่อ / ผู้ประสานงานที่ติดต่อ"
+              value={`${details.contactPerson || '-'}${details.contactPosition ? ` (${details.contactPosition})` : ''}`}
+            />
+            <InfoItem label="2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ" value={details.companyName || request.company} />
+            <InfoItem label="3. ที่อยู่หน่วยงาน" value={companyAddress} />
+            <InfoItem
+              label="4. โทรศัพท์ / อีเมลติดต่อ"
+              value={`${details.contactPhone || '-'} / ${request.company_email || details.companyEmail || details.contactEmail || '-'}`}
+            />
+            <InfoItem label="5. ตำแหน่งงานที่ต้องการเข้าฝึกงาน" value={details.position || request.position} />
+            <InfoItem
+              label="6. ข้อมูลเพิ่มเติม (ลักษณะงานที่ทำ / ทักษะที่ต้องการ)"
+              value={
+                `${details.description ? `ลักษณะงาน: ${details.description}\n` : ''}${details.skills ? `ทักษะ: ${details.skills}` : ''}`
+                || '-'
+              }
+            />
+          </div>
+        </section>
+
+        {/* ความประสงค์และกำหนดวันฝึกงาน */}
+        <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
+          <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">ความประสงค์และกำหนดวันฝึกงาน</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <InfoItem label="ภาคการศึกษา / ช่วงฝึกงาน" value={internshipTermLabel || '-'} />
+            <InfoItem
+              label="วันเริ่มฝึกงาน"
+              value={
+                (request.internship_start_date || details.startDate)
+                  ? new Date(request.internship_start_date || details.startDate).toLocaleDateString('th-TH')
+                  : '-'
+              }
+            />
+            <InfoItem
+              label="วันสิ้นสุดการฝึกงาน"
+              value={
+                (request.internship_end_date || details.endDate)
+                  ? new Date(request.internship_end_date || details.endDate).toLocaleDateString('th-TH')
+                  : '-'
+              }
+            />
+          </div>
+        </section>
+
+        {/* หนังสือขอความอนุเคราะห์ */}
+        {dispatchLetter?.dataUrl && (
+          <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
+            <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">หนังสือขอความอนุเคราะห์</h3>
+            <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0 p-2.5">
+                  <FileText className="w-6 h-6 text-violet-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-slate-800 truncate">
+                    {dispatchLetter.fileName || 'หนังสือขอความอนุเคราะห์ฝึกประสบการณ์'}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    แนบโดยผู้ดูแลระบบ • คลิกเพื่อเปิดอ่านหรือดาวน์โหลด
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleViewFile(
+                    dispatchLetter.dataUrl,
+                    `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`
+                  )}
+                  className="text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer border-none flex items-center gap-1.5"
+                  style={{ backgroundColor: '#f5f3ff', color: '#6d28d9' }}
+                >
+                  <FileText className="w-4 h-4 text-violet-600" />
+                  <span>เปิดเอกสาร</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fileName = `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`;
+                    const link = document.createElement('a');
+                    link.href = dispatchLetter.dataUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer border-none flex items-center gap-1.5"
+                  style={{ backgroundColor: '#f5f3ff', color: '#6d28d9' }}
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4 text-violet-600" />
+                  <span>ดาวน์โหลด</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Feedback */}
+        {feedback.message && (
+          <Alert severity={feedback.severity} sx={{ borderRadius: 3 }} className="rounded-2xl">
+            {feedback.message}
+          </Alert>
+        )}
+
+        {/* Accept / Reject Buttons */}
+        {canRespond && (
+          <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs text-center">
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0 mb-5">ตอบรับนักศึกษาเข้าฝึกงาน</h3>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button
+                variant="contained"
+                color="error"
+                size="large"
+                disabled={updating}
+                onClick={handleRejectOpen}
+                sx={{ minWidth: 160, fontWeight: 700, borderRadius: 3, padding: '12px 24px' }}
               >
-                <img 
-                  src={details.studentPhoto.dataUrl} 
-                  alt="รูปนักศึกษา" 
-                  style={{ width: '100px', height: '120px', objectFit: 'cover', borderRadius: '6px', border: '2px solid #cbd5e1', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', transition: 'transform 0.2s ease' }} 
-                />
-              </div>
-            )}
-          </header>
+                ปฏิเสธ
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                size="large"
+                disabled={updating}
+                onClick={handleAcceptOpen}
+                sx={{ minWidth: 160, fontWeight: 700, borderRadius: 3, padding: '12px 24px' }}
+              >
+                ตอบรับ
+              </Button>
+            </div>
+          </section>
+        )}
 
-          <section className="detail-section">
-            <h3>ข้อมูลนักศึกษา</h3>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">ชื่อ-นามสกุล</span>
-                <span className="detail-value">{request.studentName}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">รหัสนักศึกษา</span>
-                <span className="detail-value">{request.studentId}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">สาขาวิชา</span>
-                <span className="detail-value">{request.department}</span>
-              </div>
-              {studentInfo.lastSemesterGrade && (
-                <div className="detail-item">
-                  <span className="detail-label">เกรดเฉลี่ยเทอมล่าสุด</span>
-                  <span className="detail-value">{studentInfo.lastSemesterGrade}</span>
+        {/* Already responded */}
+        {(request.status === 'อนุมัติแล้ว' || request.status === 'ตอบรับแล้ว' || request.status === 'ปฏิเสธ') && !feedback.message && (
+          <Alert severity={request.status === 'ปฏิเสธ' ? 'error' : 'success'} sx={{ borderRadius: 3 }} className="rounded-2xl">
+            {request.status === 'ปฏิเสธ'
+              ? 'สถานประกอบการปฏิเสธคำร้องนี้แล้ว'
+              : 'สถานประกอบการตอบรับนักศึกษาเข้าฝึกงานเรียบร้อยแล้ว'}
+          </Alert>
+        )}
+
+        {/* Company Response Info Display */}
+        {(details.studentPreparation || details.signature) && (
+          <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
+            <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">ข้อมูลการตอบรับจากสถานประกอบการ</h3>
+            <div className="space-y-4">
+              {details.studentPreparation && (
+                <InfoItem label="สิ่งที่ให้นักศึกษาเตรียมตัวก่อนเริ่มฝึกงาน" value={details.studentPreparation} />
+              )}
+              {details.signature && (
+                <div className="min-w-0">
+                  <div className="text-xs text-slate-500 font-medium mb-1">ลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน</div>
+                  <div className="mt-2 p-3 bg-violet-50/30 border border-violet-100 rounded-2xl inline-block">
+                    <img src={details.signature} alt="ลายมือชื่อ" className="h-16 object-contain" />
+                    {(details.signerName || details.signerPosition) && (
+                      <div className="text-xs text-slate-700 mt-1.5 font-medium">
+                        {details.signerName}{details.signerPosition ? ` (${details.signerPosition})` : ''}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              <div className="detail-item">
-                <span className="detail-label">โทรศัพท์ / อีเมลติดต่อ</span>
-                <span className="detail-value">{studentInfo.phone || request.studentPhone || '-'} / {studentInfo.email || request.studentEmail || '-'}</span>
-              </div>
-              {studentAddress && studentAddress !== '-' && (
-                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                  <span className="detail-label">ที่อยู่ปัจจุบัน</span>
-                  <span className="detail-value">{studentAddress}</span>
-                </div>
-              )}
             </div>
           </section>
-
-          <section className="detail-section">
-            <h3>รายละเอียดสถานประกอบการ</h3>
-            <div className="detail-grid">
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">1. ชื่อบุคคล / ชื่อตำแหน่งงานติดต่อ / ผู้ประสานงานที่ติดต่อ</span>
-                <span className="detail-value">
-                  {details.contactPerson || '-'} {details.contactPosition ? `(${details.contactPosition})` : ''}
-                </span>
-              </div>
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ</span>
-                <span className="detail-value">{details.companyName || request.company}</span>
-              </div>
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">3. ที่อยู่หน่วยงาน</span>
-                <span className="detail-value">{companyAddress}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">4. โทรศัพท์ / อีเมลติดต่อ</span>
-                <span className="detail-value">{details.contactPhone || '-'} / {request.company_email || details.companyEmail || details.contactEmail || '-'}</span>
-              </div>
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">5. ตำแหน่งงานที่ต้องการเข้าฝึกงาน</span>
-                <span className="detail-value">{details.position || request.position}</span>
-              </div>
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">6. ข้อมูลเพิ่มเติม (ลักษณะงานที่ทำ / ทักษะที่ต้องการ)</span>
-                <p className="detail-value" style={{whiteSpace: 'pre-wrap', marginTop: '5px'}}>
-                  {details.description ? `ลักษณะงาน: ${details.description}\n` : ''}
-                  {details.skills ? `ทักษะ: ${details.skills}` : ''}
-                  {!details.description && !details.skills && '-'}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <h3>ความประสงค์และกำหนดวันฝึกงาน</h3>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">ภาคการศึกษา / ช่วงฝึกงาน</span>
-                <span className="detail-value">{internshipTermLabel || '-'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">วันเริ่มฝึกงาน</span>
-                <span className="detail-value">
-                  {(request.internship_start_date || details.startDate) 
-                    ? new Date(request.internship_start_date || details.startDate).toLocaleDateString('th-TH') 
-                    : '-'}
-                </span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">วันสิ้นสุดการฝึกงาน</span>
-                <span className="detail-value">
-                  {(request.internship_end_date || details.endDate) 
-                    ? new Date(request.internship_end_date || details.endDate).toLocaleDateString('th-TH') 
-                    : '-'}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {dispatchLetter?.dataUrl && (
-            <section className="detail-section">
-              <h3>หนังสือขอความอนุเคราะห์ / หนังสือส่งตัวนักศึกษา</h3>
-              <div className="detail-grid">
-                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                  <div className="p-4 rounded-2xl bg-white border border-violet-100 shadow-[0_4px_20px_rgba(124,58,237,0.04)] flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0 p-2.5">
-                        <FileText className="w-6 h-6 text-violet-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-slate-800 truncate">
-                          {dispatchLetter.fileName || 'หนังสือขอความอนุเคราะห์ฝึกประสบการณ์'}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5">
-                          แนบโดยผู้ดูแลระบบ • คลิกเพื่อเปิดอ่านหรือดาวน์โหลด
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleViewFile(
-                          dispatchLetter.dataUrl,
-                          `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`
-                        )}
-                        className="text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer border-none flex items-center gap-1.5"
-                        style={{ backgroundColor: '#f5f3ff', color: '#6d28d9' }}
-                      >
-                        <FileText className="w-4 h-4 text-violet-600" />
-                        <span>เปิดเอกสาร</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const fileName = `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`;
-                          const link = document.createElement('a');
-                          link.href = dispatchLetter.dataUrl;
-                          link.download = fileName;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}
-                        className="text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer border-none flex items-center gap-1.5"
-                        style={{ backgroundColor: '#f5f3ff', color: '#6d28d9' }}
-                      >
-                        <ArrowDownTrayIcon className="w-4 h-4 text-violet-600" />
-                        <span>ดาวน์โหลด</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Feedback */}
-          {feedback.message && (
-            <section className="detail-section">
-              <Alert severity={feedback.severity} sx={{ borderRadius: 2 }}>
-                {feedback.message}
-              </Alert>
-            </section>
-          )}
-
-          {/* Accept / Reject Buttons */}
-          {canRespond && (
-            <section className="detail-section" style={{ textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>
-                ตอบรับนักศึกษาเข้าฝึกงาน
-              </Typography>
-              <Stack direction="row" spacing={2} justifyContent="center">
-                <Button
-                  variant="contained"
-                  color="error"
-                  size="large"
-                  disabled={updating}
-                  onClick={handleRejectOpen}
-                  sx={{ minWidth: 160, fontWeight: 700, borderRadius: 2, padding: '12px 24px' }}
-                >
-                  ปฏิเสธ
-                </Button>
-                <Button
-                  variant="contained"
-                  color="success"
-                  size="large"
-                  disabled={updating}
-                  onClick={handleAcceptOpen}
-                  sx={{ minWidth: 160, fontWeight: 700, borderRadius: 2, padding: '12px 24px' }}
-                >
-                  ตอบรับ
-                </Button>
-              </Stack>
-            </section>
-          )}
-
-          {/* Already responded */}
-          {(request.status === 'อนุมัติแล้ว' || request.status === 'ตอบรับแล้ว' || request.status === 'ปฏิเสธ') && !feedback.message && (
-            <section className="detail-section">
-              <Alert severity={request.status === 'ปฏิเสธ' ? 'error' : 'success'} sx={{ borderRadius: 2 }}>
-                {request.status === 'ปฏิเสธ'
-                  ? 'สถานประกอบการปฏิเสธคำร้องนี้แล้ว'
-                  : 'สถานประกอบการตอบรับนักศึกษาเข้าฝึกงานเรียบร้อยแล้ว'}
-              </Alert>
-            </section>
-          )}
-
-          {/* Company Response Info Display */}
-          {(details.studentPreparation || details.signature) && (
-            <section className="detail-section">
-              <h3>ข้อมูลการตอบรับจากสถานประกอบการ</h3>
-              <div className="detail-grid">
-                {details.studentPreparation && (
-                  <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                    <span className="detail-label">สิ่งที่ให้นักศึกษาเตรียมตัวก่อนเริ่มฝึกงาน</span>
-                    <span className="detail-value">{details.studentPreparation}</span>
-                  </div>
-                )}
-                {details.signature && (
-                  <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                    <span className="detail-label">ลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน</span>
-                    <div className="mt-2 p-3 bg-violet-50/30 border border-violet-100 rounded-2xl inline-block">
-                      <img src={details.signature} alt="ลายมือชื่อ" className="h-16 object-contain" />
-                      {(details.signerName || details.signerPosition) && (
-                        <div className="text-xs text-slate-700 mt-1.5 font-medium">
-                          {details.signerName}{details.signerPosition ? ` (${details.signerPosition})` : ''}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-        </div>
+        )}
       </div>
 
       {/* Reject Reason Dialog */}
@@ -764,60 +733,91 @@ const PublicRequestPage = () => {
         </div>
       </Dialog>
 
-      <Dialog open={rejectDialog.open} onClose={() => setRejectDialog({ open: false, reason: '' })} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 700 }}>ปฏิเสธคำร้อง</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            กรุณาระบุเหตุผลในการปฏิเสธ (ไม่บังคับ)
-          </Typography>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="เหตุผล"
+      {/* Reject Reason Dialog */}
+      <Dialog
+        open={rejectDialog.open}
+        onClose={() => !updating && setRejectDialog({ open: false, reason: '' })}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: '28px',
+            border: '1px solid rgba(237, 233, 254, 0.8)',
+            boxShadow: '0 20px 60px rgba(124,58,237,0.12)',
+            m: 2,
+          },
+        }}
+      >
+        <div className="bg-white rounded-[28px] p-6 sm:p-7 w-full">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+              <XCircle className="w-5 h-5 text-rose-500" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-slate-800 m-0">ปฏิเสธคำร้องฝึกงาน</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed m-0">
+                กรุณาระบุเหตุผลในการปฏิเสธ เพื่อแจ้งให้นักศึกษาและผู้ดูแลระบบทราบ
+              </p>
+            </div>
+          </div>
+
+          <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+            เหตุผลในการปฏิเสธ
+          </label>
+          <textarea
             value={rejectDialog.reason}
             onChange={(e) => setRejectDialog((prev) => ({ ...prev, reason: e.target.value }))}
-            placeholder="ระบุเหตุผลที่ปฏิเสธ..."
+            placeholder="เช่น ตำแหน่งงานเต็มแล้ว, ไม่ตรงตามคุณสมบัติที่ต้องการ..."
+            className="w-full box-border rounded-2xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/15 focus:border-rose-400 resize-none h-24 text-slate-800 bg-white"
           />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setRejectDialog({ open: false, reason: '' })} disabled={updating}>
-            ยกเลิก
-          </Button>
-          <Button variant="contained" color="error" onClick={handleRejectConfirm} disabled={updating}>
-            ยืนยันปฏิเสธ
-          </Button>
-        </DialogActions>
+
+          <div className="mt-5 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setRejectDialog({ open: false, reason: '' })}
+              disabled={updating}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-transparent disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleRejectConfirm}
+              disabled={updating}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(225,29,72,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#e11d48', color: '#ffffff' }}
+            >
+              {updating ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ'}
+            </button>
+          </div>
+        </div>
       </Dialog>
 
 
 
-      {/* Image Preview Dialog */}
-      <Dialog 
-        open={imageModal.open} 
-        onClose={() => setImageModal({ open: false, src: '', title: '' })}
-        maxWidth="md"
-        disableScrollLock={true}
-        ModalProps={{ disableScrollLock: true }}
-        PaperProps={{ sx: { borderRadius: 3, p: 0.5, overflow: 'hidden' } }}
-      >
-        <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid #f1f5f9' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
-            {imageModal.title || 'ดูรูปขนาดเต็ม'}
-          </Typography>
-          <Button size="small" onClick={() => setImageModal({ open: false, src: '', title: '' })} sx={{ color: '#64748b', fontWeight: 700 }}>
-            ปิด
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: '#f8fafc' }}>
-          <img 
-            src={imageModal.src} 
-            alt="Enlarged preview" 
-            style={{ maxWidth: '100%', maxHeight: '75vh', borderRadius: '8px', objectFit: 'contain', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} 
+      {/* Full-screen Minimal Lightbox */}
+      {imageModal.open && imageModal.src && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
+          onClick={() => setImageModal({ open: false, src: '', title: '' })}
+        >
+          <img
+            src={imageModal.src}
+            alt={imageModal.title || 'ดูรูปขนาดเต็ม'}
+            className="max-h-[88vh] max-w-[92vw] w-auto h-auto object-contain rounded-2xl shadow-2xl ring-1 ring-white/10"
+            onClick={(e) => e.stopPropagation()}
           />
-        </DialogContent>
-      </Dialog>
-    </Box>
+          <button
+            type="button"
+            onClick={() => setImageModal({ open: false, src: '', title: '' })}
+            className="absolute top-5 right-5 sm:top-7 sm:right-7 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer border-none"
+            aria-label="ปิด"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -846,10 +846,10 @@ const InfoItem = ({ label, value }) => {
   };
 
   return (
-    <Box>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'pre-wrap' }}>{normalizeValue(value)}</Typography>
-    </Box>
+    <div className="min-w-0">
+      <div className="text-xs text-slate-500 font-medium mb-1">{label}</div>
+      <div className="text-sm font-semibold text-slate-800 whitespace-pre-wrap break-words leading-relaxed">{normalizeValue(value)}</div>
+    </div>
   );
 };
 

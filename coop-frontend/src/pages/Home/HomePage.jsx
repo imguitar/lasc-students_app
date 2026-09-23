@@ -180,6 +180,15 @@ const HomePage = () => {
     return null;
   };
 
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const navAction = !user
+    ? { label: 'เข้าสู่ระบบ', to: null }
+    : normalizedRole === 'admin'
+      ? { label: 'แดชบอร์ด', to: '/admin-dashboard' }
+      : (normalizedRole === 'advisor' || normalizedRole === 'teacher')
+        ? { label: 'แดชบอร์ด', to: '/advisor-dashboard' }
+        : { label: 'ยื่นคำร้อง', to: '/dashboard/new-request' };
+
   return (
     <div className="home-container">
       {/* Utility Bar */}
@@ -246,24 +255,24 @@ const HomePage = () => {
             }}
           >
             {!user ? (
-              <button 
+              <button
                 type="button"
-                onClick={() => redirectToProfileLogin()} 
-                className="bg-white hover:bg-violet-50/60 text-slate-900 border border-violet-200 hover:border-violet-300 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                style={{ backgroundColor: '#ffffff', color: '#0f172a', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
+                onClick={() => redirectToProfileLogin()}
+                className="rounded-full border border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 text-xs font-semibold px-5 py-2 flex items-center gap-1.5 shadow-xs transition cursor-pointer bg-white"
+                style={{ backgroundColor: '#ffffff', color: '#6d28d9', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
               >
-                <span>เข้าสู่ระบบเพื่อยื่นคำร้อง</span>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-slate-600" style={{ width: 14, height: 14 }} />
+                <span>{navAction.label}</span>
+                <ArrowRightIcon className="w-3.5 h-3.5 text-violet-600" style={{ width: 14, height: 14 }} />
               </button>
             ) : (
               <div className="flex items-center gap-2.5">
                 <Link
-                  to={user.role === 'admin' ? '/admin-dashboard' : user.role === 'advisor' ? '/advisor-dashboard' : '/dashboard/new-request'}
-                  className="bg-white hover:bg-violet-50/60 text-slate-900 border border-violet-200 hover:border-violet-300 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-xs transition no-underline cursor-pointer"
-                  style={{ backgroundColor: '#ffffff', color: '#0f172a', textDecoration: 'none', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
+                  to={navAction.to}
+                  className="rounded-full border border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 text-xs font-semibold px-5 py-2 flex items-center gap-1.5 shadow-xs transition no-underline cursor-pointer"
+                  style={{ backgroundColor: '#ffffff', color: '#6d28d9', textDecoration: 'none', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
                 >
-                  <span>แดชบอร์ด / ยื่นคำร้อง</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5 text-slate-600" style={{ width: 14, height: 14 }} />
+                  <span>{navAction.label}</span>
+                  <ArrowRightIcon className="w-3.5 h-3.5 text-violet-600" style={{ width: 14, height: 14 }} />
                 </Link>
                 <NotificationBell />
                 <UserProfileMenu user={user} compact={true} />

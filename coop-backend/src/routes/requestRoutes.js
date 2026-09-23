@@ -4,7 +4,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
-const { createNotification, findUserIdByUsername } = require('../utils/notificationService');
+const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
 
 const getCompanyResponseToken = (details) => {
   if (!details) return '';
@@ -16,12 +16,36 @@ const getCompanyResponseToken = (details) => {
   }
 };
 
+const getCompanyResponseTokenMeta = (details) => {
+  if (!details) return {};
+  try {
+    const parsed = typeof details === 'object' ? details : JSON.parse(details);
+    return {
+      token: parsed.companyResponseToken || '',
+      expiresAt: parsed.companyResponseTokenExpiresAt || null,
+      usedAt: parsed.companyResponseTokenUsedAt || null,
+    };
+  } catch (_) {
+    return {};
+  }
+};
+
+// ลิงก์ตอบรับของสถานประกอบการมีอายุ 7 วัน และใช้ได้ครั้งเดียว
+const COMPANY_RESPONSE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const matchesCompanyResponseToken = (details, token) => {
   const storedToken = getCompanyResponseToken(details);
   if (!storedToken || !token) return false;
   const storedBuffer = Buffer.from(storedToken);
   const tokenBuffer = Buffer.from(String(token));
   return storedBuffer.length === tokenBuffer.length && crypto.timingSafeEqual(storedBuffer, tokenBuffer);
+};
+
+const isCompanyResponseTokenUsable = (details, token) => {
+  const meta = getCompanyResponseTokenMeta(details);
+  if (!meta.token || meta.usedAt) return false;
+  if (meta.expiresAt && new Date(meta.expiresAt).getTime() <= Date.now()) return false;
+  return matchesCompanyResponseToken(details, token);
 };
 
 // Ensure company_email column exists in requests table (Idempotent)
@@ -31,6 +55,8 @@ const serializeRequestRow = (row) => {
   const parsed = parseRequestRow(row);
   if (parsed?.details && typeof parsed.details === 'object') {
     delete parsed.details.companyResponseToken;
+    delete parsed.details.companyResponseTokenExpiresAt;
+    delete parsed.details.companyResponseTokenUsedAt;
   }
   return parsed;
 };
@@ -49,8 +75,8 @@ const handleGetSingleRequest = async (req, res) => {
     `, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลคำร้อง' });
     const isPublic = req.baseUrl.includes('public') || req.originalUrl.includes('public');
-    if (isPublic && getCompanyResponseToken(rows[0].details) && !matchesCompanyResponseToken(rows[0].details, req.query.responseToken)) {
-      return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้องหรือหมดอายุ' });
+    if (isPublic && getCompanyResponseToken(rows[0].details) && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
+      return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้อง หมดอายุ หรือถูกใช้งานไปแล้ว' });
     }
     res.json({ success: true, data: serializeRequestRow(rows[0]) });
   } catch (error) {
@@ -130,17 +156,22 @@ router.post('/:id/response-qr', authenticate, authorize('admin'), async (req, re
       } catch (_) {}
     }
 
-    let token = details.companyResponseToken;
-    if (!token) {
+    let { token, expiresAt, usedAt } = getCompanyResponseTokenMeta(details);
+    const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
+    // ออกโทเค็นใหม่เมื่อยังไม่มี หมดอายุ หรือถูกใช้งานไปแล้ว
+    if (!token || isExpired || usedAt) {
       token = crypto.randomBytes(32).toString('hex');
+      expiresAt = new Date(Date.now() + COMPANY_RESPONSE_TOKEN_TTL_MS).toISOString();
       details.companyResponseToken = token;
+      details.companyResponseTokenExpiresAt = expiresAt;
+      delete details.companyResponseTokenUsedAt;
       await pool.query('UPDATE requests SET details = ? WHERE id = ?', [JSON.stringify(details), req.params.id]);
     }
 
     const responsePath = `/coop/public/request/${req.params.id}?responseToken=${encodeURIComponent(token)}`;
     res.json({
       success: true,
-      data: { token, responseUrl: responsePath }
+      data: { token, responseUrl: responsePath, expiresAt }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -279,8 +310,9 @@ router.patch('/:id/status', async (req, res) => {
       const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm, evaluatorEmail, evaluator_email, evaluatorName, evaluatorPosition, company_email, companyEmail } = req.body;
       const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
       if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
-      if (isPublic && getCompanyResponseToken(rows[0].details) && !matchesCompanyResponseToken(rows[0].details, req.query.responseToken)) {
-        return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้องหรือหมดอายุ' });
+      const publicTokenIssued = isPublic && Boolean(getCompanyResponseToken(rows[0].details));
+      if (publicTokenIssued && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
+        return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้อง หมดอายุ หรือถูกใช้งานไปแล้ว' });
       }
 
       const updates = ['status = ?'];
@@ -291,6 +323,11 @@ router.patch('/:id/status', async (req, res) => {
         try {
           details = typeof rows[0].details === 'object' ? rows[0].details : JSON.parse(rows[0].details);
         } catch (_) {}
+      }
+
+      // One-time usage: ตัดสิทธิ์โทเค็นทันทีเมื่อสถานประกอบการตอบรับ/ปฏิเสธผ่านลิงก์สาธารณะ
+      if (publicTokenIssued) {
+        details.companyResponseTokenUsedAt = new Date().toISOString();
       }
 
       // อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน
@@ -355,6 +392,7 @@ router.patch('/:id/status', async (req, res) => {
       if (req.body.companyResponse !== undefined) details.companyResponse = req.body.companyResponse;
 
       if (
+        publicTokenIssued ||
         startDate !== undefined ||
         endDate !== undefined ||
         internshipTerm !== undefined ||
@@ -391,6 +429,55 @@ router.patch('/:id/status', async (req, res) => {
       await pool.query(`UPDATE requests SET ${updates.join(', ')} WHERE id = ?`, params);
 
       const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
+
+      // แจ้งเตือนเมื่อสถานประกอบการตอบกลับคำร้องผ่านลิงก์สาธารณะ — ล้มเหลวได้โดยไม่กระทบการอัปเดตสถานะ
+      if (publicTokenIssued && updated[0]) {
+        try {
+          const requestRow = updated[0];
+          const accepted = String(req.body.statusCode) === 'COMPANY_ACCEPTED'
+            || String(status || '').includes('ตอบรับ');
+          const companyName = requestRow.company || 'สถานประกอบการ';
+          const studentLabel = requestRow.studentName
+            ? `${requestRow.studentName} (${requestRow.studentId || '-'})`
+            : (requestRow.studentId || 'นักศึกษา');
+          const title = accepted
+            ? 'สถานประกอบการตอบรับคำร้องฝึกงาน'
+            : 'สถานประกอบการปฏิเสธคำร้องฝึกงาน';
+          const message = accepted
+            ? `${companyName} ตอบรับนักศึกษา ${studentLabel} เข้าฝึกงานแล้ว`
+            : `${companyName} ปฏิเสธคำร้องของ ${studentLabel}${c ? ` — เหตุผล: ${c}` : ''}`;
+          const requestLink = `/dashboard/request/${requestRow.id}`;
+
+          const adminIds = await findUserIdsByRole('admin');
+          for (const adminId of adminIds) {
+            await createNotification({
+              userId: adminId,
+              type: 'company_response',
+              title,
+              message,
+              link: requestLink,
+              requestId: requestRow.id,
+            });
+          }
+
+          const studentUserId = await findUserIdByUsername(requestRow.studentId);
+          if (studentUserId) {
+            await createNotification({
+              userId: studentUserId,
+              type: 'company_response',
+              title: accepted ? 'สถานประกอบการตอบรับคำร้องของคุณแล้ว' : 'สถานประกอบการปฏิเสธคำร้องของคุณ',
+              message: accepted
+                ? `${companyName} ยืนยันรับคุณเข้าฝึกงานแล้ว`
+                : `${companyName} ปฏิเสธคำร้องฝึกงานของคุณ${c ? ` — เหตุผล: ${c}` : ''}`,
+              link: '/dashboard',
+              requestId: requestRow.id,
+            });
+          }
+        } catch (notifyErr) {
+          console.error('[Notification] แจ้งเตือนผลตอบรับสถานประกอบการล้มเหลว:', notifyErr.message);
+        }
+      }
+
       res.json({ success: true, message: 'อัปเดตสถานะสำเร็จ', data: serializeRequestRow(updated[0]) });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

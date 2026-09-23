@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
@@ -29,14 +30,13 @@ import {
 import { STAT_EMOJI } from '../../utils/statEmojis';
 import '../Admin/Dashboard/AdminDashboardPage.css'; // Reuse Admin styles
 import { ClockIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { MoreVertical, Eye, Check, X, BadgeCheck } from 'lucide-react';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
 import NotificationBell from '../../components/NotificationBell';
 import DateTimeIndicator from '../../components/DateTimeIndicator';
 import StatusBadge from '../../components/StatusBadge';
-import ModernButton from '../../components/ModernButton';
 import StatCard from '../../components/StatCard';
-import './AdvisorDashboardPage.css';
 
 const AdvisorDashboardPage = () => {
   const navigate = useNavigate();
@@ -59,6 +59,52 @@ const AdvisorDashboardPage = () => {
     submitting: false,
   });
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
+  const menuPanelRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (event.target?.closest?.('.action-menu-trigger')) return;
+      if (menuPanelRef.current && !menuPanelRef.current.contains(event.target)) {
+        setActionMenu({ id: null, top: 0, left: 0 });
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!actionMenu.id) return;
+    const closeMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [actionMenu.id]);
+
+  const handleToggleActionMenu = (e, menuId, menuHeight = 140) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (actionMenu.id === menuId) {
+      setActionMenu({ id: null, top: 0, left: 0 });
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 176; // w-44
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= menuHeight + 8
+      ? rect.bottom + 4
+      : Math.max(8, rect.top - menuHeight - 4);
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      window.innerWidth - menuWidth - 8
+    );
+    setActionMenu({ id: menuId, top, left });
+  };
+
+  const closeActionMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
 
   const getDisplayStatus = (status) =>
     status === 'รออาจารย์ที่ปรึกษาอนุมัติ' ? 'รออนุมัติ' : status;
@@ -264,6 +310,11 @@ const AdvisorDashboardPage = () => {
     }
   };
 
+  const activeMenuRequest = filteredRequests.find((r) => String(r.id) === String(actionMenu.id));
+  const activeMenuStatus = String(activeMenuRequest?.status || '').trim();
+  const activeMenuIsPending = activeMenuStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ';
+  const activeMenuIsEvaluated = activeMenuStatus === 'ประเมินเสร็จแล้ว';
+
   return (
     <div className="admin-dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
@@ -405,8 +456,7 @@ const AdvisorDashboardPage = () => {
                   <TableCell>บริษัท</TableCell>
                   <TableCell>ตำแหน่ง</TableCell>
                   <TableCell>สถานะ</TableCell>
-                  <TableCell>ตรวจสอบ</TableCell>
-                  <TableCell>จัดการ</TableCell>
+                  <TableCell align="center">การจัดการ</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -436,43 +486,23 @@ const AdvisorDashboardPage = () => {
                       <TableCell>
                         <StatusBadge status={normalizedStatus} />
                       </TableCell>
-                      <TableCell>
-                        <Button
-                          component={Link}
-                          to={`/dashboard/request/${request.id}`}
-                          variant="outlined"
-                          size="small"
-                          sx={{ borderRadius: 999, fontWeight: 600 }}
+                      <TableCell align="center">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleActionMenu(e, request.id, isPending ? 150 : isEvaluated ? 110 : 60)}
+                          className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent outline-none inline-flex items-center justify-center"
+                          aria-label="ตัวเลือกการจัดการ"
+                          title="การจัดการ"
                         >
-                          ตรวจสอบ
-                        </Button>
-                      </TableCell>
-                      <TableCell className="action-column">
-                        {isPending && (
-                          <div className="advisor-action-buttons">
-                            <ModernButton size="small" customVariant="accept" onClick={() => openApproveModal(request.id, request.status || normalizedStatus)}>
-                              อนุมัติ
-                            </ModernButton>
-                            <ModernButton size="small" customVariant="reject" onClick={() => handleReject(request.id)}>
-                              ปฏิเสธ
-                            </ModernButton>
-                          </div>
-                        )}
-                        {!isPending && isEvaluated && (
-                          <ModernButton size="small" customVariant="primary" onClick={() => handleFinishInternship(request.id)}>
-                            เสร็จสิ้นการฝึกงาน
-                          </ModernButton>
-                        )}
-                        {!isPending && !isEvaluated && (
-                          <span className="muted-action">-</span>
-                        )}
+                          <MoreVertical className="w-4 h-4 stroke-[2]" />
+                        </button>
                       </TableCell>
                     </TableRow>
                   );
                 })}
                 {filteredRequests.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">ไม่พบข้อมูล</TableCell>
+                    <TableCell colSpan={7} align="center">ไม่พบข้อมูล</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -559,6 +589,77 @@ const AdvisorDashboardPage = () => {
           {toast.message}
         </Alert>
       </Snackbar>
+
+      {/* Action Dropdown Panel — เรนเดอร์ผ่าน Portal เพื่อหลบการถูก clip โดย overflow ของตาราง */}
+      {actionMenu.id && activeMenuRequest && createPortal(
+        <div
+          ref={menuPanelRef}
+          className="w-44 bg-white rounded-2xl p-1.5 border border-violet-100 z-[99] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            position: 'fixed',
+            top: actionMenu.top,
+            left: actionMenu.left,
+            backgroundColor: '#ffffff',
+            boxShadow: '0 12px 32px rgba(124, 58, 237, 0.12)',
+            borderColor: '#ede9fe',
+          }}
+        >
+          <Link
+            to={`/dashboard/request/${activeMenuRequest.id}`}
+            onClick={closeActionMenu}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition text-left no-underline cursor-pointer"
+          >
+            <Eye className="w-4 h-4 text-slate-400" />
+            <span>ตรวจสอบ</span>
+          </Link>
+
+          {activeMenuIsPending && (
+            <>
+              <div className="border-t border-slate-100 my-0.5" />
+              <button
+                type="button"
+                onClick={() => {
+                  closeActionMenu();
+                  openApproveModal(activeMenuRequest.id, activeMenuStatus);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded-xl transition text-left cursor-pointer border-none bg-transparent outline-none"
+              >
+                <Check className="w-4 h-4 text-emerald-500" />
+                <span>อนุมัติ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeActionMenu();
+                  handleReject(activeMenuRequest.id);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition text-left cursor-pointer border-none bg-transparent outline-none"
+              >
+                <X className="w-4 h-4 text-rose-500" />
+                <span>ปฏิเสธ</span>
+              </button>
+            </>
+          )}
+
+          {!activeMenuIsPending && activeMenuIsEvaluated && (
+            <>
+              <div className="border-t border-slate-100 my-0.5" />
+              <button
+                type="button"
+                onClick={() => {
+                  closeActionMenu();
+                  handleFinishInternship(activeMenuRequest.id);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-violet-700 hover:bg-violet-50 rounded-xl transition text-left cursor-pointer border-none bg-transparent outline-none"
+              >
+                <BadgeCheck className="w-4 h-4 text-violet-500" />
+                <span>เสร็จสิ้นการฝึกงาน</span>
+              </button>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

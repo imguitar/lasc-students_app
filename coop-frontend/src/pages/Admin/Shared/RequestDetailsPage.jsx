@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert } from '@mui/material';
+import { Box, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert, InputAdornment, IconButton } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
 import PrintableEvaluationForm from '../../../components/PrintableEvaluationForm';
 import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
-import { Pencil, CalendarDays, Check, X } from 'lucide-react';
+import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud } from 'lucide-react';
 import { formatAddress } from '../../../utils/formatters';
 import { isStudentEditableStatus } from '../../Student/Dashboard/MyRequestsPage';
 
@@ -61,7 +61,7 @@ const RequestDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [rejectModal, setRejectModal] = useState({ open: false, reason: '' });
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
-  const [qrModal, setQrModal] = useState({ open: false, link: '', loading: false, error: '', navigateOnClose: false });
+  const [qrModal, setQrModal] = useState({ open: false, link: '', loading: false, error: '', navigateOnClose: false, copied: false, expiresAt: '' });
   const [editEvalEmailModal, setEditEvalEmailModal] = useState({ open: false, email: '', submitting: false, error: '' });
   const [dispatchModal, setDispatchModal] = useState({ open: false, file: null, comment: '', startDate: '', endDate: '', submitting: false, error: '' });
   const [scheduleModal, setScheduleModal] = useState({
@@ -117,6 +117,21 @@ const RequestDetailsPage = () => {
       navigate(-1);
     });
   }, [id, navigate]);
+
+  // Lightbox: ล็อก scroll หน้าหลักและรองรับปิดด้วยปุ่ม Esc
+  useEffect(() => {
+    if (!imageModal) return;
+    const handleEsc = (event) => {
+      if (event.key === 'Escape') setImageModal(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [imageModal]);
 
   const fileToDataUrl = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -307,7 +322,7 @@ const RequestDetailsPage = () => {
   };
 
   const handleOpenResponseQr = async (navigateOnClose = false) => {
-    setQrModal({ open: true, link: '', loading: true, error: '', navigateOnClose });
+    setQrModal({ open: true, link: '', loading: true, error: '', navigateOnClose, copied: false, expiresAt: '' });
     try {
       const res = await api.post(`/requests/${id}/response-qr`);
       const responseUrl = res.data?.data?.responseUrl;
@@ -315,14 +330,16 @@ const RequestDetailsPage = () => {
       const link = /^https?:\/\//i.test(responseUrl)
         ? responseUrl
         : new URL(responseUrl, window.location.origin).href;
-      setQrModal({ open: true, link, loading: false, error: '', navigateOnClose });
+      setQrModal({ open: true, link, loading: false, error: '', navigateOnClose, copied: false, expiresAt: res.data?.data?.expiresAt || '' });
     } catch (err) {
       setQrModal({
         open: true,
         link: '',
         loading: false,
         error: err.response?.data?.message || err.message || 'ไม่สามารถสร้าง QR Code ได้',
-        navigateOnClose
+        navigateOnClose,
+        copied: false,
+        expiresAt: ''
       });
     }
   };
@@ -330,10 +347,16 @@ const RequestDetailsPage = () => {
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(qrModal.link);
+      setQrModal((prev) => ({ ...prev, copied: true }));
       setToast({ open: true, message: 'คัดลอกลิงก์แล้ว', severity: 'success' });
+      setTimeout(() => setQrModal((prev) => ({ ...prev, copied: false })), 2500);
     } catch {
       setToast({ open: true, message: 'ไม่สามารถคัดลอกลิงก์ได้', severity: 'error' });
     }
+  };
+
+  const handleTestOpenLink = () => {
+    if (qrModal.link) window.open(qrModal.link, '_blank', 'noopener,noreferrer');
   };
 
   const handleDownloadQr = () => {
@@ -387,7 +410,7 @@ const RequestDetailsPage = () => {
 
   const handleCloseQrModal = () => {
     const shouldNavigate = qrModal.navigateOnClose;
-    setQrModal({ open: false, link: '', loading: false, error: '', navigateOnClose: false });
+    setQrModal({ open: false, link: '', loading: false, error: '', navigateOnClose: false, copied: false, expiresAt: '' });
     if (shouldNavigate) navigate(-1);
   };
 
@@ -456,6 +479,7 @@ const RequestDetailsPage = () => {
   const normalizedStatus = String(request.status || '').trim();
   const statusInfo = getStatusBadge(normalizedStatus || request.status);
   const details = request.details || {}; // Fields from NewRequestPage payload
+  const studentPhotoSrc = details.studentPhoto?.dataUrl || details.studentPhoto || request.studentPhotoUrl || request.photo || '';
   const studentAddress = formatAddress(details.student_info?.address);
   const companyAddress = formatAddress(details.companyAddress || details.address);
   const internshipTermLabel = details.internshipTerm === 'term1'
@@ -484,14 +508,14 @@ const RequestDetailsPage = () => {
               {statusInfo.label}
             </span>
           </div>
-          {details.studentPhoto?.dataUrl && (
+          {studentPhotoSrc && (
             <div
               className="student-photo-btn"
               onClick={() => setImageModal(true)}
               title="คลิกเพื่อดูรูปขยาย"
             >
               <img
-                src={details.studentPhoto.dataUrl}
+                src={studentPhotoSrc}
                 alt="รูปนักศึกษา"
                 className="student-photo-thumb"
               />
@@ -969,90 +993,130 @@ const RequestDetailsPage = () => {
         </MuiAlert>
       </Snackbar>
 
-      <Dialog open={dispatchModal.open} onClose={handleDispatchModalClose} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status)
-            ? 'แนบไฟล์หนังสือส่งตัว / หนังสือขอแหล่งฝึกงานก่อนอนุมัติ'
-            : 'แนบไฟล์หนังสือขอแหล่งฝึกงานก่อนอนุมัติ'}
-        </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            กรุณาอัปโหลดไฟล์หนังสือขอแหล่งฝึกงาน (PDF, JPG หรือ PNG) และสามารถระบุข้อความ/หมายเหตุเพิ่มเติมถึงนักศึกษาได้
-          </Typography>
+      <Dialog
+        open={dispatchModal.open}
+        onClose={handleDispatchModalClose}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: '28px',
+            border: '1px solid rgba(237, 233, 254, 0.8)',
+            boxShadow: '0 20px 60px rgba(124,58,237,0.12)',
+            m: 2,
+          },
+        }}
+      >
+        <div className="bg-white rounded-[28px] p-6 sm:p-7 w-full">
+          {/* Header */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-violet-600" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-slate-800 m-0">
+                {['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status)
+                  ? 'หนังสือส่งตัวนักศึกษาฝึกงาน'
+                  : 'หนังสือขอความอนุเคราะห์ขอฝึกประสบการณ์'}
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed m-0">
+                กรุณาอัปโหลดไฟล์หนังสือขอความอนุเคราะห์ (PDF, JPG หรือ PNG) และสามารถระบุข้อความ/หมายเหตุเพิ่มเติมถึงนักศึกษาได้
+              </p>
+            </div>
+          </div>
 
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="ข้อความเพิ่มเติม / หมายเหตุถึงนักศึกษา (ถ้ามี)"
-            placeholder="เช่น ให้นักศึกษานำรูปถ่าย 2 นิ้ว 2 ใบมาเพิ่ม หรือรายละเอียดวันเวลารับเอกสารเพิ่มเติม"
+          {/* หมายเหตุ */}
+          <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+            ข้อความเพิ่มเติม / หมายเหตุถึงนักศึกษา (ถ้ามี)
+          </label>
+          <textarea
             value={dispatchModal.comment || ''}
             onChange={(e) => setDispatchModal((prev) => ({ ...prev, comment: e.target.value }))}
-            sx={{ mb: 2.5 }}
+            placeholder="เช่น ให้นักศึกษานำรูปถ่าย 2 นิ้ว 2 ใบมาเพิ่ม หรือรายละเอียดวันเวลารับเอกสารเพิ่มเติม"
+            className="w-full box-border rounded-2xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-none h-20 text-slate-800 bg-white mb-4"
           />
 
+          {/* กำหนดวันฝึกงานจริง (เฉพาะเคสเริ่มฝึกงาน) */}
           {['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status) && (
-            <Box sx={{ mb: 2, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <CalendarDays size={16} /> ตรวจสอบ / กำหนดวันฝึกงานจริง
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
-                  label="วันเริ่มต้นฝึกงาน"
-                  value={dispatchModal.startDate || ''}
-                  onChange={(e) => setDispatchModal(prev => ({ ...prev, startDate: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
-                  label="วันสิ้นสุดฝึกงาน"
-                  value={dispatchModal.endDate || ''}
-                  onChange={(e) => setDispatchModal(prev => ({ ...prev, endDate: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Box>
-            </Box>
+            <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+              <div className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1.5">
+                <CalendarDays size={14} /> ตรวจสอบ / กำหนดวันฝึกงานจริง
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-medium text-slate-600 mb-1 block">วันเริ่มต้นฝึกงาน</label>
+                  <input
+                    type="date"
+                    value={dispatchModal.startDate || ''}
+                    onChange={(e) => setDispatchModal(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="w-full box-border rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-slate-600 mb-1 block">วันสิ้นสุดฝึกงาน</label>
+                  <input
+                    type="date"
+                    value={dispatchModal.endDate || ''}
+                    onChange={(e) => setDispatchModal(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="w-full box-border rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
-          <Box sx={{ mb: 1.5 }}>
-            <Button variant="outlined" component="label">
-              เลือกไฟล์หนังสือขอแหล่งฝึกงาน
-              <input
-                ref={dispatchFileInputRef}
-                type="file"
-                hidden
-                accept="application/pdf,image/jpeg,image/png,image/jpg"
-                onChange={handleDispatchFileChange}
-              />
-            </Button>
-          </Box>
+          {/* Dropzone */}
+          <input
+            ref={dispatchFileInputRef}
+            type="file"
+            hidden
+            accept="application/pdf,image/jpeg,image/png,image/jpg"
+            onChange={handleDispatchFileChange}
+          />
+          <button
+            type="button"
+            onClick={() => dispatchFileInputRef.current?.click()}
+            disabled={dispatchModal.submitting}
+            className="w-full border-2 border-dashed border-violet-200 hover:border-violet-300 bg-violet-50/20 hover:bg-violet-50/40 rounded-2xl py-4 px-4 flex items-center justify-center gap-2 cursor-pointer transition"
+          >
+            <UploadCloud className="w-4 h-4 text-violet-600" />
+            <span className="text-xs font-semibold text-violet-700">เลือกไฟล์หนังสือขอความอนุเคราะห์</span>
+          </button>
+          <p className="text-[10px] text-slate-400 mt-1.5 mb-0 text-center">รองรับไฟล์ PDF, JPG หรือ PNG (ขนาดไม่เกิน 20MB)</p>
+
           {dispatchModal.file && (
-            <Typography variant="body2" sx={{ mb: 1, color: '#059669', fontWeight: 600 }}>
-              ✓ ไฟล์ที่เลือก: <strong>{dispatchModal.file.name}</strong>
-            </Typography>
+            <div className="mt-2.5 text-xs text-emerald-600 font-semibold flex items-center gap-1.5 break-all">
+              <Check size={14} className="shrink-0" />
+              <span>ไฟล์ที่เลือก: {dispatchModal.file.name}</span>
+            </div>
           )}
           {dispatchModal.error && (
-            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+            <div className="mt-2.5 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
               {dispatchModal.error}
-            </Typography>
+            </div>
           )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleDispatchModalClose} disabled={dispatchModal.submitting}>ยกเลิก</Button>
-          <Button
-            variant="contained"
-            onClick={handleDispatchSubmit}
-            disabled={dispatchModal.submitting}
-            sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' } }}
-          >
-            {dispatchModal.submitting ? 'กำลังอัปโหลด...' : 'แนบไฟล์และอนุมัติ'}
-          </Button>
-        </DialogActions>
+
+          {/* Footer Actions */}
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={handleDispatchSubmit}
+              disabled={dispatchModal.submitting}
+              className="w-full py-3 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.3)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}
+            >
+              {dispatchModal.submitting ? 'กำลังอัปโหลด...' : 'แนบไฟล์และอนุมัติ'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDispatchModalClose}
+              disabled={dispatchModal.submitting}
+              className="w-full py-2 text-xs font-medium text-slate-400 hover:text-slate-600 transition cursor-pointer text-center mt-1 border-none bg-transparent"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
       </Dialog>
 
       {/* Schedule Internship Dates Modal */}
@@ -1216,39 +1280,65 @@ const RequestDetailsPage = () => {
             <>
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
                 <Box sx={{ p: 2, bgcolor: '#fff', border: '1px solid #e2e8f0', borderRadius: 2, boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)' }}>
-                  <QRCodeCanvas ref={qrCanvasRef} value={qrModal.link} size={220} level="H" marginSize={1} />
+                  <QRCodeCanvas ref={qrCanvasRef} value={qrModal.link} size={170} level="H" marginSize={1} />
                 </Box>
               </Box>
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: { xs: 'column', sm: 'row' },
-                  alignItems: 'stretch',
-                  gap: 1,
-                  bgcolor: '#f8fafc',
-                  borderRadius: 2,
-                  p: 1.5,
-                  border: '1px solid #e2e8f0',
+              <TextField
+                fullWidth
+                size="small"
+                label="ลิงก์ตอบรับสำหรับสถานประกอบการ"
+                value={`${window.location.origin}/coop/public/response/${id}`}
+                onFocus={(e) => e.target.select()}
+                InputProps={{
+                  readOnly: true,
+                  sx: { fontFamily: 'monospace', fontSize: '0.75rem', bgcolor: '#f8fafc' },
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={handleCopyLink}
+                        title="คัดลอกลิงก์"
+                        sx={{ color: qrModal.copied ? '#10b981' : '#7c3aed' }}
+                      >
+                        {qrModal.copied ? <Check size={16} /> : <Copy size={16} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
                 }}
-              >
-                <Typography
-                  variant="body2"
+                sx={{ mb: 1.5 }}
+              />
+              <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  startIcon={qrModal.copied ? <Check size={16} /> : <Copy size={16} />}
+                  onClick={handleCopyLink}
                   sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflowWrap: 'anywhere',
-                    textAlign: 'left',
-                    fontFamily: 'monospace',
-                    fontSize: '0.8rem',
-                    p: 0.5,
+                    bgcolor: qrModal.copied ? '#10b981' : '#7c3aed',
+                    '&:hover': { bgcolor: qrModal.copied ? '#059669' : '#6d28d9' },
+                    fontWeight: 700
                   }}
                 >
-                  {qrModal.link}
-                </Typography>
-                <Button variant="contained" size="small" onClick={handleCopyLink} sx={{ flexShrink: 0, bgcolor: '#111827', '&:hover': { bgcolor: '#000' } }}>
-                  คัดลอกลิงก์
+                  {qrModal.copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<ExternalLink size={16} />}
+                  onClick={handleTestOpenLink}
+                  sx={{ borderColor: '#cbd5e1', color: '#475569', fontWeight: 600 }}
+                >
+                  ทดสอบเปิดลิงก์
                 </Button>
               </Box>
+              <Alert severity="warning" sx={{ mt: 2, textAlign: 'left', alignItems: 'flex-start' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', lineHeight: 1.5 }}>
+                  ผู้ที่ถือลิงก์นี้สามารถตอบรับคำร้องได้ ส่งให้เฉพาะสถานประกอบการเท่านั้น
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.5, mt: 0.25 }}>
+                  ลิงก์ใช้งานได้ครั้งเดียว{qrModal.expiresAt ? ` และหมดอายุ ${new Date(qrModal.expiresAt).toLocaleString('th-TH')}` : ''}
+                </Typography>
+              </Alert>
             </>
           )}
         </DialogContent>
@@ -1266,30 +1356,31 @@ const RequestDetailsPage = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Image Preview Dialog */}
-      <Dialog 
-        open={imageModal} 
-        onClose={() => setImageModal(false)}
-        maxWidth="md"
-        disableScrollLock={true}
-        PaperProps={{ sx: { borderRadius: 3, p: 0.5, overflow: 'hidden' } }}
-      >
-        <DialogTitle component="div" sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid #f1f5f9' }}>
-          <Typography component="span" variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
-            รูปถ่ายนักศึกษา: {request?.studentName}
-          </Typography>
-          <Button size="small" onClick={() => setImageModal(false)} sx={{ color: '#64748b', fontWeight: 700 }}>
-            ปิด
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: '#f8fafc', overflow: 'hidden' }}>
-          <img 
-            src={request?.details?.studentPhoto?.dataUrl || request?.details?.studentPhoto} 
-            alt="Student Photo" 
-            style={{ maxWidth: '100%', maxHeight: '75vh', borderRadius: '8px', objectFit: 'contain', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'block' }} 
+      {/* Full-screen Minimal Lightbox */}
+      {imageModal && studentPhotoSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
+          onClick={() => setImageModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`รูปถ่ายนักศึกษา ${request?.studentName || ''}`}
+        >
+          <button
+            type="button"
+            onClick={() => setImageModal(false)}
+            className="absolute top-5 right-5 sm:top-7 sm:right-7 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer border-none outline-none"
+            aria-label="ปิด"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={studentPhotoSrc}
+            alt={`รูปถ่ายนักศึกษา ${request?.studentName || ''}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[88vh] max-w-[92vw] w-auto h-auto object-contain rounded-2xl shadow-2xl ring-1 ring-white/10"
           />
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Document Preview Modal */}
       <Dialog

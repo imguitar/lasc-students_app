@@ -12,7 +12,7 @@ import {
   ArrowDownTrayIcon,
   PrinterIcon,
 } from '@heroicons/react/24/outline';
-import { MoreVertical, Eye, Trash2 } from 'lucide-react';
+import { MoreVertical, Eye, Trash2, Loader2 } from 'lucide-react';
 import {
   Box,
   Paper,
@@ -700,7 +700,10 @@ const StudentListPage = () => {
 
           <TableContainer component={Box} className="compact-table">
             {loading ? (
-                <p style={{ padding: '16px' }}>กำลังโหลดข้อมูล...</p>
+                <div className="flex flex-col items-center justify-center py-20 w-full">
+                  <Loader2 className="w-8 h-8 text-violet-600 animate-spin stroke-[2.2]" />
+                  <p className="text-xs font-medium text-slate-400 mt-3 m-0">กำลังโหลดข้อมูลรายชื่อนักศึกษา...</p>
+                </div>
             ) : (
             <Table size="small">
               <TableHead>

@@ -8,6 +8,8 @@ import MyRequestsPage from './pages/Student/Dashboard/MyRequestsPage';
 import AdvisorDashboardPage from './pages/Advisor/AdvisorDashboardPage';
 import NewRequestPage from './pages/Student/NewRequestPage';
 import AdminDashboardPage from './pages/Admin/Dashboard/AdminDashboardPage';
+import AllRequestsOverviewPage from './pages/Admin/Dashboard/AllRequestsOverviewPage';
+import AdminNotificationsPage from './pages/Admin/Dashboard/AdminNotificationsPage';
 import StudentListPage from './pages/Admin/Dashboard/StudentListPage';
 import PaymentProofPage from './pages/Student/Dashboard/PaymentProofPage';
 import AdminReportsPage from './pages/Admin/Dashboard/AdminReportsPage';
@@ -21,6 +23,7 @@ import AdvisorEvaluationPage from './pages/Advisor/AdvisorEvaluationPage';
 import RequestDetailsPage from './pages/Admin/Shared/RequestDetailsPage';
 import StudentDetailsPage from './pages/Admin/Shared/StudentDetailsPage';
 import StudentCheckInPage from './pages/Student/Dashboard/StudentCheckInPage';
+import StudentNotificationsPage from './pages/Student/Dashboard/StudentNotificationsPage';
 import AdminCheckInPage from './pages/Admin/Dashboard/AdminCheckInPage';
 import AdminAttendanceOverviewPage from './pages/Admin/Dashboard/AdminAttendanceOverviewPage';
 import PublicRequestPage from './pages/Public/PublicRequestPage';
@@ -48,7 +51,10 @@ function App() {
         <Route path="/dashboard/payment-proof" element={<PaymentProofPage />} />
         <Route path="/dashboard/check-in" element={<StudentCheckInPage />} />
         <Route path="/dashboard/daily-reports" element={<StudentCheckInPage />} />
+        <Route path="/dashboard/notifications" element={<StudentNotificationsPage />} />
         <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin-dashboard/requests" element={<AllRequestsOverviewPage />} />
+        <Route path="/admin-dashboard/notifications" element={<AdminNotificationsPage />} />
         <Route path="/admin-dashboard/students" element={<StudentListPage />} />
         <Route path="/admin-dashboard/users" element={<Navigate to="/admin-dashboard" replace />} />
         <Route path="/admin-dashboard/companies" element={<AdminCompanyManagementPage />} />

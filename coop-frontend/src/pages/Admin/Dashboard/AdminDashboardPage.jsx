@@ -33,13 +33,13 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Pencil, Calendar, FileText, FileUp } from 'lucide-react';
+import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, Menu as MenuIcon } from 'lucide-react';
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import { STAT_EMOJI } from '../../../utils/statEmojis';
 import './AdminDashboardPage.css';
-import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, ChevronRightIcon, EllipsisVerticalIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EllipsisVerticalIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
@@ -178,7 +178,7 @@ const AdminDashboardPage = () => {
   });
   const [sortBy, setSortBy] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
-  const [qrModal, setQrModal] = useState({ open: false, requestId: null, request: null, link: '', loading: false, error: '' });
+  const [qrModal, setQrModal] = useState({ open: false, requestId: null, request: null, link: '', loading: false, error: '', copied: false, expiresAt: '' });
   const qrCanvasRef = useRef(null);
   const [dispatchModal, setDispatchModal] = useState({ open: false, requestId: null, targetStatus: null, file: null, comment: '', startDate: '', endDate: '', submitting: false, error: '' });
   const [scheduleModal, setScheduleModal] = useState({
@@ -249,6 +249,11 @@ const AdminDashboardPage = () => {
   });
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchDateModal, setBatchDateModal] = useState({ open: false, startDate: '', endDate: '', submitting: false, error: '' });
+  const [batchMenuAnchor, setBatchMenuAnchor] = useState(null);
+  const [batchRejectModal, setBatchRejectModal] = useState({ open: false, reason: '', submitting: false, error: '' });
+  const [batchDeleteModal, setBatchDeleteModal] = useState({ open: false, submitting: false, error: '' });
+  const [approveWizard, setApproveWizard] = useState({ open: false, queue: [], index: 0, file: null, submitting: false, error: '' });
+  const wizardFileInputRef = useRef(null);
 
   const getAdminDisplayStatus = (status) => {
     if (status === 'รออาจารย์ที่ปรึกษาอนุมัติ') return 'รออาจารย์อนุมัติ';
@@ -708,7 +713,7 @@ const AdminDashboardPage = () => {
 
   const handleOpenResponseQr = async (requestId, targetRequest = null) => {
     const req = targetRequest || allRequests.find(r => String(r.id) === String(requestId));
-    setQrModal({ open: true, requestId, request: req, link: '', loading: true, error: '' });
+    setQrModal({ open: true, requestId, request: req, link: '', loading: true, error: '', copied: false, expiresAt: '' });
     try {
       const res = await api.post(`/requests/${requestId}/response-qr`);
       const responseUrl = res.data?.data?.responseUrl;
@@ -716,7 +721,7 @@ const AdminDashboardPage = () => {
       const link = /^https?:\/\//i.test(responseUrl)
         ? responseUrl
         : new URL(responseUrl, window.location.origin).href;
-      setQrModal({ open: true, requestId, request: req, link, loading: false, error: '' });
+      setQrModal({ open: true, requestId, request: req, link, loading: false, error: '', copied: false, expiresAt: res.data?.data?.expiresAt || '' });
     } catch (err) {
       setQrModal({
         open: true,
@@ -724,7 +729,9 @@ const AdminDashboardPage = () => {
         request: req,
         link: '',
         loading: false,
-        error: err.response?.data?.message || err.message || 'ไม่สามารถโหลด QR Code ได้'
+        error: err.response?.data?.message || err.message || 'ไม่สามารถโหลด QR Code ได้',
+        copied: false,
+        expiresAt: ''
       });
     }
   };
@@ -804,10 +811,15 @@ const AdminDashboardPage = () => {
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(qrModal.link);
-      alert('คัดลอกลิงก์แล้ว');
+      setQrModal((prev) => ({ ...prev, copied: true }));
+      setTimeout(() => setQrModal((prev) => ({ ...prev, copied: false })), 2500);
     } catch {
       alert('ไม่สามารถคัดลอกลิงก์ได้');
     }
+  };
+
+  const handleTestOpenLink = () => {
+    if (qrModal.link) window.open(qrModal.link, '_blank', 'noopener,noreferrer');
   };
 
   const handleDownloadQr = () => {
@@ -823,7 +835,7 @@ const AdminDashboardPage = () => {
   };
 
   const handleCloseQrModal = () => {
-    setQrModal({ open: false, requestId: null, request: null, link: '', loading: false, error: '' });
+    setQrModal({ open: false, requestId: null, request: null, link: '', loading: false, error: '', copied: false, expiresAt: '' });
   };
 
   const handleUpdateStatus = async (requestId, newStatus) => {
@@ -1064,13 +1076,153 @@ const AdminDashboardPage = () => {
     }
   };
 
+  const openBatchMenu = (event) => setBatchMenuAnchor(event.currentTarget);
+  const closeBatchMenu = () => setBatchMenuAnchor(null);
 
+  const handleStartApproveWizard = () => {
+    closeBatchMenu();
+    if (selectedIds.length === 0) return;
+    setApproveWizard({ open: true, queue: [...selectedIds], index: 0, file: null, submitting: false, error: '' });
+  };
+
+  const handleWizardFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      setApproveWizard((prev) => ({ ...prev, error: 'รองรับเฉพาะไฟล์ PDF, JPG หรือ PNG เท่านั้น', file: null }));
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setApproveWizard((prev) => ({ ...prev, error: 'ขนาดไฟล์ต้องไม่เกิน 20MB', file: null }));
+      event.target.value = '';
+      return;
+    }
+    setApproveWizard((prev) => ({ ...prev, file, error: '' }));
+  };
+
+  const handleWizardClose = () => {
+    if (approveWizard.submitting) return;
+    setApproveWizard({ open: false, queue: [], index: 0, file: null, submitting: false, error: '' });
+  };
+
+  const handleWizardSubmit = async () => {
+    const currentId = approveWizard.queue[approveWizard.index];
+    if (currentId === undefined) return;
+    if (!approveWizard.file) {
+      setApproveWizard((prev) => ({ ...prev, error: 'กรุณาแนบไฟล์ใบขอความอนุเคราะห์ / หนังสือส่งตัวของนักศึกษาคนนี้ก่อน' }));
+      return;
+    }
+
+    setApproveWizard((prev) => ({ ...prev, submitting: true, error: '' }));
+    try {
+      const dataUrl = await fileToDataUrl(approveWizard.file);
+      await api.patch(`/requests/${currentId}/status`, {
+        status: 'รอสถานประกอบการตอบรับ',
+        dispatchLetter: {
+          fileName: approveWizard.file.name,
+          mimeType: approveWizard.file.type,
+          dataUrl,
+        },
+      });
+
+      const doneFileName = approveWizard.file.name;
+      setAllRequests((prev) => prev.map((r) => (
+        String(r.id) === String(currentId)
+          ? { ...r, status: 'รอสถานประกอบการตอบรับ', dispatchLetter: { fileName: doneFileName, dataUrl } }
+          : r
+      )));
+
+      const isLast = approveWizard.index + 1 >= approveWizard.queue.length;
+      const total = approveWizard.queue.length;
+      if (wizardFileInputRef.current) wizardFileInputRef.current.value = '';
+
+      if (isLast) {
+        setApproveWizard({ open: false, queue: [], index: 0, file: null, submitting: false, error: '' });
+        alert(`อนุมัติคำร้องพร้อมแนบใบขอความอนุเคราะห์ให้ ${total} รายการเรียบร้อยแล้ว`);
+        clearSelection();
+      } else {
+        setApproveWizard((prev) => ({ ...prev, index: prev.index + 1, file: null, submitting: false, error: '' }));
+      }
+    } catch (err) {
+      setApproveWizard((prev) => ({
+        ...prev,
+        submitting: false,
+        error: err.response?.data?.message || err.message || 'บันทึกคำร้องล้มเหลว',
+      }));
+    }
+  };
+
+  const handleOpenBatchRejectModal = () => {
+    closeBatchMenu();
+    if (selectedIds.length === 0) return;
+    setBatchRejectModal({ open: true, reason: '', submitting: false, error: '' });
+  };
+
+  const handleBatchRejectSubmit = async () => {
+    const reason = batchRejectModal.reason.trim();
+    if (!reason) {
+      setBatchRejectModal((prev) => ({ ...prev, error: 'กรุณาระบุเหตุผลการปฏิเสธ' }));
+      return;
+    }
+    setBatchRejectModal((prev) => ({ ...prev, submitting: true, error: '' }));
+    try {
+      const ids = [...selectedIds];
+      await Promise.all(ids.map((rid) => api.patch(`/requests/${rid}/status`, {
+        status: 'ไม่อนุมัติ (Admin)',
+        admin_comment: reason,
+      })));
+      setAllRequests((prev) => prev.map((r) => (
+        ids.includes(r.id) ? { ...r, status: 'ไม่อนุมัติ (Admin)', admin_comment: reason } : r
+      )));
+      setBatchRejectModal({ open: false, reason: '', submitting: false, error: '' });
+      alert(`ปฏิเสธคำร้อง ${ids.length} รายการเรียบร้อยแล้ว`);
+      clearSelection();
+    } catch (err) {
+      setBatchRejectModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: err.response?.data?.message || err.message || 'ปฏิเสธคำร้องล้มเหลว',
+      }));
+    }
+  };
+
+  const handleOpenBatchDeleteModal = () => {
+    closeBatchMenu();
+    if (selectedIds.length === 0) return;
+    setBatchDeleteModal({ open: true, submitting: false, error: '' });
+  };
+
+  const handleBatchDeleteConfirm = async () => {
+    setBatchDeleteModal((prev) => ({ ...prev, submitting: true, error: '' }));
+    try {
+      const ids = [...selectedIds];
+      await Promise.all(ids.map((rid) => api.delete(`/requests/${rid}`)));
+      setAllRequests((prev) => prev.filter((r) => !ids.includes(r.id)));
+      setBatchDeleteModal({ open: false, submitting: false, error: '' });
+      alert(`ลบคำร้อง ${ids.length} รายการเรียบร้อยแล้ว`);
+      clearSelection();
+    } catch (err) {
+      setBatchDeleteModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: err.response?.data?.message || err.message || 'ลบคำร้องล้มเหลว',
+      }));
+    }
+  };
+
+
+
+  const wizardCurrentRequest = approveWizard.open
+    ? allRequests.find((r) => String(r.id) === String(approveWizard.queue[approveWizard.index]))
+    : null;
 
   return (
     <div className="admin-dashboard-container bg-[#f8f9fc] min-h-screen">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
           </Link>
@@ -1192,15 +1344,6 @@ const AdminDashboardPage = () => {
                   รายการคำร้องที่ส่งเข้ามาล่าสุด
                 </Typography>
               </div>
-              <Button
-                size="small"
-                endIcon={<ChevronRightIcon style={{ width: 18, height: 18 }} />}
-                onClick={() => document.getElementById('all-requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="text-violet-600 hover:text-violet-700 hover:bg-violet-50 rounded-xl"
-                sx={{ flexShrink: 0, fontWeight: 700, textTransform: 'none', color: '#7c3aed' }}
-              >
-                ดูทั้งหมด
-              </Button>
             </Box>
           <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white">
             <Table size="small">
@@ -1240,13 +1383,23 @@ const AdminDashboardPage = () => {
 
         <Paper id="all-requests" className="bg-white border border-slate-100 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] p-6" elevation={0} sx={{ width: '100%', scrollMarginTop: 80, bgcolor: '#ffffff', borderRadius: '1rem', border: '1px solid #f1f5f9', boxShadow: '0 2px 15px -3px rgba(0,0,0,0.04)' }}>
           <div className="section-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-            <div>
-              <h2 className="text-slate-900 font-extrabold text-lg md:text-xl tracking-tight mb-1" style={{ margin: 0 }}>
-                คำร้องทั้งหมด
-              </h2>
-              <p className="text-slate-400 text-xs">
-                จัดการและตรวจสอบข้อมูลคำร้องฝึกงานของนักศึกษาทั้งหมดในระบบ
-              </p>
+            <div className="w-full flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-slate-900 font-extrabold text-lg md:text-xl tracking-tight mb-1" style={{ margin: 0 }}>
+                  คำร้องทั้งหมด
+                </h2>
+                <p className="text-slate-400 text-xs">
+                  จัดการและตรวจสอบข้อมูลคำร้องฝึกงานของนักศึกษาทั้งหมดในระบบ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/admin-dashboard/requests')}
+                className="shrink-0 flex items-center gap-0.5 text-violet-600 hover:text-violet-700 font-semibold text-xs transition cursor-pointer border-none bg-transparent py-1"
+              >
+                ดูทั้งหมด
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
             <TextField
               select
@@ -1290,55 +1443,71 @@ const AdminDashboardPage = () => {
               <MenuItem value="rejected" sx={{ fontSize: '0.8125rem' }}>ไม่อนุมัติ</MenuItem>
             </TextField>
 
-            {selectedIds.length > 0 && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 1.5,
-                  p: 1.5,
-                  width: '100%',
-                  bgcolor: '#f5f3ff',
-                  border: '1px solid #ddd6fe',
-                  borderRadius: 2,
-                }}
+          <div className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {selectedIds.length === 0 ? (
+                <span className="text-xs text-slate-500 font-medium">
+                  ระบบจัดการคำร้องแบบกลุ่ม — กรุณาเลือกรายชื่อนักศึกษาจากตารางเพื่อดำเนินการ
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-violet-700 bg-violet-100/80 px-2.5 py-1 rounded-lg">
+                  เลือกคำร้องทั้งหมด {selectedIds.length} รายการ
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={openBatchMenu}
+                disabled={selectedIds.length === 0}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ backgroundColor: selectedIds.length === 0 ? undefined : '#7c3aed' }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#5b21b6' }}>
-                  เลือกอยู่ {selectedIds.length} รายการ
-                </Typography>
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<CalendarIcon style={{ width: 16, height: 16 }} />}
-                  onClick={handleOpenBatchDateModal}
-                  className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl"
-                  sx={{ bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' }, textTransform: 'none', borderRadius: '0.75rem' }}
-                >
-                  กำหนดวันฝึกงานพร้อมกัน
-                </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<CheckIcon style={{ width: 16, height: 16 }} />}
-                  onClick={handleBatchStartInternship}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                  sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, textTransform: 'none', borderRadius: '0.75rem' }}
-                >
-                  เปลี่ยนสถานะเป็นเริ่มฝึกงาน
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<XMarkIcon style={{ width: 16, height: 16 }} />}
-                  onClick={clearSelection}
-                  className="text-slate-600 border-slate-300 hover:bg-slate-50 rounded-xl"
-                  sx={{ textTransform: 'none', borderRadius: '0.75rem', borderColor: '#cbd5e1', color: '#475569' }}
-                >
-                  ล้างการเลือก
-                </Button>
-              </Box>
-            )}
+                เลือกการดำเนินการแบบกลุ่ม
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={selectedIds.length === 0}
+                className="text-xs font-medium px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-white transition cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ล้างการเลือก
+              </button>
+            </div>
+            <Menu
+              anchorEl={batchMenuAnchor}
+              open={Boolean(batchMenuAnchor)}
+              onClose={closeBatchMenu}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              PaperProps={{
+                className: 'rounded-xl shadow-xl border border-slate-100',
+                sx: { mt: 1, minWidth: 260, borderRadius: '0.75rem' },
+              }}
+            >
+              <MenuItem onClick={() => { closeBatchMenu(); handleOpenBatchDateModal(); }} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
+                <Calendar className="w-4 h-4 text-violet-500 shrink-0" />
+                กำหนดวันฝึกงานพร้อมกัน
+              </MenuItem>
+              <MenuItem onClick={handleStartApproveWizard} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                อนุมัติคำร้องและแนบใบขอความอนุเคราะห์
+              </MenuItem>
+              <MenuItem onClick={() => { closeBatchMenu(); handleBatchStartInternship(); }} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
+                <Check className="w-4 h-4 text-violet-500 shrink-0" />
+                เปลี่ยนสถานะเป็นเริ่มฝึกงาน
+              </MenuItem>
+              <MenuItem onClick={handleOpenBatchRejectModal} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1, color: '#ea580c' }}>
+                <XCircle className="w-4 h-4 text-orange-500 shrink-0" />
+                ปฏิเสธคำร้องที่เลือก
+              </MenuItem>
+              <MenuItem onClick={handleOpenBatchDeleteModal} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1, color: '#e11d48' }}>
+                <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
+                ลบรายการคำร้องที่เลือก
+              </MenuItem>
+            </Menu>
+          </div>
           </div>
 
           <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white">
@@ -1427,10 +1596,10 @@ const AdminDashboardPage = () => {
                               {(effectiveStatus === 'ออกฝึกงาน' || effectiveStatus === 'กำลังออกฝึกงาน' || effectiveStatus === 'สิ้นสุดการฝึกงาน (รอประเมิน)' || effectiveStatus === 'ประเมินเสร็จแล้ว' || effectiveStatus === 'ฝึกงานเสร็จแล้ว') && (
                                 <div style={{ marginTop: '8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px', fontWeight: 500 }}>
                                   {request.hasCompanyEval ? 
-                                    <span style={{ color: '#10b981' }}>✓ บริษัทประเมินแล้ว</span> : 
+                                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> บริษัทประเมินแล้ว</span> : 
                                     <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> บริษัทกำลังประเมิน</span>}
                                   {request.hasAdvisorEval ? 
-                                    <span style={{ color: '#10b981' }}>✓ อาจารย์ประเมินแล้ว</span> : 
+                                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> อาจารย์ประเมินแล้ว</span> : 
                                     <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> อาจารย์กำลังประเมิน</span>}
                                 </div>
                               )}
@@ -1871,7 +2040,8 @@ const AdminDashboardPage = () => {
 
           {dispatchModal.file && (
             <div className="text-[11px] sm:text-xs text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 truncate">
-              <span>✓ ไฟล์ที่เลือก: <strong>{dispatchModal.file.name}</strong></span>
+              <Check className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">ไฟล์ที่เลือก: <strong>{dispatchModal.file.name}</strong></span>
             </div>
           )}
 
@@ -1912,7 +2082,7 @@ const AdminDashboardPage = () => {
         fullWidth
       >
         <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span>📅</span> กำหนดวันฝึกงาน (สำหรับ Admin)
+          <Calendar className="w-5 h-5 text-violet-600 stroke-[2.2]" /> กำหนดวันฝึกงาน (สำหรับ Admin)
         </DialogTitle>
         <DialogContent sx={{ py: 2 }}>
           <Box sx={{ mb: 2.5, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
@@ -2054,60 +2224,84 @@ const AdminDashboardPage = () => {
         onClose={() => !batchDateModal.submitting && setBatchDateModal(prev => ({ ...prev, open: false }))}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '24px',
+            border: '1px solid rgba(237, 233, 254, 0.8)',
+            boxShadow: '0 20px 60px rgba(124,58,237,0.12)',
+            m: 2,
+          },
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span>📅</span> กำหนดวันฝึกงาน ({selectedIds.length} รายการ)
-        </DialogTitle>
-        <DialogContent sx={{ py: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-            วันที่ที่กำหนดจะถูกใช้กับคำร้องที่เลือกไว้ทั้ง {selectedIds.length} รายการพร้อมกัน
-          </Typography>
+        <div className="bg-white rounded-[24px] p-6 sm:p-7 w-full">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5 text-violet-600 stroke-[2.2]" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-slate-800 m-0 flex items-center flex-wrap">
+                กำหนดระยะเวลาฝึกงาน
+                <span className="bg-violet-50 text-violet-700 text-xs font-semibold px-2 py-0.5 rounded-lg ml-2">
+                  {selectedIds.length} รายการ
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed m-0">
+                วันที่ที่ระบุจะมีผลบังคับใช้กับคำร้องของนักศึกษาที่เลือกไว้ทั้งหมดพร้อมกัน
+              </p>
+            </div>
+          </div>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="วันเริ่มต้นฝึกงาน *"
-              value={batchDateModal.startDate || ''}
-              onChange={(e) => setBatchDateModal(prev => ({ ...prev, startDate: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              required
-            />
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="วันสิ้นสุดการฝึกงาน *"
-              value={batchDateModal.endDate || ''}
-              onChange={(e) => setBatchDateModal(prev => ({ ...prev, endDate: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              required
-            />
-          </Box>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                วันเริ่มต้นฝึกงาน <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={batchDateModal.startDate || ''}
+                onChange={(e) => setBatchDateModal(prev => ({ ...prev, startDate: e.target.value, error: '' }))}
+                className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition"
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                วันสิ้นสุดการฝึกงาน <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={batchDateModal.endDate || ''}
+                onChange={(e) => setBatchDateModal(prev => ({ ...prev, endDate: e.target.value, error: '' }))}
+                className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition"
+              />
+            </div>
+          </div>
 
           {batchDateModal.error && (
-            <Typography variant="body2" color="error" sx={{ mt: 1.5 }}>
+            <div className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
               {batchDateModal.error}
-            </Typography>
+            </div>
           )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setBatchDateModal(prev => ({ ...prev, open: false }))}
-            disabled={batchDateModal.submitting}
-          >
-            ยกเลิก
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleBatchDateSubmit}
-            disabled={batchDateModal.submitting}
-            sx={{ bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' } }}
-          >
-            {batchDateModal.submitting ? 'กำลังบันทึก...' : 'บันทึกวันฝึกงาน'}
-          </Button>
-        </DialogActions>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setBatchDateModal(prev => ({ ...prev, open: false }))}
+              disabled={batchDateModal.submitting}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-transparent disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchDateSubmit}
+              disabled={batchDateModal.submitting}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}
+            >
+              {batchDateModal.submitting ? 'กำลังบันทึก...' : 'บันทึกวันฝึกงาน'}
+            </button>
+          </div>
+        </div>
       </Dialog>
 
       {/* QR Code Modal ตอบรับล่วงหน้า */}
@@ -2175,22 +2369,70 @@ const AdminDashboardPage = () => {
             <>
               {/* 3. กรอบแสดงภาพ QR Code */}
               <div className="bg-white p-3 rounded-2xl border border-violet-100 shadow-xs flex items-center justify-center mx-auto mb-4 w-fit">
-                <QRCodeCanvas ref={qrCanvasRef} value={qrModal.link} size={190} level="H" marginSize={1} />
+                <QRCodeCanvas ref={qrCanvasRef} value={qrModal.link} size={170} level="H" marginSize={1} />
               </div>
 
-              {/* 4. แถบคัดลอกลิงก์ */}
-              <div className="flex items-center gap-2 p-1.5 pl-3 rounded-xl bg-slate-50 border border-slate-200 mb-5">
-                <span className="text-xs text-slate-500 truncate select-all flex-1 text-left font-mono">
-                  {qrModal.link}
-                </span>
+              {/* 4. ช่องลิงก์แบบ Read-only (แสดง URL แบบสั้น ไม่เปิดเผย Token) + ปุ่มคัดลอก/ทดสอบ */}
+              <div className="mb-3 text-left">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
+                  ลิงก์ตอบรับสำหรับสถานประกอบการ
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/coop/public/response/${qrModal.requestId}`}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full box-border text-[11px] text-slate-600 font-mono bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-10 py-2.5 outline-none select-all truncate"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    title="คัดลอกลิงก์"
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition cursor-pointer border-none bg-transparent ${
+                      qrModal.copied ? 'text-emerald-500' : 'text-violet-600 hover:bg-violet-50'
+                    }`}
+                  >
+                    {qrModal.copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mb-4">
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0 flex items-center gap-1 transition cursor-pointer border-none"
-                  style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-3 rounded-xl transition cursor-pointer border-none ${
+                    qrModal.copied
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-violet-600 hover:bg-violet-700 text-white'
+                  }`}
+                  style={qrModal.copied ? { backgroundColor: '#10b981', color: '#ffffff' } : { backgroundColor: '#7c3aed', color: '#ffffff' }}
                 >
-                  คัดลอก
+                  {qrModal.copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{qrModal.copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={handleTestOpenLink}
+                  className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer bg-white"
+                  style={{ borderColor: '#e2e8f0' }}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>ทดสอบเปิดลิงก์</span>
+                </button>
+              </div>
+
+              {/* 5. คำเตือนความปลอดภัย */}
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-left">
+                <TriangleAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-amber-800 leading-snug m-0">
+                    ผู้ที่ถือลิงก์นี้สามารถตอบรับคำร้องได้ ส่งให้เฉพาะสถานประกอบการเท่านั้น
+                  </p>
+                  <p className="text-[10px] text-amber-600 leading-snug m-0 mt-1">
+                    ลิงก์ใช้งานได้ครั้งเดียว{qrModal.expiresAt ? ` และหมดอายุ ${new Date(qrModal.expiresAt).toLocaleString('th-TH')}` : ''}
+                  </p>
+                </div>
               </div>
             </>
           )}
@@ -2675,6 +2917,248 @@ const AdminDashboardPage = () => {
           </div>
         </div>
       )}
+
+      {/* Sequential Approval Wizard */}
+      <Dialog
+        open={approveWizard.open}
+        onClose={handleWizardClose}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'rounded-2xl sm:rounded-3xl mx-3', sx: { borderRadius: '1.25rem' } }}
+      >
+        <div className="flex flex-col max-h-[90vh]">
+          <div className="px-4 sm:px-6 pt-5 pb-3 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight m-0">อนุมัติคำร้องแบบต่อเนื่อง</h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 m-0 mt-0.5">
+                  กำลังดำเนินการ: คนที่ {approveWizard.index + 1} จาก {approveWizard.queue.length} คน
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-violet-600 rounded-full transition-all duration-300"
+                style={{ width: `${approveWizard.queue.length > 0 ? (approveWizard.index / approveWizard.queue.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto grow">
+            {wizardCurrentRequest ? (
+              <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-3.5 sm:p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <div className="text-[11px] font-medium text-slate-500 mb-0.5">ชื่อ-นามสกุล</div>
+                    <div className="text-xs sm:text-sm font-semibold text-slate-800 break-words">{wizardCurrentRequest.studentName || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-medium text-slate-500 mb-0.5">รหัสนักศึกษา</div>
+                    <div className="text-xs sm:text-sm font-semibold text-slate-800">{wizardCurrentRequest.studentId || '-'}</div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="text-[11px] font-medium text-slate-500 mb-0.5">บริษัทที่ยื่นขอฝึกงาน</div>
+                    <div className="text-xs sm:text-sm font-semibold text-slate-800 break-words">{wizardCurrentRequest.company || '-'}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-4 text-xs text-slate-500">
+                ไม่พบข้อมูลคำร้องในคิว — อาจถูกลบหรือปรับสถานะไปแล้ว
+              </div>
+            )}
+
+            <div className="mt-4">
+              <label className="block text-[11px] sm:text-xs font-semibold text-slate-700 mb-1.5">
+                ใบขอความอนุเคราะห์ / หนังสือส่งตัว <span className="text-rose-500">*</span>
+              </label>
+              <input
+                ref={wizardFileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleWizardFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => wizardFileInputRef.current?.click()}
+                disabled={approveWizard.submitting}
+                className={`w-full flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 transition cursor-pointer ${
+                  approveWizard.file
+                    ? 'border-violet-300 bg-violet-50/60'
+                    : 'border-slate-200 bg-slate-50/60 hover:border-violet-300 hover:bg-violet-50/40'
+                }`}
+              >
+                <FileUp className={`w-6 h-6 ${approveWizard.file ? 'text-violet-600' : 'text-slate-400'}`} />
+                {approveWizard.file ? (
+                  <>
+                    <span className="text-xs font-semibold text-violet-700 break-all text-center">{approveWizard.file.name}</span>
+                    <span className="text-[11px] text-slate-500">คลิกเพื่อเปลี่ยนไฟล์</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs font-semibold text-slate-600">คลิกเพื่อเลือกไฟล์สำหรับนักศึกษาคนนี้</span>
+                    <span className="text-[11px] text-slate-400">PDF, JPG หรือ PNG ขนาดไม่เกิน 20MB</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {approveWizard.error && (
+              <div className="mt-3 text-[11px] sm:text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                {approveWizard.error}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2.5 pb-3 px-4 sm:px-6 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-center justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleWizardClose}
+              disabled={approveWizard.submitting}
+              className="w-full sm:w-auto py-2 px-3 text-[11px] sm:text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border-none bg-transparent disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleWizardSubmit}
+              disabled={approveWizard.submitting || !wizardCurrentRequest}
+              className="w-full sm:w-auto py-2 px-3.5 text-[11px] sm:text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs whitespace-nowrap transition cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#059669', color: '#ffffff' }}
+            >
+              {approveWizard.submitting
+                ? 'กำลังบันทึก...'
+                : approveWizard.index + 1 >= approveWizard.queue.length
+                  ? 'เสร็จสิ้นการอนุมัติทั้งหมด'
+                  : 'บันทึกและดำเนินการคนถัดไป →'}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Batch Reject Modal */}
+      <Dialog
+        open={batchRejectModal.open}
+        onClose={() => !batchRejectModal.submitting && setBatchRejectModal({ open: false, reason: '', submitting: false, error: '' })}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'rounded-2xl sm:rounded-3xl mx-3', sx: { borderRadius: '1.25rem' } }}
+      >
+        <div className="flex flex-col max-h-[90vh]">
+          <div className="px-4 sm:px-6 pt-5 pb-3 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-orange-50 text-orange-500 shrink-0">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight m-0">ปฏิเสธคำร้องที่เลือก</h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 m-0 mt-0.5">
+                  {selectedIds.length} รายการจะถูกปรับสถานะเป็น "ไม่อนุมัติ (Admin)"
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto grow">
+            <label className="block text-[11px] sm:text-xs font-semibold text-slate-700 mb-1.5">
+              เหตุผลการปฏิเสธ <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              value={batchRejectModal.reason}
+              onChange={(e) => setBatchRejectModal((prev) => ({ ...prev, reason: e.target.value, error: '' }))}
+              placeholder="ระบุเหตุผลที่จะแจ้งให้นักศึกษาทราบ เช่น เอกสารไม่ครบถ้วน สถานประกอบการไม่รับนักศึกษา..."
+              className="w-full box-border rounded-xl text-[11px] sm:text-xs p-2.5 h-24 resize-none border border-slate-200 focus:ring-1 focus:ring-orange-300 focus:border-orange-400 outline-none transition placeholder:text-slate-400 text-slate-800 bg-white"
+            />
+            {batchRejectModal.error && (
+              <div className="mt-3 text-[11px] sm:text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                {batchRejectModal.error}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2.5 pb-3 px-4 sm:px-6 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-center justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setBatchRejectModal({ open: false, reason: '', submitting: false, error: '' })}
+              disabled={batchRejectModal.submitting}
+              className="w-full sm:w-auto py-2 px-3 text-[11px] sm:text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border-none bg-transparent disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchRejectSubmit}
+              disabled={batchRejectModal.submitting}
+              className="w-full sm:w-auto py-2 px-3.5 text-[11px] sm:text-xs font-semibold rounded-xl bg-orange-600 hover:bg-orange-700 text-white shadow-xs whitespace-nowrap transition cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#ea580c', color: '#ffffff' }}
+            >
+              {batchRejectModal.submitting ? 'กำลังปฏิเสธ...' : `ยืนยันปฏิเสธ ${selectedIds.length} รายการ`}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Batch Delete Confirmation Modal */}
+      <Dialog
+        open={batchDeleteModal.open}
+        onClose={() => !batchDeleteModal.submitting && setBatchDeleteModal({ open: false, submitting: false, error: '' })}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'rounded-2xl sm:rounded-3xl mx-3', sx: { borderRadius: '1.25rem' } }}
+      >
+        <div className="flex flex-col max-h-[90vh]">
+          <div className="px-4 sm:px-6 pt-5 pb-3 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-rose-50 text-rose-500 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight m-0">ลบรายการคำร้องที่เลือก</h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 m-0 mt-0.5">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto grow">
+            <div className="flex items-start gap-2.5 bg-rose-50/70 border border-rose-100 rounded-2xl p-3.5">
+              <TriangleAlert className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+              <div className="text-[11px] sm:text-xs text-rose-700 leading-relaxed">
+                คุณกำลังจะลบคำร้องที่เลือกทั้งหมด <span className="font-bold">{selectedIds.length} รายการ</span> ออกจากระบบอย่างถาวร
+                ข้อมูลคำร้องและไฟล์ที่แนบมาจะไม่สามารถกู้คืนได้ โปรดตรวจสอบรายการอีกครั้งก่อนยืนยัน
+              </div>
+            </div>
+            {batchDeleteModal.error && (
+              <div className="mt-3 text-[11px] sm:text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                {batchDeleteModal.error}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2.5 pb-3 px-4 sm:px-6 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-center justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setBatchDeleteModal({ open: false, submitting: false, error: '' })}
+              disabled={batchDeleteModal.submitting}
+              className="w-full sm:w-auto py-2 px-3 text-[11px] sm:text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border-none bg-transparent disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchDeleteConfirm}
+              disabled={batchDeleteModal.submitting}
+              className="w-full sm:w-auto py-2 px-3.5 text-[11px] sm:text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-xs whitespace-nowrap transition cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#e11d48', color: '#ffffff' }}
+            >
+              {batchDeleteModal.submitting ? 'กำลังลบ...' : `ยืนยันลบ ${selectedIds.length} รายการ`}
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* จัดการรอบการประเมินสถานประกอบการ */}
       <AdminEvaluationRoundsModal

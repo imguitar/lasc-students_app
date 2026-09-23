@@ -113,7 +113,7 @@ const NotificationBell = () => {
     event?.stopPropagation?.();
     const token = getAuthToken();
     try {
-      await api.put(
+      await api.patch(
         '/notifications/read-all',
         {},
         { headers: { Authorization: `Bearer ${token}` } }
@@ -128,7 +128,7 @@ const NotificationBell = () => {
     if (!notice.is_read) {
       const token = getAuthToken();
       try {
-        await api.put(
+        await api.patch(
           `/notifications/${notice.id}/read`,
           {},
           { headers: { Authorization: `Bearer ${token}` } }
@@ -158,6 +158,8 @@ const NotificationBell = () => {
       IconComponent = CheckCircle2;
     } else if (type === 'status_updated') {
       IconComponent = FileText;
+    } else if (type === 'company_response') {
+      IconComponent = CheckCircle2;
     }
 
     return (
@@ -180,8 +182,8 @@ const NotificationBell = () => {
         <Bell className="w-[18px] h-[18px] stroke-[1.6] text-slate-600 transition-colors" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-600 ring-2 ring-white"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 ring-2 ring-white"></span>
           </span>
         )}
       </button>
@@ -254,11 +256,11 @@ const NotificationBell = () => {
                       <div className="flex items-start gap-2.5">
                         {renderNoticeIcon(notice.type, isUnread)}
                         <div className="flex-1 min-w-0">
-                          <p className={isUnread ? "text-xs font-semibold text-slate-800 leading-snug" : "text-xs font-medium text-slate-600 leading-snug"}>
+                          <p className={isUnread ? "text-xs font-semibold text-slate-800 leading-snug break-words" : "text-xs font-medium text-slate-600 leading-snug break-words"}>
                             {notice.title}
                           </p>
                           {notice.message && (
-                            <p className={isUnread ? "text-[11px] text-slate-600 mt-0.5 leading-relaxed" : "text-[11px] text-slate-400 mt-0.5 leading-relaxed"}>
+                            <p className={isUnread ? "text-[11px] text-slate-600 mt-0.5 leading-relaxed break-words" : "text-[11px] text-slate-400 mt-0.5 leading-relaxed break-words"}>
                               {notice.message}
                             </p>
                           )}
@@ -277,15 +279,27 @@ const NotificationBell = () => {
 
           {/* ส่วน Footer */}
           <div className="border-t border-slate-100 pt-3 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 text-slate-400">
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              disabled={unreadCount === 0}
+              className="flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer border-0 bg-transparent p-0 outline-none disabled:cursor-default"
+              style={{ border: 'none', background: 'transparent' }}
+            >
               <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
               <span>อ่านทั้งหมดแล้ว</span>
-            </div>
+            </button>
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
-                navigate('/dashboard');
+                let role = '';
+                try {
+                  role = String(JSON.parse(localStorage.getItem('user') || '{}').role || '').toLowerCase();
+                } catch (e) {
+                  // ignore
+                }
+                navigate(role === 'admin' ? '/admin-dashboard/notifications' : '/dashboard/notifications');
               }}
               className="text-purple-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer border-0 bg-transparent p-0 outline-none"
               style={{ border: 'none', background: 'transparent' }}
