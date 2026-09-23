@@ -87,7 +87,19 @@ const Login = () => {
         description: "ยินดีต้อนรับเข้าสู่ระบบจัดการฐานข้อมูล",
       });
       // ใช้ window.location เพื่อ reload หน้าเว็บใหม่ให้ระบบโหลด token จาก localStorage
-      window.location.replace('/');
+      const redirect = new URLSearchParams(window.location.search).get('redirect');
+      let targetUrl = '/';
+      if (redirect) {
+        try {
+          const redirectUrl = new URL(redirect, window.location.origin);
+          if (redirectUrl.pathname === '/coop/sso' || redirectUrl.pathname === '/coop/sso-landing') {
+            targetUrl = redirectUrl.toString();
+          }
+        } catch (_) {
+          // Ignore malformed redirect URLs and use the profile home page.
+        }
+      }
+      window.location.replace(targetUrl);
     } catch (error) {
       setPassword('');
       toast({
