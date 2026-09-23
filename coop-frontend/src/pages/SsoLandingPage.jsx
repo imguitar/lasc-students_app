@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Typography, CircularProgress, Button, Alert } from '@mui/material';
+import axios from 'axios';
 import api from '../api/axios';
 import { redirectToProfileLogin } from '../utils/sso';
+
+const getProfileApiBaseUrl = () => {
+  const configuredUrl = import.meta.env.VITE_PROFILE_API_URL;
+  if (configuredUrl) return configuredUrl.trim().replace(/\/+$/, '');
+
+  const isLocal = typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  return isLocal ? 'http://localhost:5001/api' : `${window.location.origin}/api`;
+};
 
 /**
  * SsoLandingPage:
@@ -24,11 +34,6 @@ const SsoLandingPage = () => {
     const ticket = searchParams.get('ticket');
     const token = searchParams.get('token');
 
-    if (!ticket && !token) {
-      setError('ไม่พบตั๋วหรือโทเคนเข้าใช้งาน กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
-      return;
-    }
-
     // เอา ticket / token ออกจาก URL เพื่อความปลอดภัย
     window.history.replaceState({}, '', `${window.location.pathname}`);
 
@@ -47,13 +52,15 @@ const SsoLandingPage = () => {
       }
     };
 
+    const exchangeTicket = (ssoTicket) => api.post('/auth/sso', { ticket: ssoTicket })
+      .then((res) => {
+        const { token: receivedToken, user } = res.data;
+        handleSuccessLogin(user, receivedToken);
+      });
+
     if (ticket) {
       // แลกตั๋วอายุสั้นเป็น token ผ่าน backend
-      api.post('/auth/sso', { ticket })
-        .then((res) => {
-          const { token: receivedToken, user } = res.data;
-          handleSuccessLogin(user, receivedToken);
-        })
+      exchangeTicket(ticket)
         .catch((err) => {
           setError(err.response?.data?.message || 'ไม่สามารถเข้าสู่ระบบผ่าน SSO ได้');
         });
@@ -71,9 +78,35 @@ const SsoLandingPage = () => {
               const parsedUser = JSON.parse(decodeURIComponent(rawUser));
               handleSuccessLogin(parsedUser, token);
               return;
-            } catch (_) {}
+            } catch {
+              // Ignore malformed fallback user data.
+            }
           }
           setError('โทเคนเข้าใช้งานไม่ถูกต้องหรือหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+        });
+    } else {
+      // เมื่อเข้าผ่าน /coop/login หน้า Profile จะ redirect กลับมาโดยไม่มี ticket
+      // บน production ทั้งสองระบบอยู่ origin เดียวกัน จึงใช้ Profile token ที่มีอยู่
+      // เพื่อขอตั๋ว SSO แล้วแลกเป็น Coop token โดยไม่ต้องให้ผู้ใช้ login ซ้ำ
+      const profileToken = localStorage.getItem('token');
+      const ticketRequest = profileToken
+        ? axios.post(
+          `${getProfileApiBaseUrl()}/auth/sso-ticket`,
+          {},
+          { headers: { Authorization: `Bearer ${profileToken}` } }
+        )
+        : Promise.reject(new Error('ไม่พบสิทธิ์จากระบบ Profile กรุณาเข้าสู่ระบบใหม่อีกครั้ง'));
+
+      ticketRequest
+        .then((res) => {
+          const generatedTicket = res.data?.data?.ticket;
+          if (!generatedTicket) {
+            throw new Error('ไม่ได้รับตั๋วเข้าใช้งานจากระบบ Profile');
+          }
+          return exchangeTicket(generatedTicket);
+        })
+        .catch((err) => {
+          setError(err.response?.data?.message || err.message || 'ไม่สามารถเชื่อมต่อสิทธิ์จากระบบ Profile ได้');
         });
     }
   }, [searchParams, navigate]);

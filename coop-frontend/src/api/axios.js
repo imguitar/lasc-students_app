@@ -22,20 +22,22 @@ const api = axios.create({
 // Auto-attach JWT token from localStorage
 api.interceptors.request.use((config) => {
   if (!config.headers.Authorization) {
-    let token = localStorage.getItem('token');
-    if (!token) {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          if (user.token) {
-            token = user.token;
-          }
-        } catch (e) {
-          // ignore
+    // Production serves Profile and Coop from the same origin, so both apps share
+    // localStorage. `token` belongs to Profile while `user.token` is the Coop JWT.
+    // Always prefer the Coop token or authenticated Coop requests will get 401.
+    let token = '';
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.token) {
+          token = user.token;
         }
+      } catch {
+        // ignore malformed saved user data
       }
     }
+    if (!token) token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
