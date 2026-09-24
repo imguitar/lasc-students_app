@@ -366,6 +366,7 @@ model NewsEvent {
   location       String?   @db.VarChar(255)
   image_url      String?   @db.VarChar(500)
   attachment_url String?   @db.VarChar(500)
+  attachment_name String?  @db.VarChar(255)
   is_pinned      Boolean   @default(false)
   is_published   Boolean   @default(true)
   created_by     Int?
