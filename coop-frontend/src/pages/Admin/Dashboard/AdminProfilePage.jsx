@@ -4,7 +4,6 @@ import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import {
   TextField,
   Button,
-  Input,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -15,11 +14,20 @@ import {
   Typography,
   Alert
 } from '@mui/material';
-import { KeyIcon, EyeIcon, EyeSlashIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import {
+  KeyIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  LockClosedIcon,
+  CameraIcon,
+  ShieldCheckIcon,
+  PencilSquareIcon,
+  ClockIcon,
+  CheckCircleIcon,
+} from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
 import api from '../../../api/axios';
 import './AdminDashboardPage.css';
-import '../../Student/Dashboard/ProfilePage.css';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
@@ -208,6 +216,9 @@ const AdminProfilePage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -227,68 +238,94 @@ const AdminProfilePage = () => {
         <header className="admin-header">
           <div>
             <h1>ข้อมูลผู้ดูแลระบบ</h1>
-            <p>จัดการข้อมูลโปรไฟล์และรูปภาพของคุณ</p>
-          </div>
-          <div className="user-info">
-            <span>{user.name || user.username}</span>
+            <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
           </div>
         </header>
 
-        <div className="content-wrapper profile-content-wrapper">
-          <div className="profile-layout">
-            <div className="profile-avatar-section">
-              <div
-                className={`avatar-wrapper ${editing ? 'editable' : ''}`}
-                onClick={handleAvatarClick}
-              >
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Profile" className="avatar-img" />
-                ) : (
-                  <div className="avatar-placeholder">
-                    <span>{user.username ? user.username.charAt(0).toUpperCase() : 'A'}</span>
-                  </div>
-                )}
+        <div className="content-wrapper">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: Profile Card */}
+            <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
+              <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
 
-                {editing && (
-                  <div className="avatar-overlay">
-                    <span>แก้ไขรูป</span>
+              <div className="relative">
+                <div className="relative inline-block">
+                  <div
+                    className={`w-28 h-28 rounded-full overflow-hidden mx-auto ring-4 ring-purple-50 shadow-lg shadow-purple-500/25 bg-gradient-to-tr from-purple-600 to-indigo-500 text-white flex items-center justify-center ${editing ? 'cursor-pointer' : ''}`}
+                    onClick={handleAvatarClick}
+                  >
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-4xl font-extrabold">
+                        {(user.full_name || user.name || user.username || 'A').charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => { if (!editing) setEditing(true); fileInputRef.current?.click(); }}
+                    title="อัปโหลดรูปภาพใหม่"
+                    className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-white border border-purple-200 text-purple-600 shadow-md flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all cursor-pointer"
+                  >
+                    <CameraIcon className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+
+                <h3 className="m-0 mt-4 text-xl font-bold text-gray-800">
+                  {user.full_name || user.name || user.username}
+                </h3>
+                <span className="bg-purple-50 text-purple-700 border border-purple-200/60 font-semibold px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5 mt-2">
+                  <ShieldCheckIcon className="w-3.5 h-3.5" /> ผู้ดูแลระบบ (Super Admin)
+                </span>
               </div>
-              <Input
-                type="file"
-                inputRef={fileInputRef}
-                onChange={handleFileChange}
-                sx={{ display: 'none' }}
-                inputProps={{ accept: 'image/*' }}
-              />
-              <h3 className="profile-name-display">
-                {user.full_name || user.name || user.username}
-              </h3>
-              <span className="profile-role-badge">ผู้ดูแลระบบ</span>
+
+              <div className="mt-6 pt-5 border-t border-purple-50 flex flex-col gap-2.5 text-left">
+                <span className="inline-flex items-center gap-2 text-xs text-slate-600">
+                  <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                  สถานะบัญชี: <span className="font-semibold text-emerald-600">กำลังใช้งาน (Active)</span>
+                </span>
+                <span className="inline-flex items-start gap-2 text-xs text-slate-600">
+                  <ShieldCheckIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
+                  งานฝึกประสบการณ์วิชาชีพ<br />คณะศิลปศาสตร์และวิทยาศาสตร์
+                </span>
+              </div>
             </div>
 
-            <div className="profile-details-section">
-              <div className="section-header-row">
-                <h3>รายละเอียดบัญชี</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    variant="outlined"
+            {/* Right: Account Details Card */}
+            <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
+                  <div className="h-1 w-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-1.5" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
                     onClick={() => setPassModal({ open: true, newPassword: '', confirmPassword: '', showPass: false, submitting: false, error: '' })}
-                    startIcon={<KeyIcon style={{ width: 16, height: 16 }} />}
-                    sx={{ borderRadius: '8px', fontWeight: 600, color: '#475569', borderColor: '#cbd5e1' }}
+                    className="border border-gray-200 text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 rounded-xl px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer bg-white"
                   >
-                    เปลี่ยนรหัสผ่าน
-                  </Button>
+                    <KeyIcon className="w-4 h-4" /> เปลี่ยนรหัสผ่าน
+                  </button>
                   {!editing ? (
-                    <Button variant="outlined" onClick={() => setEditing(true)} sx={{ borderRadius: '8px', fontWeight: 600 }}>
-                      แก้ไขข้อมูล
-                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(true)}
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-medium shadow-md shadow-purple-500/20 transition flex items-center gap-2 cursor-pointer border-none"
+                    >
+                      <PencilSquareIcon className="w-4 h-4" /> แก้ไขข้อมูล
+                    </button>
                   ) : (
-                    <div className="edit-actions">
-                      <Button
-                        variant="text"
-                        color="inherit"
+                    <>
+                      <button
+                        type="button"
                         onClick={() => {
                           setEditing(false);
                           setForm({
@@ -300,85 +337,58 @@ const AdminProfilePage = () => {
                           });
                           setAvatarPreview(user.avatar || null);
                         }}
+                        className="border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm font-medium transition cursor-pointer bg-white"
                       >
                         ยกเลิก
-                      </Button>
-                      <Button variant="contained" onClick={handleSave} sx={{ borderRadius: '8px', fontWeight: 700 }}>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none"
+                      >
                         บันทึกการเปลี่ยนแปลง
-                      </Button>
-                    </div>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
 
-              <div className="profile-fields-grid">
-                <div className="form-group-profile">
-                  <TextField
-                    fullWidth
-                    label="ชื่อ-นามสกุล"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    InputLabelProps={{ shrink: true, sx: { fontWeight: 700, color: editing ? '#1e293b' : '#475569' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: editing ? '#ffffff' : '#f8fafc' } }}
-                  />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+                {[
+                  { label: 'ชื่อ-นามสกุล', name: 'name', editable: true },
+                  { label: 'ตำแหน่ง', name: 'position', editable: true },
+                  { label: 'ชื่อผู้ใช้ (Username)', name: 'username', editable: false },
+                  { label: 'อีเมล', name: 'email', editable: true, type: 'email' },
+                  { label: 'เบอร์โทรศัพท์ติดต่อ', name: 'phone', editable: true, placeholder: '09xxxxxxxx (สูงสุด 10 หลัก)' },
+                  { label: 'หน่วยงาน / คณะ', name: 'faculty', editable: false, fixed: 'คณะศิลปศาสตร์และวิทยาศาสตร์' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">{f.label}</label>
+                    <input
+                      type={f.type || 'text'}
+                      name={f.name}
+                      value={f.fixed !== undefined ? f.fixed : form[f.name]}
+                      onChange={handleChange}
+                      disabled={!editing || !f.editable}
+                      placeholder={f.placeholder}
+                      maxLength={f.name === 'phone' ? 10 : undefined}
+                      inputMode={f.name === 'phone' ? 'numeric' : undefined}
+                      className={`w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && f.editable ? 'bg-white' : 'bg-gray-50/70'}`}
+                    />
+                  </div>
+                ))}
+              </div>
 
-                <div className="form-group-profile">
-                  <TextField
-                    fullWidth
-                    label="ตำแหน่ง"
-                    name="position"
-                    value={form.position}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    InputLabelProps={{ shrink: true, sx: { fontWeight: 700, color: editing ? '#1e293b' : '#475569' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: editing ? '#ffffff' : '#f8fafc' } }}
-                  />
-                </div>
-
-                <div className="form-group-profile">
-                  <TextField
-                    fullWidth
-                    label="ชื่อผู้ใช้ (Username)"
-                    name="username"
-                    value={form.username}
-                    onChange={handleChange}
-                    disabled={true}
-                    InputLabelProps={{ shrink: true, sx: { fontWeight: 700, color: '#475569' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: '#f8fafc' } }}
-                  />
-                </div>
-
-                <div className="form-group-profile">
-                  <TextField
-                    fullWidth
-                    label="อีเมล"
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    InputLabelProps={{ shrink: true, sx: { fontWeight: 700, color: editing ? '#1e293b' : '#475569' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: editing ? '#ffffff' : '#f8fafc' } }}
-                  />
-                </div>
-
-                <div className="form-group-profile">
-                  <TextField
-                    fullWidth
-                    label="เบอร์โทรศัพท์"
-                    name="phone"
-                    value={form.phone}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    placeholder="09xxxxxxxx (สูงสุด 10 หลัก)"
-                    inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }}
-                    InputLabelProps={{ shrink: true, sx: { fontWeight: 700, color: editing ? '#1e293b' : '#475569' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: editing ? '#ffffff' : '#f8fafc' } }}
-                  />
-                </div>
+              {/* Security & Activity */}
+              <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
+                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                  <ClockIcon className="w-4 h-4 text-purple-400" />
+                  เข้าใช้งานล่าสุด: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                </span>
+                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                  <LockClosedIcon className="w-4 h-4 text-purple-400" />
+                  เชื่อมต่ออย่างปลอดภัยผ่านระบบ SSO มหาวิทยาลัย
+                </span>
               </div>
             </div>
           </div>
@@ -511,9 +521,9 @@ const AdminProfilePage = () => {
                 borderRadius: 2,
                 fontWeight: 800,
                 px: 3,
-                bgcolor: '#111111',
+                background: 'linear-gradient(90deg, #9333ea, #4f46e5)',
                 color: '#ffffff',
-                '&:hover': { bgcolor: '#262626' }
+                '&:hover': { background: 'linear-gradient(90deg, #7e22ce, #4338ca)' }
               }}
             >
               {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}

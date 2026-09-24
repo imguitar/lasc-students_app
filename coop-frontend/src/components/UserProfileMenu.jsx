@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
@@ -309,10 +310,10 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
         </div>
       )}
 
-      {/* Logout Confirmation Dialog (ธีมโมเดิร์นคลีน ม่วง-ขาว / Rose) */}
-      {isLogoutModalOpen && (
+      {/* Logout Confirmation Dialog (ธีมโมเดิร์นคลีน ม่วง-ขาว / Rose) — portal ไป body เพื่อไม่ให้ fixed ถูกยึดกับ header ที่มี backdrop-blur */}
+      {isLogoutModalOpen && createPortal(
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
           onClick={handleCancelLogout}
         >
           <div
@@ -347,7 +348,8 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

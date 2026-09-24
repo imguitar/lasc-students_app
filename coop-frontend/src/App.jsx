@@ -6,6 +6,7 @@ import DashboardPage from './pages/Student/Dashboard/DashboardPage';
 import ProfilePage from './pages/Student/Dashboard/ProfilePage';
 import MyRequestsPage from './pages/Student/Dashboard/MyRequestsPage';
 import AdvisorDashboardPage from './pages/Advisor/AdvisorDashboardPage';
+import AdvisorProfilePage from './pages/Advisor/AdvisorProfilePage';
 import NewRequestPage from './pages/Student/NewRequestPage';
 import AdminDashboardPage from './pages/Admin/Dashboard/AdminDashboardPage';
 import AllRequestsOverviewPage from './pages/Admin/Dashboard/AllRequestsOverviewPage';
@@ -29,6 +30,7 @@ import AdminAttendanceOverviewPage from './pages/Admin/Dashboard/AdminAttendance
 import PublicRequestPage from './pages/Public/PublicRequestPage';
 import PublicEvaluationPage from './pages/Public/PublicEvaluationPage';
 import AnnouncementDetailPage from './pages/Public/AnnouncementDetailPage';
+import NewsListPage from './pages/Public/NewsListPage';
 import PublicCompaniesPage from './pages/Public/PublicCompaniesPage';
 import './App.css';
 
@@ -68,8 +70,10 @@ function App() {
         <Route path="/advisor-dashboard/supervision" element={<AdvisorSupervisionPage />} />
         <Route path="/advisor-dashboard/supervision/evaluate/:id" element={<AdvisorEvaluationPage />} />
         <Route path="/advisor-dashboard/progress" element={<AdvisorProgressCheckPage />} />
+        <Route path="/advisor-dashboard/profile" element={<AdvisorProfilePage />} />
         <Route path="/public/request/:id" element={<PublicRequestPage />} />
         <Route path="/public/evaluate/:id" element={<PublicEvaluationPage />} />
+        <Route path="/news" element={<NewsListPage />} />
         <Route path="/news/:id" element={<AnnouncementDetailPage />} />
         <Route path="/companies" element={<PublicCompaniesPage />} />
       </Routes>

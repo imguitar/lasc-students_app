@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import {
@@ -23,7 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu } from 'lucide-react';
+import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users } from 'lucide-react';
 import api from '../../api/axios';
 import './NewRequestPage.css';
 import './Dashboard/DashboardPage.css'; // Import dashboard styles
@@ -224,7 +225,9 @@ const NewRequestPage = () => {
       setFormData(prev => ({
         ...prev,
         studentName: user.full_name || user.name || prev.studentName,
-        studentEmail: user.email || prev.studentEmail,
+        studentEmail: (user.email && !user.email.includes('@student.sskru.ac.th'))
+          ? user.email
+          : (targetStudentId ? `stu${targetStudentId}@sskru.ac.th` : prev.studentEmail),
         studentId: targetStudentId || prev.studentId,
         studentYear: prev.studentYear || calculatedYear,
         studentMajor: user.major || prev.studentMajor,
@@ -556,10 +559,53 @@ const NewRequestPage = () => {
     }
   };
 
+  // แยกที่อยู่ไทยจากข้อความยาวก้อนเดียว → house/moo/tambon/amphur/province/postal/detail
+  const parseThaiAddressText = (rawText) => {
+    const result = { house: '', moo: '', tambon: '', amphur: '', province: '', postal: '', detail: '' };
+    let rest = ` ${String(rawText || '').replace(/\s+/g, ' ').trim()} `;
+    if (rest.trim() === '') return result;
+
+    const cut = (re) => {
+      const m = rest.match(re);
+      if (!m) return '';
+      rest = rest.replace(m[0], ' ');
+      return (m[1] || '').trim();
+    };
+
+    result.postal = cut(/\s(\d{5})(?=\s|$)/) || cut(/(\d{5})(?=\s*$)/);
+    result.moo = cut(/(?:หมู่(?:ที่)?|หมู่บ้าน|ม\.)\s*(\d{1,3})/);
+    result.tambon = cut(/(?:ตำบล|ต\.|แขวง)\s*([ก-๙A-Za-z]+)/);
+    result.amphur = cut(/(?:อำเภอ|อ\.|เขต)\s*([ก-๙A-Za-z]+)/);
+
+    // จังหวัด: เทียบชื่อจริงจากฐานข้อมูลก่อน (แม่นสุด) แล้วค่อย fallback รูปแบบ "จ./จังหวัด"
+    const provinces = getProvinces();
+    const foundProvince = provinces.find((p) => p && rest.includes(p));
+    if (foundProvince) {
+      result.province = foundProvince;
+      rest = rest.replace(foundProvince, ' ');
+    } else {
+      result.province = cut(/(?:จังหวัด|จ\.)\s*([ก-๙A-Za-z]+)/);
+    }
+
+    // ล้าง marker ที่เหลือ + คำนำ "เลขที่"
+    rest = rest.replace(/(?:จังหวัด|จ\.|เลขที่)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // เลขที่/อาคาร = token แรกที่ขึ้นต้นด้วยตัวเลข (เช่น 123, 99/9) ส่วนที่เหลือคือรายละเอียดเพิ่มเติม (ซอย/ถนน/ตึก/ชั้น)
+    const parts = rest.split(' ').filter(Boolean);
+    if (parts.length > 0 && /^\d/.test(parts[0])) {
+      result.house = parts[0];
+      result.detail = parts.slice(1).join(' ');
+    } else {
+      result.detail = rest;
+    }
+    return result;
+  };
+
   const normalizeCompanyAddress = (rawAddress) => {
     if (!rawAddress) return { detail: '', fullText: '' };
     if (typeof rawAddress === 'string') {
-      return { detail: rawAddress, fullText: rawAddress };
+      const parsed = parseThaiAddressText(rawAddress);
+      return { ...parsed, fullText: rawAddress };
     }
     if (typeof rawAddress === 'object') {
       const formatted = {
@@ -627,7 +673,7 @@ const NewRequestPage = () => {
   const applyRecommendedCompany = (company) => {
     if (!company) return;
     const normalized = normalizeCompanyAddress(company.address);
-    const prov = normalized.province || '';
+    const prov = normalized.province || company.province || '';
     const amph = normalized.amphur || '';
     const tamb = normalized.tambon || '';
     const post = normalized.postal || getZipcode(prov, amph, tamb) || '';
@@ -641,10 +687,12 @@ const NewRequestPage = () => {
       companyAmphur: amph,
       companyProvince: prov,
       companyPostal: post,
-      address: normalized.detail || normalized.fullText || prev.address,
-      supervisor: company.contactPerson || '',
-      supervisorPhone: company.phone || '',
-      supervisorEmail: company.email || prev.supervisorEmail || '',
+      // ช่อง "รายละเอียดที่อยู่เพิ่มเติม" เก็บเฉพาะส่วนที่แยกไม่ได้ (ซอย/ถนน/ตึก/ชั้น) — ห้ามเทข้อความที่อยู่ทั้งก้อนลงช่องนี้
+      address: normalized.detail || '',
+      supervisor: company.contactPerson || company.contact_person || '',
+      supervisorPosition: company.contactPosition || company.contact_position || prev.supervisorPosition || '',
+      supervisorPhone: company.phone || company.contactPhone || company.contact_phone || '',
+      supervisorEmail: company.email || company.contactEmail || company.contact_email || prev.supervisorEmail || '',
     }));
     handleCloseCompanyPicker();
   };
@@ -679,6 +727,9 @@ const NewRequestPage = () => {
           </button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -1109,16 +1160,62 @@ const NewRequestPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                     <div>
                       <label htmlFor="companyName" className="text-xs font-semibold text-slate-700 mb-2 block">ชื่อบริษัท/องค์กร *</label>
-                      <TextField
-                        fullWidth
+                      <Autocomplete
+                        freeSolo
                         size="small"
-                        type="text"
-                        id="companyName"
-                        name="companyName"
-                        value={formData.companyName}
-                        onChange={handleChange}
-                        placeholder="เช่น บริษัท ABC จำกัด"
-                        required
+                        options={recommendedCompanies}
+                        getOptionLabel={(option) => (typeof option === 'string' ? option : option.name || '')}
+                        filterOptions={(options, state) => {
+                          const keyword = state.inputValue.trim().toLowerCase();
+                          const filtered = keyword
+                            ? options.filter((c) => [c.name, c.businessType, c.province, c.positions]
+                                .some((f) => f && String(f).toLowerCase().includes(keyword)))
+                            : options;
+                          // ไม่เจอในระบบ → เสนอ "ใช้ชื่อนี้ (เพิ่มใหม่)"
+                          if (keyword && !options.some((c) => String(c.name).trim() === state.inputValue.trim())) {
+                            filtered.push({ id: '__new__', name: state.inputValue.trim(), isNew: true });
+                          }
+                          return filtered;
+                        }}
+                        inputValue={formData.companyName}
+                        onInputChange={(e, value, reason) => {
+                          if (reason === 'input' || reason === 'clear') {
+                            setFormData((prev) => ({ ...prev, companyName: value }));
+                          }
+                        }}
+                        onChange={(e, option) => {
+                          if (option && typeof option === 'object' && !option.isNew) {
+                            applyRecommendedCompany(option);
+                          }
+                        }}
+                        onOpen={() => {
+                          if (!recommendedCompanies.length && !recommendedLoading) loadRecommendedCompanies();
+                        }}
+                        loading={recommendedLoading}
+                        disabled={hasExistingRequest}
+                        renderOption={(props, option) => (
+                          <li {...props} key={option.id}>
+                            {option.isNew ? (
+                              <span className="text-violet-600 font-semibold text-sm">ใช้ชื่อนี้ (เพิ่มใหม่): {option.name}</span>
+                            ) : (
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-slate-800">{option.name}</span>
+                                <span className="text-xs text-slate-400">
+                                  {[option.businessType, option.province].filter(Boolean).join(' • ')}
+                                </span>
+                              </div>
+                            )}
+                          </li>
+                        )}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            id="companyName"
+                            name="companyName"
+                            placeholder="พิมพ์ชื่อบริษัทเพื่อค้นหา เช่น บริษัท ABC จำกัด"
+                            required
+                          />
+                        )}
                       />
                     </div>
 
@@ -1424,121 +1521,192 @@ const NewRequestPage = () => {
         </div>
       </main>
 
-      <Dialog
-        open={companyPickerOpen}
-        onClose={handleCloseCompanyPicker}
-        fullWidth
-        maxWidth="md"
-        scroll="paper"
-        disableScrollLock={true}
-        PaperProps={{ sx: { maxHeight: '85vh' } }}
-      >
-        <DialogTitle>เลือกสถานประกอบการแนะนำ</DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: '65vh', overflowY: 'auto' }}>
-          {recommendedLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-              <CircularProgress />
+      {companyPickerOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={handleCloseCompanyPicker}
+        >
+          <div
+            className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-purple-50 overflow-hidden flex flex-col max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 m-0">เลือกสถานประกอบการแนะนำ</h3>
+                  <p className="text-xs text-gray-500 mt-0.5 m-0">เลือกจากรายชื่อที่รุ่นพี่เคยฝึกงานเพื่อกรอกข้อมูลอัตโนมัติ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseCompanyPicker}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition cursor-pointer border-none bg-transparent"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          ) : recommendedError ? (
-            <Paper elevation={0} sx={{ p: 2, textAlign: 'center', color: '#dc2626' }}>
-              {recommendedError}
-            </Paper>
-          ) : recommendedCompanies.length === 0 ? (
-            <Paper elevation={0} sx={{ p: 2, textAlign: 'center', color: '#64748b' }}>
-              ยังไม่มีข้อมูลสถานประกอบการแนะนำ
-            </Paper>
-          ) : (
-            <>
-              <TextField
-                fullWidth
-                size="small"
-                margin="dense"
-                label="ค้นหาบริษัท / ประเภทธุรกิจ"
-                value={companySearch}
-                onChange={(e) => setCompanySearch(e.target.value)}
-              />
-              <TableContainer sx={{ mt: 2, maxHeight: 360, overflowY: 'auto' }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>ชื่อบริษัท</TableCell>
-                      <TableCell>ประเภทธุรกิจ</TableCell>
-                      <TableCell>ผู้ติดต่อ</TableCell>
-                      <TableCell align="center">รายละเอียด</TableCell>
-                      <TableCell align="right">เลือก</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {recommendedLoading ? (
+                <div className="flex justify-center py-14">
+                  <div className="w-9 h-9 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
+                </div>
+              ) : recommendedError ? (
+                <div className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-6 text-center text-sm font-medium text-rose-600">
+                  {recommendedError}
+                </div>
+              ) : recommendedCompanies.length === 0 ? (
+                <div className="text-center py-10">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-50/70 border border-purple-100/50 flex items-center justify-center text-purple-400 mb-3 mx-auto">
+                    <Search className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-800 m-0">ยังไม่มีข้อมูลสถานประกอบการแนะนำในขณะนี้</h4>
+                  <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed m-0">
+                    คุณสามารถกรอกชื่อและที่อยู่ของสถานประกอบการได้โดยตรงในแบบฟอร์มด้านล่าง
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCloseCompanyPicker();
+                      setTimeout(() => document.getElementById('companyName')?.focus(), 50);
+                    }}
+                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium py-2.5 px-5 rounded-xl shadow-md shadow-purple-500/20 hover:opacity-95 transition mt-5 cursor-pointer border-none"
+                  >
+                    กรอกข้อมูลบริษัทเอง
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Search */}
+                  <div className="relative mb-4">
+                    <Search className="w-4 h-4 text-purple-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={companySearch}
+                      onChange={(e) => setCompanySearch(e.target.value)}
+                      placeholder="ค้นหาบริษัท / ประเภทธุรกิจ / ผู้ติดต่อ..."
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-11 pr-4 py-2.5 text-sm text-gray-700 transition focus:border-purple-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-purple-500/10"
+                    />
+                  </div>
+
+                  {/* Company Cards */}
+                  <div className="flex flex-col gap-2.5">
                     {filteredRecommendedCompanies.map((company, idx) => (
-                      <TableRow key={`${company.name}-${idx}`} hover>
-                        <TableCell>{company.name}</TableCell>
-                        <TableCell>{company.businessType || '-'}</TableCell>
-                        <TableCell>
-                          <div>{company.contactPerson || '-'}</div>
-                          {company.phone && <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{company.phone}</div>}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Button size="small" variant="text" onClick={() => setFocusedCompany(company)}>
+                      <div
+                        key={`${company.name}-${idx}`}
+                        onClick={() => applyRecommendedCompany(company)}
+                        className="p-4 rounded-2xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/30 transition cursor-pointer flex justify-between items-center group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                            <Building2 className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-slate-800 group-hover:text-purple-800 transition-colors truncate">
+                              {company.name}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                              {company.province && (
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {company.province}
+                                </span>
+                              )}
+                              {company.businessType && <span className="truncate">• {company.businessType}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                          {company.studentCount > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/60 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                              <Users className="w-3 h-3" /> {company.studentCount} คน
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setFocusedCompany(company); }}
+                            className="text-[11px] font-semibold text-slate-400 hover:text-purple-700 bg-transparent border-none cursor-pointer transition-colors px-1"
+                          >
                             รายละเอียด
-                          </Button>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button size="small" variant="contained" onClick={() => applyRecommendedCompany(company)}>
-                            เลือก
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                          </button>
+                        </div>
+                      </div>
                     ))}
                     {filteredRecommendedCompanies.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center">
-                          ไม่พบข้อมูลตามคำค้นหา
-                        </TableCell>
-                      </TableRow>
+                      <div className="text-center py-8 text-sm text-slate-400">
+                        ไม่พบข้อมูลตามคำค้นหา
+                      </div>
                     )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <div style={{ marginTop: '1.5rem' }}>
-                {focusedCompany ? (
-                  <Paper elevation={0} sx={{ p: 2, border: '1px solid #e5e7eb', borderRadius: 2 }}>
-                    <h3 style={{ marginTop: 0 }}>{focusedCompany.name}</h3>
-                    <p style={{ margin: '0.25rem 0', color: '#475569' }}>
-                      ประเภทธุรกิจ: {focusedCompany.businessType || 'ไม่ระบุ'}
-                    </p>
-                    {focusedCompany.address && (
-                      <p style={{ margin: '0.25rem 0', color: '#475569' }}>
-                        ที่อยู่: {typeof focusedCompany.address === 'string' ? focusedCompany.address : JSON.stringify(focusedCompany.address)}
+                  </div>
+
+                  {/* Focused Company Detail */}
+                  {focusedCompany && (
+                    <div className="mt-4 rounded-2xl border border-purple-100 bg-purple-50/40 p-4">
+                      <h4 className="m-0 text-sm font-bold text-slate-800">{focusedCompany.name}</h4>
+                      <p className="m-0 mt-1.5 text-xs text-slate-500">
+                        ประเภทธุรกิจ: {focusedCompany.businessType || 'ไม่ระบุ'}
                       </p>
-                    )}
-                    {focusedCompany.contactPerson && (
-                      <p style={{ margin: '0.25rem 0', color: '#475569' }}>
-                        ผู้ติดต่อ: {focusedCompany.contactPerson} {focusedCompany.phone ? `(${focusedCompany.phone})` : ''}
-                      </p>
-                    )}
-                    <p style={{ margin: '0.25rem 0', color: '#475569' }}>ที่มา: {focusedCompany.source || '-'}</p>
-                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <Button variant="outlined" size="small" onClick={() => applyRecommendedCompany(focusedCompany)}>
-                        ใช้ข้อมูลบริษัทนี้
-                      </Button>
-                      <Button variant="text" size="small" onClick={() => setFocusedCompany(null)}>
-                        ปิดรายละเอียด
-                      </Button>
+                      {focusedCompany.address && (
+                        <p className="m-0 mt-1 text-xs text-slate-500">
+                          ที่อยู่: {typeof focusedCompany.address === 'string' ? focusedCompany.address : JSON.stringify(focusedCompany.address)}
+                        </p>
+                      )}
+                      {focusedCompany.contactPerson && (
+                        <p className="m-0 mt-1 text-xs text-slate-500">
+                          ผู้ประสานงาน: {focusedCompany.contactPerson}
+                        </p>
+                      )}
+                      {(focusedCompany.phone || focusedCompany.contactPhone) && (
+                        <p className="m-0 mt-1 text-xs text-slate-500">
+                          เบอร์โทรศัพท์: {focusedCompany.phone || focusedCompany.contactPhone}
+                        </p>
+                      )}
+                      {(focusedCompany.email || focusedCompany.contactEmail) && (
+                        <p className="m-0 mt-1 text-xs text-slate-500 break-all">
+                          อีเมลติดต่อ: {focusedCompany.email || focusedCompany.contactEmail}
+                        </p>
+                      )}
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => applyRecommendedCompany(focusedCompany)}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-semibold py-2 px-4 rounded-xl shadow-sm hover:opacity-95 transition cursor-pointer border-none"
+                        >
+                          ใช้ข้อมูลบริษัทนี้
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFocusedCompany(null)}
+                          className="text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-2 rounded-xl hover:bg-gray-100 transition cursor-pointer bg-transparent border-none"
+                        >
+                          ปิดรายละเอียด
+                        </button>
+                      </div>
                     </div>
-                  </Paper>
-                ) : (
-                  <Paper elevation={0} sx={{ p: 2, textAlign: 'center', color: '#94a3b8', border: '1px dashed #e2e8f0', borderRadius: 2 }}>
-                    เลือก "รายละเอียด" ในตารางเพื่อดูข้อมูลบริษัทเพิ่มเติม
-                  </Paper>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCompanyPicker}>ปิด</Button>
-        </DialogActions>
-      </Dialog>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-gray-50/60 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCloseCompanyPicker}
+                className="px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200/60 rounded-xl transition cursor-pointer bg-transparent border border-gray-200"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -36,8 +36,11 @@ router.get('/companies', async (req, res) => {
         address: comp.address || '',
         province: comp.province || '',
         contactPerson: comp.contactPerson || '',
-        phone: comp.phone || '',
-        email: comp.email || '',
+        contactPosition: comp.contactPosition || comp.contact_position || '',
+        phone: comp.phone || comp.contactPhone || '',
+        email: comp.email || comp.contactEmail || '',
+        contactPhone: comp.contactPhone || comp.phone || '',
+        contactEmail: comp.contactEmail || comp.email || '',
         website: comp.website || '',
         positions: comp.positions || '',
         benefits: comp.benefits || '',
@@ -105,7 +108,15 @@ router.get('/companies', async (req, res) => {
       }
 
       const addressStr = typeof addressRaw === 'string' ? addressRaw : '';
-      const phoneStr = rawDetails.phone || rawDetails.supervisorPhone || '';
+      // key จริงในฟอร์มคำร้อง: contactPerson / contactPhone / contactEmail (+ fallback รูปแบบเก่าและคอลัมน์ requests)
+      const phoneStr =
+        rawDetails.contactPhone || rawDetails.supervisorPhone || rawDetails.companyPhone || rawDetails.phone || '';
+      const emailStr =
+        rawDetails.contactEmail || rawDetails.evaluatorEmail || request.company_email || request.evaluator_email || '';
+      const contactStr =
+        rawDetails.contactPerson || rawDetails.supervisor || request.evaluator_name || '';
+      const contactPositionStr =
+        rawDetails.contactPosition || rawDetails.supervisorPosition || request.evaluator_position || '';
       const deptStr = request.department || rawDetails.department || '';
 
       if (search) {
@@ -123,9 +134,12 @@ router.get('/companies', async (req, res) => {
         businessType: positionStr ? `ตำแหน่งงาน: ${positionStr}` : 'สถานประกอบการจากรุ่นพี่',
         address: addressStr,
         province: provinceStr,
-        contactPerson: rawDetails.contactPerson || rawDetails.supervisor || '',
+        contactPerson: contactStr,
+        contactPosition: contactPositionStr,
         phone: phoneStr,
-        email: rawDetails.email || '',
+        email: emailStr,
+        contactPhone: phoneStr,
+        contactEmail: emailStr,
         website: '',
         positions: positionStr,
         benefits: '',
@@ -138,10 +152,73 @@ router.get('/companies', async (req, res) => {
     });
 
     const data = Array.from(map.values());
+
+    // นับจำนวนนักศึกษาที่ยื่นคำร้อง/ฝึกงานในแต่ละบริษัท (ไม่นับสถานะที่ถูกปฏิเสธ/ยกเลิก)
+    const [countRows] = await pool.query(`
+      SELECT company, COUNT(*) AS c
+      FROM requests
+      WHERE company IS NOT NULL AND TRIM(company) != ''
+        AND status NOT IN ('ไม่อนุมัติ', 'ปฏิเสธ', 'ยกเลิก')
+      GROUP BY company
+    `).catch(() => [[]]);
+    const countMap = new Map();
+    countRows.forEach((r) => {
+      const k = normalizeCompanyName(r.company);
+      countMap.set(k, (countMap.get(k) || 0) + Number(r.c));
+    });
+    data.forEach((comp) => {
+      comp.studentCount = countMap.get(normalizeCompanyName(comp.name)) || 0;
+    });
+
     res.json({ success: true, data });
   } catch (error) {
     console.error('Public companies error:', error);
     res.status(500).json({ success: false, message: 'ไม่สามารถโหลดข้อมูลสถานประกอบการได้' });
+  }
+});
+
+// GET /api/public/companies/:name/students — รายชื่อนักศึกษาที่ฝึกงานในบริษัทนั้น
+router.get('/companies/:name/students', async (req, res) => {
+  try {
+    const name = String(req.params.name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อสถานประกอบการ' });
+    const core = name.replace(/\s+/g, '');
+
+    const [rows] = await pool.query(`
+      SELECT r.id, r.studentId, r.studentName, r.department, r.position, r.status,
+             r.internship_start_date, r.internship_end_date, r.supervisionAppointment, r.submittedDate,
+             p.firstname, p.lastname
+      FROM requests r
+      LEFT JOIN profile p ON p.profile_id = r.studentId
+      WHERE REPLACE(TRIM(r.company), ' ', '') = ?
+         OR REPLACE(TRIM(r.company), ' ', '') LIKE CONCAT('%', ?, '%')
+         OR ? LIKE CONCAT('%', NULLIF(REPLACE(TRIM(r.company), ' ', ''), ''), '%')
+      ORDER BY r.studentId ASC, r.id DESC
+    `, [core, core, core]);
+
+    const data = rows.map((r) => {
+      let advisorName = '';
+      try {
+        const appt = typeof r.supervisionAppointment === 'string' ? JSON.parse(r.supervisionAppointment) : r.supervisionAppointment;
+        advisorName = appt?.advisorName || '';
+      } catch (_) {}
+      return {
+        requestId: r.id,
+        studentId: r.studentId,
+        studentName: r.studentName || [r.firstname, r.lastname].filter(Boolean).join(' ') || '-',
+        department: r.department || '-',
+        position: r.position || '-',
+        advisorName: advisorName || '-',
+        startDate: r.internship_start_date,
+        endDate: r.internship_end_date,
+        status: r.status,
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Company students error:', error);
+    res.status(500).json({ success: false, message: 'ไม่สามารถโหลดรายชื่อนักศึกษาได้' });
   }
 });
 

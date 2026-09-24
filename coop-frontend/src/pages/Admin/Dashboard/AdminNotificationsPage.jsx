@@ -127,11 +127,53 @@ const isAcceptedNotice = (notice) => {
   return !text.includes('ปฏิเสธ');
 };
 
-const FILTER_OPTIONS = [
+const READ_FILTER_OPTIONS = [
   { value: 'all', label: 'ทั้งหมด' },
   { value: 'unread', label: 'ยังไม่ได้อ่าน' },
-  { value: 'company_response', label: 'การตอบรับของสถานประกอบการ' },
+  { value: 'read', label: 'อ่านแล้ว' },
 ];
+
+const TYPE_FILTER_OPTIONS = [
+  { value: 'all', label: 'ทุกประเภทการแจ้งเตือน' },
+  { value: 'student_request', label: 'คำร้องฝึกงานของนักศึกษา' },
+  { value: 'company', label: 'การตอบรับ / แบบประเมินสถานประกอบการ' },
+  { value: 'advisor', label: 'การประเมินของอาจารย์นิเทศ' },
+  { value: 'system', label: 'แจ้งเตือนระบบ / ข้อผิดพลาด' },
+];
+
+const DEPARTMENT_MAP = {
+  1: 'สาขาวิชาวิทยาการคอมพิวเตอร์',
+  2: 'สาขาวิชาเทคโนโลยีคอมพิวเตอร์และดิจิทัล',
+  3: 'สาขาวิชาสาธารณสุขชุมชน',
+  4: 'สาขาวิชาวิทยาศาสตร์การกีฬา',
+  5: 'สาขาวิชาเทคโนโลยีการเกษตร',
+  6: 'สาขาวิชาเทคโนโลยีและนวัตกรรมอาหาร',
+  7: 'สาขาวิชาอาชีวอนามัยและความปลอดภัย',
+  8: 'สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์',
+  9: 'สาขาวิชาวิศวกรรมโลจิสติกส์',
+  10: 'สาขาวิชาวิศวกรรมการจัดการอุตสาหกรรมและสิ่งแวดล้อม',
+  11: 'สาขาวิชาการออกแบบผลิตภัณฑ์และนวัตกรรมวัสดุ',
+  12: 'สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม',
+};
+
+// จัดกลุ่ม type ของ notification เป็นหมวดใหญ่สำหรับตัวกรอง
+const getNoticeCategory = (type) => {
+  const t = String(type || '');
+  if (t === 'company_response' || t === 'company_evaluation_submitted' || t.includes('company')) return 'company';
+  if (t.includes('supervision') || t.includes('advisor')) return 'advisor';
+  if (t.includes('request') || t.includes('student')) return 'student_request';
+  return 'system';
+};
+
+const normDeptName = (s) => String(s || '').replace(/สาขาวิชา|สาขา/g, '').replace(/\s+/g, '');
+
+const matchDeptFilter = (noticeDept, filterValue) => {
+  if (filterValue === 'all') return true;
+  const a = normDeptName(noticeDept);
+  const b = normDeptName(filterValue);
+  if (!a) return false;
+  return a === b || a.includes(b) || b.includes(a);
+};
 
 const AdminNotificationsPage = () => {
   const navigate = useNavigate();
@@ -139,6 +181,8 @@ const AdminNotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [deptFilter, setDeptFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -253,8 +297,10 @@ const AdminNotificationsPage = () => {
   };
 
   const filtered = notifications.filter((n) => {
-    if (filter === 'unread') return !n.is_read;
-    if (filter === 'company_response') return n.type === 'company_response';
+    if (filter === 'unread' && n.is_read) return false;
+    if (filter === 'read' && !n.is_read) return false;
+    if (typeFilter !== 'all' && getNoticeCategory(n.type) !== typeFilter) return false;
+    if (!matchDeptFilter(n.department, deptFilter)) return false;
     return true;
   });
 
@@ -281,6 +327,9 @@ const AdminNotificationsPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -324,13 +373,32 @@ const AdminNotificationsPage = () => {
           </div>
 
           {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2.5 mb-4">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="h-10 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition cursor-pointer min-w-[200px]"
+            >
+              {TYPE_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+              className="h-10 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition cursor-pointer min-w-[190px]"
+            >
+              <option value="all">ทุกสาขาวิชา</option>
+              {Object.values(DEPARTMENT_MAP).map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="h-10 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition cursor-pointer min-w-[160px]"
+              className="h-10 px-3.5 text-xs text-slate-700 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 transition cursor-pointer min-w-[140px]"
             >
-              {FILTER_OPTIONS.map((opt) => (
+              {READ_FILTER_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
@@ -366,16 +434,26 @@ const AdminNotificationsPage = () => {
                     <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
                       <Check className="w-7 h-7 stroke-[2.5]" />
                     </div>
-                    <div className="text-sm font-bold text-slate-700">ไม่มีการแจ้งเตือน</div>
-                    <div className="text-xs text-slate-400">จดหมายตอบรับใหม่จะแสดงที่นี่</div>
+                    <div className="text-sm font-bold text-slate-700">
+                      {notifications.length === 0 ? 'ไม่มีการแจ้งเตือน' : 'ไม่พบการแจ้งเตือนตามเงื่อนไขที่เลือก'}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {notifications.length === 0 ? 'จดหมายตอบรับใหม่จะแสดงที่นี่' : 'ลองเปลี่ยนตัวกรองประเภทหรือสาขาวิชา'}
+                    </div>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-50 max-h-[70vh] overflow-y-auto">
                     {filtered.map((notice) => {
                       const isUnread = !notice.is_read;
                       const isSelected = notice.id === selectedId;
+                      const category = getNoticeCategory(notice.type);
                       const isCompanyResponse = notice.type === 'company_response';
                       const accepted = isAcceptedNotice(notice);
+                      const NoticeIcon = category === 'company' ? Building2
+                        : category === 'advisor' ? PenTool
+                        : category === 'student_request' ? FileText
+                        : category === 'system' ? XCircle
+                        : Bell;
                       return (
                         <button
                           key={notice.id}
@@ -394,11 +472,7 @@ const AdminNotificationsPage = () => {
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
                               isUnread ? 'bg-violet-50 border-violet-200/80' : 'bg-slate-100/70 border-slate-200/40'
                             }`}>
-                              {isCompanyResponse ? (
-                                <Building2 className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />
-                              ) : (
-                                <Bell className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />
-                              )}
+                              <NoticeIcon className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">

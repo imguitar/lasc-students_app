@@ -213,6 +213,7 @@ code {
   white-space: nowrap;
 }
 
+@tailwind base;
 @tailwind utilities;
 
 @media (max-width: 639px) {

@@ -224,7 +224,11 @@ const addCompanyEntry = (map, entry) => {
     }
     if (!existing.address && entry.address) existing.address = entry.address;
     if (!existing.contactPerson && entry.contactPerson) existing.contactPerson = entry.contactPerson;
+    if (!existing.contactPosition && entry.contactPosition) existing.contactPosition = entry.contactPosition;
     if (!existing.phone && entry.phone) existing.phone = entry.phone;
+    if (!existing.email && entry.email) existing.email = entry.email;
+    if (!existing.contactPhone && entry.contactPhone) existing.contactPhone = entry.contactPhone;
+    if (!existing.contactEmail && entry.contactEmail) existing.contactEmail = entry.contactEmail;
     if (!existing.source && entry.source) existing.source = entry.source;
     if (entry.imageUrl) existing.imageUrl = entry.imageUrl;
 

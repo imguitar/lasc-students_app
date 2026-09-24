@@ -39,7 +39,7 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import StatCard from '../../../components/StatCard';
 import StatusBadge from '../../../components/StatusBadge';
-import { MessageSquareQuote, Info, ArrowRight, CalendarX } from 'lucide-react';
+import { MessageSquareQuote, Info, ArrowRight, CalendarX, User, Video, MapPin } from 'lucide-react';
 
 const dataUrlToBlobUrl = (dataUrl) => {
   if (!dataUrl) return '';
@@ -340,6 +340,9 @@ const DashboardPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -535,142 +538,101 @@ const DashboardPage = () => {
         </div>
 
         {currentRequest?.supervisionAppointment?.date && (() => {
+          const appt = currentRequest.supervisionAppointment;
           const isCompleted = Boolean(currentRequest.supervisionReport || currentRequest.hasAdvisorEval);
+          const isOnline = appt.mode === 'Online';
+          const dateLabel = new Date(appt.date).toLocaleDateString('th-TH', {
+            day: 'numeric', month: 'long', year: 'numeric',
+          });
           return (
-            <Paper
-              elevation={0}
-              sx={{
-                mb: 3,
-                p: 3,
-                borderRadius: 3.5,
-                background: isCompleted
-                  ? 'linear-gradient(135deg, #ecfdf5 0%, #dcfce7 40%, #f0fdf4 100%)'
-                  : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 40%, #eff6ff 100%)',
-                border: isCompleted ? '2px solid #34d399' : '2px solid #38bdf8',
-                boxShadow: isCompleted
-                  ? '0 10px 30px -5px rgba(16, 185, 129, 0.22), 0 4px 12px rgba(16, 185, 129, 0.12)'
-                  : '0 10px 30px -5px rgba(56, 189, 248, 0.22), 0 4px 12px rgba(56, 189, 248, 0.12)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 2.5,
-                transition: 'all 0.3s ease',
-              }}
+            <div
+              className={`mb-6 bg-white rounded-2xl border border-slate-200/80 border-l-4 shadow-sm hover:shadow-md transition-shadow overflow-hidden ${
+                isCompleted ? 'border-l-emerald-500' : 'border-l-violet-600'
+              }`}
             >
-              <Box
-                sx={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: 3,
-                  background: isCompleted
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  boxShadow: isCompleted
-                    ? '0 6px 16px rgba(16, 185, 129, 0.4)'
-                    : '0 6px 16px rgba(2, 132, 199, 0.4)',
-                }}
-              >
-                {isCompleted ? (
-                  <CheckCircleIcon style={{ width: 28, height: 28 }} />
-                ) : (
-                  <CalendarIcon style={{ width: 28, height: 28 }} />
-                )}
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.75 }}>
-                  <Typography
-                    variant="subtitle1"
-                    sx={{ fontWeight: 800, color: isCompleted ? '#065f46' : '#0369a1', fontSize: '1.05rem', lineHeight: 1.2 }}
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-violet-50/40 via-white to-indigo-50/30">
+                {/* Header: icon + title + badges */}
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-violet-100 text-violet-700'
+                    }`}
                   >
-                    {isCompleted ? 'ผลการนิเทศงาน (นิเทศเสร็จสิ้น)' : 'กำหนดการนิเทศงาน'}
-                  </Typography>
-                  <Chip
-                    label={isCompleted ? 'นิเทศเรียบร้อยแล้ว' : (currentRequest.supervisionAppointment.mode || 'Onsite')}
-                    size="small"
-                    sx={{
-                      background: isCompleted
-                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                        : (currentRequest.supervisionAppointment.mode === 'Online' ? '#4f46e5' : '#0284c7'),
-                      color: '#ffffff',
-                      fontWeight: 800,
-                      fontSize: '0.78rem',
-                      height: 24,
-                      boxShadow: isCompleted ? '0 2px 6px rgba(16, 185, 129, 0.3)' : 'none',
-                    }}
-                  />
-                  {isCompleted && (
-                    <Chip
-                      label={currentRequest.supervisionAppointment.mode || 'Onsite'}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        borderColor: '#10b981',
-                        color: '#047857',
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                        height: 24,
-                        bgcolor: 'rgba(255, 255, 255, 0.8)'
-                      }}
-                    />
-                  )}
-                </Box>
-                <Typography variant="body2" sx={{ color: isCompleted ? '#047857' : '#0c4a6e', mb: 2, fontWeight: 600, lineHeight: 1.5 }}>
-                  {isCompleted
-                    ? 'อาจารย์นิเทศงานได้ดำเนินการนิเทศและประเมินผลการฝึกงานของคุณเรียบร้อยแล้ว'
-                    : 'อาจารย์ที่ปรึกษาได้กำหนดวันนิเทศงานของคุณเรียบร้อยแล้ว'}
-                </Typography>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2.5,
-                    flexWrap: 'wrap',
-                    bgcolor: '#ffffff',
-                    p: 1.5,
-                    px: 2.5,
-                    borderRadius: 2.5,
-                    border: isCompleted ? '2px solid #6ee7b7' : '2px solid #7dd3fc',
-                    boxShadow: isCompleted
-                      ? '0 4px 12px rgba(16, 185, 129, 0.1)'
-                      : '0 4px 12px rgba(2, 132, 199, 0.1)',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                    {isCompleted ? <CheckCircleIcon style={{ width: 24, height: 24 }} /> : <CalendarIcon style={{ width: 24, height: 24 }} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0">
+                        {isCompleted ? 'ผลการนิเทศงาน (นิเทศเสร็จสิ้น)' : 'กำหนดการนิเทศงาน'}
+                      </h3>
+                      {/* Mode badge */}
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          isOnline
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        {isOnline ? <Video className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+                        {appt.mode || 'Onsite'}
+                      </span>
+                      {/* Status badge */}
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          isCompleted
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        {isCompleted ? 'นิเทศเรียบร้อยแล้ว' : 'รอนิเทศงาน'}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-500 m-0 mt-1">
+                      {isCompleted
+                        ? 'อาจารย์นิเทศงานได้ดำเนินการนิเทศและประเมินผลการฝึกงานของคุณเรียบร้อยแล้ว'
+                        : 'อาจารย์ที่ปรึกษาได้กำหนดวันนิเทศงานของคุณเรียบร้อยแล้ว'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Appointment info box */}
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mt-3.5 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                      <CalendarIcon style={{ width: 14, height: 14 }} className="text-violet-500" />
                       วันที่นิเทศ:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: '#0f172a' }}>
-                      {new Date(currentRequest.supervisionAppointment.date).toLocaleDateString('th-TH')}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
-                      สถานะการนิเทศ:
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 800, color: isCompleted ? '#059669' : '#0284c7' }}
-                    >
-                      {isCompleted ? 'เสร็จสิ้น (ประเมินแล้ว)' : 'รอนิเทศงาน'}
-                    </Typography>
-                  </Box>
-                  {currentRequest.supervisionAppointment.note && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
-                        หมายเหตุ:
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#334155' }}>
-                        {currentRequest.supervisionAppointment.note}
-                      </Typography>
-                    </Box>
+                    </span>
+                    <span className="text-sm font-bold text-slate-800">{dateLabel}</span>
+                  </div>
+                  {appt.advisorName && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                        <User className="w-3.5 h-3.5 text-violet-500" />
+                        อาจารย์นิเทศ:
+                      </span>
+                      <span className="text-sm font-semibold text-slate-700">{appt.advisorName}</span>
+                    </div>
                   )}
-                </Box>
-              </Box>
-            </Paper>
+                  {appt.note && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-slate-500 font-medium shrink-0">หมายเหตุ:</span>
+                      <span className="text-xs text-slate-600 leading-relaxed">{appt.note}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action link */}
+                <div className="mt-3.5 flex justify-end">
+                  <Link
+                    to="/dashboard/notifications"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-700 transition no-underline"
+                  >
+                    ดูรายละเอียดในการแจ้งเตือน
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            </div>
           );
         })()}
 

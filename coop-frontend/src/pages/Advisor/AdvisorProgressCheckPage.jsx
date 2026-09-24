@@ -46,10 +46,24 @@ const AdvisorProgressCheckPage = () => {
   });
   const [dialogView, setDialogView] = useState('calendar');
 
-  const internshipStatuses = useMemo(() => new Set(['ออกฝึกงาน', 'ฝึกงานเสร็จแล้ว']), []);
+  const internshipStatuses = useMemo(() => new Set([
+    'ออกฝึกงาน', 'กำลังออกฝึกงาน',
+    'อนุมัติแล้ว (รอออกฝึกงาน)', 'สิ้นสุดการฝึกงาน (รอประเมิน)',
+    'ประเมินเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว',
+    'ฝึกงานเสร็จแล้ว', 'เสร็จสิ้นสมบูรณ์',
+    // enum ภาษาอังกฤษที่อาจเจอในฐานข้อมูล
+    'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'COMPLETED'
+  ]), []);
 
   const normalize = (value) => String(value || '').trim();
   const normalizeLower = (value) => String(value || '').trim().toLowerCase();
+  // ตัดคำนำหน้า "สาขา"/"สาขาวิชา" และช่องว่างออกก่อนเทียบ กันชื่อสาขาไม่ตรงกันเป๊ะ
+  const normalizeDept = (value) =>
+    String(value || '')
+      .replace(/^\s*สาขาวิชา\s*/, '')
+      .replace(/^\s*สาขา\s*/, '')
+      .replace(/\s+/g, '')
+      .trim();
 
   const loadData = async (dept) => {
     try {
@@ -60,12 +74,14 @@ const AdvisorProgressCheckPage = () => {
       const allRequests = reqRes.data.data || [];
       const allCheckins = checkinRes.data.data || [];
 
+      const deptKey = normalizeDept(dept);
       const departmentRequests = allRequests.filter((request) => {
         const requestDept = request.department || request.details?.student_info?.major || '';
-        const sameDept = dept ? requestDept === dept : true;
+        const sameDept = deptKey ? normalizeDept(requestDept) === deptKey : true;
         return sameDept && internshipStatuses.has(normalize(request.status));
       });
 
+      console.log('[Progress] dept:', dept, '| total:', allRequests.length, '| matched:', departmentRequests.length);
       setRequests(departmentRequests);
       setCheckins(allCheckins);
     } catch (err) {
@@ -180,7 +196,7 @@ const AdvisorProgressCheckPage = () => {
   };
 
   const openHistoryDialog = (row) => {
-    const sDate = row.internship_start_date || (row.status === 'ออกฝึกงาน' ? String(row.updated_at || row.submittedDate || '').split('T')[0] : null);
+    const sDate = row.internship_start_date || (internshipStatuses.has(normalize(row.status)) ? String(row.updated_at || row.submittedDate || '').split('T')[0] : null);
     setHistoryDialog({
       open: true,
       studentName: row.studentName || '-',
@@ -207,6 +223,9 @@ const AdvisorProgressCheckPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -244,6 +263,9 @@ const AdvisorProgressCheckPage = () => {
             >
               <MenuItem value="all">ทั้งหมด</MenuItem>
               <MenuItem value="ออกฝึกงาน">ออกฝึกงาน</MenuItem>
+              <MenuItem value="กำลังออกฝึกงาน">กำลังออกฝึกงาน</MenuItem>
+              <MenuItem value="สิ้นสุดการฝึกงาน (รอประเมิน)">สิ้นสุดการฝึกงาน (รอประเมิน)</MenuItem>
+              <MenuItem value="ประเมินเสร็จแล้ว">ประเมินเสร็จแล้ว</MenuItem>
               <MenuItem value="ฝึกงานเสร็จแล้ว">ฝึกงานเสร็จแล้ว</MenuItem>
             </TextField>
             <TextField
@@ -290,7 +312,7 @@ const AdvisorProgressCheckPage = () => {
                       <TableCell>{row.checkinCount}</TableCell>
                       <TableCell>{row.latestCheckinDate}</TableCell>
                       <TableCell>
-                        <Button size="small" variant="outlined" onClick={() => openHistoryDialog(row)}>
+                        <Button size="small" variant="outlined" onClick={() => openHistoryDialog(row)} sx={{ borderColor: '#7c3aed', color: '#7c3aed', textTransform: 'none', fontWeight: 700, borderRadius: 1.5, '&:hover': { borderColor: '#6d28d9', bgcolor: '#f5f3ff' } }}>
                           ดูรายงานประจำวัน
                         </Button>
                       </TableCell>
@@ -325,7 +347,7 @@ const AdvisorProgressCheckPage = () => {
               disableElevation
               onClick={() => setDialogView('calendar')}
               startIcon={<CalendarIcon style={{ width: 16, height: 16 }} />}
-              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 700, fontSize: '0.75rem' }}
+              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', ...(dialogView === 'calendar' ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : { color: '#64748b' }) }}
             >
               ปฏิทิน
             </Button>
@@ -335,7 +357,7 @@ const AdvisorProgressCheckPage = () => {
               disableElevation
               onClick={() => setDialogView('table')}
               startIcon={<TableCellsIcon style={{ width: 16, height: 16 }} />}
-              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 700, fontSize: '0.75rem' }}
+              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', ...(dialogView === 'table' ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : { color: '#64748b' }) }}
             >
               ตาราง
             </Button>
@@ -349,14 +371,7 @@ const AdvisorProgressCheckPage = () => {
                 studentId={historyDialog.studentId}
                 studentName={historyDialog.studentName}
                 internshipStartDate={historyDialog.internshipStartDate}
-                onBatchSign={(updatedEntries) => {
-                  setHistoryDialog(prev => ({
-                    ...prev,
-                    entries: updatedEntries
-                  }));
-                  // Also refresh parent list
-                  loadProgress();
-                }}
+                readOnly
               />
             </Box>
           ) : (
@@ -407,7 +422,7 @@ const AdvisorProgressCheckPage = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-          <Button onClick={closeHistoryDialog} variant="contained" sx={{ px: 3 }}>ปิด</Button>
+          <Button onClick={closeHistoryDialog} variant="contained" sx={{ px: 3, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>ปิด</Button>
         </DialogActions>
       </Dialog>
     </div>

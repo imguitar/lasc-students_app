@@ -3,8 +3,9 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
+const { parseRequestRow, USER_SELECT_SQL, DEPARTMENT_NAME_TO_ID } = require('../utils/helpers');
 const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
+const { sendStatusNotifyEmail, findStudentEmail } = require('../utils/mailer');
 
 const getCompanyResponseToken = (details) => {
   if (!details) return '';
@@ -75,7 +76,7 @@ const handleGetSingleRequest = async (req, res) => {
     `, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลคำร้อง' });
     const isPublic = req.baseUrl.includes('public') || req.originalUrl.includes('public');
-    if (isPublic && getCompanyResponseToken(rows[0].details) && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
+    if (isPublic && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
       return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้อง หมดอายุ หรือถูกใช้งานไปแล้ว' });
     }
     res.json({ success: true, data: serializeRequestRow(rows[0]) });
@@ -102,6 +103,14 @@ router.get('/', authenticate, async (req, res) => {
         WHERE status IN ('อนุมัติแล้ว', 'รออาจารย์อนุมัติเริ่มฝึกงาน')
           AND submittedDate <= NOW() - INTERVAL 3 DAY
       `);
+      // กู้คำร้องที่ประเมินครบทั้งบริษัท+อาจารย์แล้ว แต่สถานะยังค้าง (bug เดิมที่ advisor eval ไม่อัปเดต status)
+      await pool.query(`
+        UPDATE requests r
+        JOIN evaluations e ON r.id = e.requestId
+        JOIN advisor_evaluations ae ON r.id = ae.requestId
+        SET r.status = 'ฝึกงานเสร็จแล้ว'
+        WHERE r.status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน', 'ประเมินเสร็จแล้ว', 'สิ้นสุดการฝึกงาน (รอประเมิน)')
+      `);
     } catch (autoErr) {
       console.error('Auto-update query error:', autoErr);
     }
@@ -127,8 +136,25 @@ router.get('/', authenticate, async (req, res) => {
       params.push(status);
     }
     if (department && department !== 'all') {
-      sql += ' AND r.department = ?';
-      params.push(department);
+      // ชื่อสาขาอาจเก็บต่างกัน (มี/ไม่มี "สาขาวิชา" นำหน้า หรือเว้นวรรคต่างกัน)
+      // เทียบแบบ normalize: ตัด "สาขาวิชา" + ช่องว่าง แล้ว LIKE ทั้งสองทิศ
+      const deptCore = String(department).replace(/สาขาวิชา/g, '').replace(/\s+/g, '');
+      // fallback: คำร้องที่ไม่ได้เก็บ department — เช็ค profile.department_id ของนักศึกษาแทน
+      const deptId = DEPARTMENT_NAME_TO_ID[department] || DEPARTMENT_NAME_TO_ID[`สาขาวิชา${deptCore}`];
+      const deptFallback = deptId
+        ? ` OR ((r.department IS NULL OR TRIM(r.department) = '') AND EXISTS (
+             SELECT 1 FROM profile p2 WHERE p2.profile_id = r.studentId AND p2.department_id = ?
+           ))`
+        : '';
+
+      sql += ` AND (
+        REPLACE(REPLACE(TRIM(r.department), 'สาขาวิชา', ''), ' ', '') = ?
+        OR REPLACE(REPLACE(TRIM(r.department), 'สาขาวิชา', ''), ' ', '') LIKE CONCAT('%', ?, '%')
+        OR ? LIKE CONCAT('%', NULLIF(REPLACE(REPLACE(TRIM(r.department), 'สาขาวิชา', ''), ' ', ''), ''), '%')
+        ${deptFallback}
+      )`;
+      params.push(deptCore, deptCore, deptCore);
+      if (deptId) params.push(deptId);
     }
     if (search) {
       sql += ' AND (r.studentName LIKE ? OR r.studentId LIKE ? OR r.company LIKE ?)';
@@ -178,14 +204,8 @@ router.post('/:id/response-qr', authenticate, authorize('admin'), async (req, re
   }
 });
 
-// GET /api/requests/:id AND /api/public/requests/:id
-router.get('/:id', async (req, res, next) => {
-  const isPublic = req.baseUrl.includes('public') || req.originalUrl.includes('public');
-  if (isPublic) {
-    return handleGetSingleRequest(req, res);
-  }
-  authenticate(req, res, () => handleGetSingleRequest(req, res));
-});
+// GET /api/requests/:id — Private เท่านั้น (public แยกไปที่ publicRequestRoutes)
+router.get('/:id', authenticate, (req, res) => handleGetSingleRequest(req, res));
 
 // POST /api/requests — ยื่นคำร้องใหม่
 router.post('/', authenticate, async (req, res) => {
@@ -232,6 +252,25 @@ router.post('/', authenticate, async (req, res) => {
     );
 
     const [newRow] = await pool.query('SELECT * FROM requests WHERE id = ?', [result.insertId]);
+
+    // ส่งอีเมลยืนยันการยื่นคำร้องให้นักศึกษา — ล้มเหลวได้โดยไม่กระทบการบันทึก
+    try {
+      const recipient = await findStudentEmail(studentId);
+      if (recipient) {
+        await sendStatusNotifyEmail({
+          to: recipient,
+          studentName,
+          studentId,
+          requestId: result.insertId,
+          status: `ยื่นคำร้องสำเร็จ (${initialStatus})`,
+          company,
+          position,
+        });
+      }
+    } catch (mailErr) {
+      console.error('[Mailer] ส่งอีเมลยืนยันการยื่นคำร้องล้มเหลว:', mailErr.message);
+    }
+
     res.status(201).json({ success: true, message: 'ยื่นคำร้องสำเร็จ', data: serializeRequestRow(newRow[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -301,17 +340,19 @@ router.patch('/batch/status', authenticate, authorize('admin'), async (req, res)
   }
 });
 
-// PATCH /api/requests/:id/status AND /api/public/requests/:id/status
-router.patch('/:id/status', async (req, res) => {
+// PATCH /api/requests/:id/status — Private (ต้อง login ผ่าน authenticate ที่ mount + ที่ route)
+// PATCH /api/public/requests/:id/status — สถานประกอบการตอบรับ/ปฏิเสธ ผ่าน publicRequestRoutes (บังคับ responseToken)
+const updateStatusHandler = async (req, res) => {
   const isPublic = req.baseUrl.includes('public') || req.originalUrl.includes('public');
 
-  const updateStatusHandler = async () => {
+  {
     try {
       const { status, comment, admin_comment, advisor_comment, company_comment, dispatchLetter, startDate, endDate, internshipTerm, evaluatorEmail, evaluator_email, evaluatorName, evaluatorPosition, company_email, companyEmail } = req.body;
       const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
       if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
-      const publicTokenIssued = isPublic && Boolean(getCompanyResponseToken(rows[0].details));
-      if (publicTokenIssued && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
+      // public mount: บังคับโทเค็นที่ใช้ได้เสมอ — ปิดช่อง anonymous status change
+      const publicTokenIssued = isPublic;
+      if (isPublic && !isCompanyResponseTokenUsable(rows[0].details, req.query.responseToken)) {
         return res.status(403).json({ success: false, message: 'ลิงก์ตอบรับไม่ถูกต้อง หมดอายุ หรือถูกใช้งานไปแล้ว' });
       }
 
@@ -478,17 +519,36 @@ router.patch('/:id/status', async (req, res) => {
         }
       }
 
+      // ส่งอีเมลแจ้งสถานะคำร้องให้นักศึกษา — ล้มเหลวได้โดยไม่กระทบการอัปเดตสถานะ
+      if (updated[0] && status) {
+        try {
+          const requestRow = updated[0];
+          const recipient = await findStudentEmail(requestRow.studentId);
+          if (recipient) {
+            await sendStatusNotifyEmail({
+              to: recipient,
+              studentName: requestRow.studentName,
+              studentId: requestRow.studentId,
+              requestId: requestRow.id,
+              status,
+              comment: c,
+              company: requestRow.company,
+              position: requestRow.position,
+            });
+          }
+        } catch (mailErr) {
+          console.error('[Mailer] ส่งอีเมลแจ้งสถานะคำร้องล้มเหลว:', mailErr.message);
+        }
+      }
+
       res.json({ success: true, message: 'อัปเดตสถานะสำเร็จ', data: serializeRequestRow(updated[0]) });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
-  };
-
-  if (isPublic) {
-    return updateStatusHandler();
   }
-  authenticate(req, res, updateStatusHandler);
-});
+};
+
+router.patch('/:id/status', authenticate, updateStatusHandler);
 
 // PATCH /api/requests/:id/internship-period — กำหนดวันฝึกงาน (Admin)
 router.patch('/:id/internship-period', authenticate, authorize('admin'), async (req, res) => {
@@ -542,6 +602,15 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'เฉพาะประธานสาขาวิชาเท่านั้นที่มีสิทธิ์กำหนดรายชื่ออาจารย์นิเทศและวันนิเทศก์'
+      });
+    }
+
+    // ถ้าอาจารย์บันทึกผลนิเทศแล้ว ห้ามเปลี่ยนนัดหมาย/อาจารย์นิเทศอีก
+    const [evalRows] = await pool.query('SELECT id FROM advisor_evaluations WHERE requestId = ?', [req.params.id]);
+    if (evalRows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'คำร้องนี้บันทึกผลการนิเทศแล้ว ไม่สามารถเปลี่ยนนัดหมายหรืออาจารย์นิเทศได้',
       });
     }
 
@@ -709,3 +778,9 @@ router.delete('/:id', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+// ใช้ร่วมกับ publicRequestRoutes — public mount ต้องผ่าน token gate เสมอ
+module.exports.publicInternals = {
+  handleGetSingleRequest,
+  updateStatusHandler,
+  isCompanyResponseTokenUsable,
+};

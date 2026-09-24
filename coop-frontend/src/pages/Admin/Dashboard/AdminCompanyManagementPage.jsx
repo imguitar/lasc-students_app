@@ -6,6 +6,7 @@ import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import StatusBadge from '../../../components/StatusBadge';
 import {
   BuildingOffice2Icon,
   PlusIcon,
@@ -172,6 +173,19 @@ const AdminCompanyManagementPage = () => {
 
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const fileInputRef = useRef(null);
+  const [userRole, setUserRole] = useState('admin');
+  const isAdmin = userRole === 'admin';
+  const [studentsModal, setStudentsModal] = useState({ open: false, company: null, students: [], loading: false });
+
+  const handleOpenStudentsModal = async (comp) => {
+    setStudentsModal({ open: true, company: comp, students: [], loading: true });
+    try {
+      const res = await api.get(`/public/companies/${encodeURIComponent(comp.name)}/students`);
+      setStudentsModal(prev => ({ ...prev, students: res.data.data || [], loading: false }));
+    } catch (err) {
+      setStudentsModal(prev => ({ ...prev, students: [], loading: false }));
+    }
+  };
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -191,9 +205,10 @@ const AdminCompanyManagementPage = () => {
     if (userStr) {
       const user = JSON.parse(userStr);
       if (user.role !== 'admin') {
-        navigate('/dashboard');
+        navigate(user.role === 'advisor' ? '/advisor-dashboard' : '/dashboard');
         return;
       }
+      setUserRole(user.role);
     } else {
       navigate('/login');
       return;
@@ -449,6 +464,9 @@ const AdminCompanyManagementPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -486,6 +504,7 @@ const AdminCompanyManagementPage = () => {
             </div>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+              {isAdmin && (
               <Button
                 variant="contained"
                 onClick={() => setImportModal({ open: true, file: null, fileName: '', parsedRows: [], submitting: false })}
@@ -502,7 +521,9 @@ const AdminCompanyManagementPage = () => {
               >
                 Import CSV สถานประกอบการ
               </Button>
+              )}
 
+              {isAdmin && (
               <Button
                 variant="contained"
                 onClick={handleOpenAdd}
@@ -519,8 +540,9 @@ const AdminCompanyManagementPage = () => {
               >
                 เพิ่มสถานประกอบการ
               </Button>
+              )}
 
-              {selectedIds.length > 0 && (
+              {isAdmin && selectedIds.length > 0 && (
                 <Button
                   variant="contained"
                   color="error"
@@ -590,6 +612,7 @@ const AdminCompanyManagementPage = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                    {isAdmin && (
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={isAllSelected}
@@ -597,14 +620,16 @@ const AdminCompanyManagementPage = () => {
                         onChange={handleSelectAll}
                       />
                     </TableCell>
+                    )}
                     <TableCell sx={{ fontWeight: 800 }}>ชื่อสถานประกอบการ / บริษัท</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>สาขาวิชาที่เกี่ยวข้อง</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>ประเภทธุรกิจ</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>ที่ตั้ง / จังหวัด</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>ตำแหน่งที่เปิดรับ</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>นักศึกษาฝึกงาน</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>ข้อมูลติดต่อ</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>แหล่งข้อมูล</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>การกระทำ</TableCell>
+                    {isAdmin && <TableCell align="center" sx={{ fontWeight: 800 }}>การกระทำ</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -613,6 +638,7 @@ const AdminCompanyManagementPage = () => {
                       const isChecked = selectedIds.includes(comp.id);
                       return (
                         <TableRow key={comp.id || idx} hover selected={isChecked}>
+                          {isAdmin && (
                           <TableCell padding="checkbox">
                             {comp.isOfficial ? (
                               <Checkbox
@@ -623,9 +649,14 @@ const AdminCompanyManagementPage = () => {
                               <Typography variant="caption" sx={{ color: '#cbd5e1', pl: 1 }}>-</Typography>
                             )}
                           </TableCell>
+                          )}
                           <TableCell>
                             <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                              <Typography
+                                variant="body2"
+                                onClick={() => handleOpenStudentsModal(comp)}
+                                sx={{ fontWeight: 700, color: '#0f172a', cursor: 'pointer', '&:hover': { color: '#7c3aed', textDecoration: 'underline' } }}
+                              >
                                 {comp.name}
                               </Typography>
                               {comp.website && (
@@ -679,6 +710,24 @@ const AdminCompanyManagementPage = () => {
                               {comp.positions || '-'}
                             </Typography>
                           </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              icon={<AcademicCapIcon style={{ width: 14, height: 14 }} />}
+                              label={`${comp.studentCount || 0} คน`}
+                              size="small"
+                              clickable
+                              onClick={() => handleOpenStudentsModal(comp)}
+                              sx={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                bgcolor: (comp.studentCount || 0) > 0 ? '#f5f3ff' : '#f8fafc',
+                                color: (comp.studentCount || 0) > 0 ? '#6d28d9' : '#94a3b8',
+                                border: (comp.studentCount || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0',
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: '#ede9fe' }
+                              }}
+                            />
+                          </TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontSize: '0.75rem', color: '#64748b' }}>
                               {comp.contactPerson && <span>ผู้ติดต่อ: {comp.contactPerson}</span>}
@@ -707,6 +756,7 @@ const AdminCompanyManagementPage = () => {
                               }}
                             />
                           </TableCell>
+                          {isAdmin && (
                           <TableCell align="center">
                             {comp.isOfficial ? (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
@@ -727,12 +777,13 @@ const AdminCompanyManagementPage = () => {
                               </Typography>
                             )}
                           </TableCell>
+                          )}
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#94a3b8' }}>
+                      <TableCell colSpan={isAdmin ? 9 : 7} align="center" sx={{ py: 4, color: '#94a3b8' }}>
                         ไม่พบข้อมูลสถานประกอบการ
                       </TableCell>
                     </TableRow>
@@ -742,6 +793,78 @@ const AdminCompanyManagementPage = () => {
             )}
           </TableContainer>
         </div>
+
+        {/* Modal: รายชื่อนักศึกษาที่ฝึกงานในบริษัท */}
+        <Dialog
+          open={studentsModal.open}
+          onClose={() => setStudentsModal({ open: false, company: null, students: [], loading: false })}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 3 } }}
+        >
+          <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #f1f5f9', pb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <BuildingOffice2Icon style={{ width: 24, height: 24, color: '#7c3aed' }} />
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+                  {studentsModal.company?.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#64748b' }}>
+                  นักศึกษาที่ฝึกงาน {studentsModal.students.length} คน
+                </Typography>
+              </Box>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            {studentsModal.loading ? (
+              <Box sx={{ py: 4, textAlign: 'center', color: '#64748b' }}>กำลังโหลดรายชื่อนักศึกษา...</Box>
+            ) : studentsModal.students.length > 0 ? (
+              <TableContainer component={Box} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                      <TableCell sx={{ fontWeight: 800 }}>รหัสนักศึกษา</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>ชื่อ-นามสกุล</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>สาขาวิชา</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>อาจารย์นิเทศ</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>ช่วงเวลาฝึกงาน</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>สถานะ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {studentsModal.students.map((stu) => (
+                      <TableRow key={stu.requestId} hover>
+                        <TableCell>{stu.studentId}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>{stu.studentName}</TableCell>
+                        <TableCell>
+                          <Typography variant="caption">{String(stu.department || '-').replace('สาขาวิชา', '')}</Typography>
+                        </TableCell>
+                        <TableCell>{stu.advisorName}</TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>
+                            {stu.startDate ? new Date(stu.startDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                            {' — '}
+                            {stu.endDate ? new Date(stu.endDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell><StatusBadge status={stu.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Box sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>
+                ยังไม่มีนักศึกษาฝึกงานที่สถานประกอบการนี้
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button onClick={() => setStudentsModal({ open: false, company: null, students: [], loading: false })} sx={{ textTransform: 'none', fontWeight: 700 }}>
+              ปิด
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Modal 1: CSV Import Dialog */}
         <Dialog 

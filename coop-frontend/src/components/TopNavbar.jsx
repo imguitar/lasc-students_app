@@ -27,6 +27,9 @@ const TopNavbar = ({ onToggleMenu, homeLink = '/', user }) => {
             className="h-9 w-auto object-contain"
             style={{ height: '36px', width: 'auto', objectFit: 'contain' }}
           />
+          <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+            ระบบฝึกประสบการณ์วิชาชีพ
+          </span>
         </Link>
       </div>
 

@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { parseRequestRow } = require('../utils/helpers');
-const { sendEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
+const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
+const { sendCompanyEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
+const { sendAdminEvaluationAlertEmail, sendStudentEvaluationNoticeEmail, findStudentEmail } = require('../utils/mailer');
 const { createNotification, findUserIdsByRole } = require('../utils/notificationService');
 
 // รอบการประเมินที่เปิดใช้งานอยู่ — ถ้ายังไม่เคยตั้งรอบไว้เลยจะได้ null (ไม่ปิดกั้นการประเมิน)
@@ -36,6 +37,31 @@ const checkEvaluationRoundClosed = async () => {
     round,
     message: `ขณะนี้อยู่นอกช่วงเวลาการประเมิน (${round.title}: วันที่ ${fmt(round.startDate)} ถึง ${fmt(round.endDate)})`
   };
+};
+
+const INTERNSHIP_DONE_STATUS = 'ฝึกงานเสร็จแล้ว';
+
+// ถ้าคำร้องนี้ประเมินครบทั้งสถานประกอบการและอาจารย์นิเทศแล้ว → ปิดสถานะเป็น "ฝึกงานเสร็จแล้ว" ทันที
+// (แทนการรอ lazy transition 3 วันใน GET /requests)
+const maybeMarkInternshipCompleted = async (requestId) => {
+  const [rows] = await pool.query(
+    `SELECT r.status,
+            IF(e.id IS NOT NULL, 1, 0) AS hasCompanyEval,
+            IF(ae.id IS NOT NULL, 1, 0) AS hasAdvisorEval
+     FROM requests r
+     LEFT JOIN evaluations e ON e.requestId = r.id
+     LEFT JOIN advisor_evaluations ae ON ae.requestId = r.id
+     WHERE r.id = ?`,
+    [requestId]
+  );
+  const row = rows[0];
+  if (!row) return false;
+  if (row.hasCompanyEval && row.hasAdvisorEval && row.status !== INTERNSHIP_DONE_STATUS) {
+    await pool.query('UPDATE requests SET status = ? WHERE id = ?', [INTERNSHIP_DONE_STATUS, requestId]);
+    console.log(`[Evaluation] คำร้อง #${requestId} ประเมินครบ 2 ฝ่าย → "${INTERNSHIP_DONE_STATUS}" อัตโนมัติ`);
+    return true;
+  }
+  return false;
 };
 
 // =============================================
@@ -73,6 +99,31 @@ router.post('/public/evaluate/:requestId', async (req, res) => {
     }
 
     const reqId = req.params.requestId;
+
+    // ล็อกการประเมินจนกว่าจะถึงวันสิ้นสุดฝึกงานจริงตามปฏิทิน
+    const [reqRows] = await pool.query('SELECT internship_end_date, details FROM requests WHERE id = ?', [reqId]);
+    const reqRow = reqRows[0];
+    let endDateRaw = reqRow?.internship_end_date || null;
+    if (!endDateRaw && reqRow?.details) {
+      try {
+        const d = typeof reqRow.details === 'object' ? reqRow.details : JSON.parse(reqRow.details);
+        endDateRaw = d.endDate || null;
+      } catch (_) {}
+    }
+    if (endDateRaw) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const internshipEndDate = new Date(endDateRaw);
+      internshipEndDate.setHours(0, 0, 0, 0);
+      if (today < internshipEndDate) {
+        const endLabel = internshipEndDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        return res.status(400).json({
+          success: false,
+          message: `ไม่สามารถส่งแบบประเมินก่อนกำหนดได้ กรุณาประเมินตั้งแต่วันที่ ${endLabel} เป็นต้นไป`,
+        });
+      }
+    }
+
     const {
       studentId, evaluatorName, evaluatorPosition, evaluatorDepartment,
       q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20,
@@ -92,8 +143,80 @@ router.post('/public/evaluate/:requestId', async (req, res) => {
       ]
     );
 
-    await pool.query('UPDATE requests SET status = ? WHERE id = ?', ['ประเมินเสร็จแล้ว', reqId]);
-    res.status(201).json({ success: true, message: 'บันทึกผลการประเมินสำเร็จ' });
+    // ถ้าอาจารย์นิเทศประเมินไว้แล้ว → ครบ 2 ฝ่าย ปิดงานเป็น "ฝึกงานเสร็จแล้ว" ทันที
+    const bothEvaluated = await maybeMarkInternshipCompleted(reqId);
+    if (!bothEvaluated) {
+      await pool.query('UPDATE requests SET status = ? WHERE id = ?', ['ประเมินเสร็จแล้ว', reqId]);
+    }
+
+    // แจ้งเตือน admin — inbox ในระบบ + อีเมล ทั้งคู่เป็น non-blocking (ล้มเหลวไม่กระทบการบันทึกคะแนน)
+    try {
+      const [infoRows] = await pool.query('SELECT studentName, studentId, company FROM requests WHERE id = ?', [reqId]);
+      const info = infoRows[0] || {};
+      const companyName = info.company || 'สถานประกอบการ';
+      const totalScore = [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20]
+        .reduce((sum, v) => sum + (Number.isFinite(Number(v)) ? Number(v) : 0), 0);
+
+      // 1) Notification inbox ของ admin ทุกคน
+      const adminUserIds = await findUserIdsByRole('admin');
+      await Promise.all(adminUserIds.map((adminId) => createNotification({
+        userId: adminId,
+        type: 'company_evaluation_submitted',
+        title: 'สถานประกอบการประเมินผลการฝึกงานแล้ว',
+        message: `${companyName} ประเมินผลการฝึกงานของ ${info.studentName || 'นักศึกษา'} (${info.studentId || '-'}) เรียบร้อยแล้ว (คะแนนรวม: ${totalScore} คะแนน)`,
+        link: `/dashboard/request/${reqId}`,
+        requestId: Number(reqId),
+      })));
+
+      // 2) อีเมลถึง ADMIN_EMAIL + อีเมล admin ทุกคนในระบบ
+      const adminEmails = new Set();
+      if (process.env.ADMIN_EMAIL) adminEmails.add(process.env.ADMIN_EMAIL.trim());
+      const [adminRows] = await pool.query("SELECT email FROM `user` WHERE role = 'admin' AND email IS NOT NULL AND email != ''");
+      adminRows.forEach((r) => r.email && adminEmails.add(String(r.email).trim()));
+
+      for (const adminEmail of adminEmails) {
+        await sendAdminEvaluationAlertEmail({
+          to: adminEmail,
+          studentName: info.studentName,
+          studentId: info.studentId,
+          companyName,
+          evaluatorName,
+          evaluatorPosition,
+          totalScore,
+          maxScore: 100,
+          comments: otherComments || improvements || strengths,
+          requestId: reqId,
+        });
+      }
+      console.log(`[PublicEvaluation] แจ้งเตือน admin แล้ว — inbox ${adminUserIds.length} คน, อีเมล ${adminEmails.size} ที่อยู่`);
+
+      // 3) แจ้งเตือนนักศึกษา — แจ้งเฉพาะ "สถานะว่าประเมินเสร็จ" ไม่เปิดเผยคะแนน/เปอร์เซ็นต์/เกรด
+      const studentSid = info.studentId || studentId;
+      const [studentUserRows] = await pool.query('SELECT id FROM `user` WHERE username = ? LIMIT 1', [String(studentSid || '')]);
+      if (studentUserRows[0]) {
+        await createNotification({
+          userId: studentUserRows[0].id,
+          type: 'company_evaluation_submitted',
+          title: 'สถานประกอบการส่งผลการประเมินแล้ว',
+          message: `${companyName} บันทึกและส่งแบบประเมินผลการปฏิบัติงานของคุณเรียบร้อยแล้ว — อยู่ระหว่างการตรวจสอบและสรุปผลร่วมกับอาจารย์นิเทศ`,
+          link: `/dashboard/request/${reqId}`,
+          requestId: Number(reqId),
+        });
+      }
+      const studentEmail = await findStudentEmail(studentSid);
+      if (studentEmail) {
+        await sendStudentEvaluationNoticeEmail({
+          to: studentEmail,
+          studentName: info.studentName,
+          companyName,
+          requestId: reqId,
+        });
+      }
+    } catch (notifyErr) {
+      console.error('[PublicEvaluation] Error notifying admins:', notifyErr);
+    }
+
+    res.status(201).json({ success: true, message: 'บันทึกและส่งผลการประเมินเรียบร้อยแล้ว' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -219,37 +342,71 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
       s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments
     } = req.body;
 
+    // ตรวจสิทธิ์ผู้นิเทศ: ต้องเป็นอาจารย์ที่ได้รับมอบหมายในคำร้องนี้ (admin ยกเว้น)
+    const [rAuthRows] = await pool.query('SELECT id, supervisionAppointment FROM requests WHERE id = ?', [reqId]);
+    if (!rAuthRows[0]) {
+      return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+    }
+
+    let appt = null;
+    try {
+      appt = typeof rAuthRows[0].supervisionAppointment === 'object'
+        ? rAuthRows[0].supervisionAppointment
+        : JSON.parse(rAuthRows[0].supervisionAppointment || 'null');
+    } catch (_) {}
+
+    const [uRows] = await pool.query(`${USER_SELECT_SQL} WHERE u.id = ? GROUP BY u.id`, [req.user.id]);
+    const currentUser = uRows[0];
+    const isAdmin = currentUser?.role === 'admin';
+    const currentName = [currentUser?.firstname, currentUser?.lastname].filter(Boolean).join(' ').trim()
+      || currentUser?.username || '';
+
+    const assignedId = appt?.advisorId ? Number(appt.advisorId) : null;
+    const assignedName = String(appt?.advisorName || '').trim();
+    const isAssigned = Boolean(
+      (assignedId && assignedId === Number(req.user.id)) ||
+      (assignedName && (assignedName === currentName || assignedName === currentUser?.username))
+    );
+
+    if (!isAdmin && !isAssigned) {
+      return res.status(403).json({
+        success: false,
+        message: 'เฉพาะอาจารย์ผู้นิเทศที่ได้รับมอบหมายในคำร้องนี้เท่านั้นที่บันทึกผลนิเทศได้',
+      });
+    }
+
     const [existing] = await pool.query('SELECT id FROM advisor_evaluations WHERE requestId = ?', [reqId]);
     if (existing.length > 0) {
-      await pool.query(
-        `UPDATE advisor_evaluations SET 
-          advisorName=?, c1=?, c2=?, c3=?, c4=?, c5=?, c6=?, c7=?, c8=?, c9=?, c10=?, c11=?, c12=?, c13=?, c14=?, c15=?, c16=?, c17=?, companyComments=?,
-          s1=?, s2=?, s3=?, s4=?, s5=?, s6=?, s7=?, s8=?, s9=?, s10=?, s11=?, s12=?, s13=?, s14=?, s15=?, s16=?, s17=?, s18=?, s19=?, s20=?, studentComments=?
-        WHERE requestId=?`,
-        [
-          advisorName, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, companyComments,
-          s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments, reqId
-        ]
-      );
-    } else {
-      await pool.query(
-        `INSERT INTO advisor_evaluations (
-          requestId, advisorName,
-          c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, companyComments,
-          s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          reqId, advisorName,
-          c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, companyComments,
-          s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments
-        ]
-      );
+      // บันทึกผลนิเทศแล้ว — ห้ามแก้ไขซ้ำ (ต้องให้ admin reset หากจำเป็น)
+      return res.status(409).json({
+        success: false,
+        message: 'คำร้องนี้บันทึกผลการนิเทศเรียบร้อยแล้ว ไม่สามารถแก้ไขได้',
+      });
     }
+    await pool.query(
+      `INSERT INTO advisor_evaluations (
+        requestId, advisorName,
+        c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, companyComments,
+        s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        reqId, advisorName,
+        c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, companyComments,
+        s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, studentComments
+      ]
+    );
 
     await pool.query(
       `UPDATE requests SET advisor_comment = ? WHERE id = ?`,
       ['ประเมินแบบฟอร์มละเอียดแล้ว (ผลการนิเทศ: ผ่าน)', reqId]
     );
+
+    // ถ้าสถานประกอบการประเมินไว้แล้ว → ครบ 2 ฝ่าย ปิดงานเป็น "ฝึกงานเสร็จแล้ว" ทันที
+    try {
+      await maybeMarkInternshipCompleted(reqId);
+    } catch (statusErr) {
+      console.error('[AdvisorEvaluation] auto-complete status ล้มเหลว:', statusErr.message);
+    }
 
     // เมื่ออาจารย์บันทึกผลนิเทศแล้ว ส่งลิงก์แบบประเมินให้ผู้ประเมินฝั่งสถานประกอบการ
     // การส่งอีเมลล้มเหลวต้องไม่ทำให้การบันทึกผลนิเทศล้มเหลวตามไปด้วย
@@ -267,17 +424,33 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
           } catch (_) {}
         }
 
-        recipientEmail = reqItem.evaluator_email || detailsObj.evaluatorEmail || detailsObj.contactEmail || null;
+        recipientEmail = reqItem.evaluator_email || detailsObj.evaluatorEmail || reqItem.company_email || detailsObj.contactEmail || null;
+        console.log('[AdvisorEvaluation] ผู้รับอีเมลแบบประเมิน →', JSON.stringify({
+          requestId: reqId,
+          evaluator_email: reqItem.evaluator_email || null,
+          details_evaluatorEmail: detailsObj.evaluatorEmail || null,
+          company_email: reqItem.company_email || null,
+          details_contactEmail: detailsObj.contactEmail || null,
+          resolved: recipientEmail,
+        }));
         if (recipientEmail) {
-          const result = await sendEvaluationEmail({
+          const startDateRaw = reqItem.internship_start_date || detailsObj.startDate || null;
+          const endDateRaw = reqItem.internship_end_date || detailsObj.endDate || null;
+          const fmtThai = (d) => d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+          const result = await sendCompanyEvaluationEmail({
             to: recipientEmail,
             studentName: reqItem.studentName,
+            studentId: reqItem.studentId,
             companyName: reqItem.company,
-            evalUrl: buildEvaluationUrl(reqId),
+            advisorName,
+            startDate: fmtThai(startDateRaw),
+            endDate: fmtThai(endDateRaw),
+            evaluationUrl: buildEvaluationUrl(reqId),
           });
 
           emailSent = result.success && !result.simulated;
           emailSimulated = Boolean(result.simulated);
+          console.log(`[AdvisorEvaluation] ผลการส่งอีเมล → success:${result.success} simulated:${emailSimulated} via:${result.via || '-'} reason:${result.reason || '-'}`);
 
           detailsObj.evaluatorEmailSent = emailSent;
           detailsObj.evaluatorEmailSentAt = emailSent ? new Date().toISOString() : null;
@@ -285,7 +458,7 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
         }
       }
     } catch (mailErr) {
-      console.error('[AdvisorEvaluation] ส่งอีเมลแบบประเมินไม่สำเร็จ:', mailErr.message);
+      console.error('[AdvisorEvaluation] Error sending email:', mailErr);
     }
 
     // แจ้งเตือน Admin ทุกคนว่าอาจารย์บันทึกผลนิเทศแล้ว — ห้ามใส่ URL แบบประเมินของสถานประกอบการ
@@ -314,7 +487,7 @@ router.post('/advisor-evaluations/request/:requestId', authenticate, async (req,
     if (emailSent) {
       message = `บันทึกผลการนิเทศสำเร็จ และส่งอีเมลแบบประเมินไปยัง ${recipientEmail} เรียบร้อยแล้ว`;
     } else if (emailSimulated) {
-      message = 'บันทึกผลการนิเทศสำเร็จ (ยังไม่ได้ตั้งค่า SMTP จึงยังไม่ได้ส่งอีเมลแบบประเมิน)';
+      message = 'บันทึกผลการนิเทศสำเร็จ (ยังไม่ได้ตั้งค่าระบบอีเมล จึงยังไม่ได้ส่งแบบประเมิน)';
     } else if (recipientEmail) {
       message = `บันทึกผลการนิเทศสำเร็จ แต่ส่งอีเมลไปยัง ${recipientEmail} ไม่สำเร็จ`;
     } else {

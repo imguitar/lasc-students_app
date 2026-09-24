@@ -122,8 +122,17 @@ const AdminReportsPage = () => {
       const key = req.status || 'ไม่ระบุ';
       map[key] = (map[key] || 0) + 1;
     });
+    const statusColor = (status) => {
+      if (!status || status === 'ไม่ระบุ') return '#e2e8f0';
+      if (status.includes('ไม่อนุมัติ') || status.includes('ปฏิเสธ') || status.includes('แก้ไข')) return '#f43f5e';
+      if (status.includes('อนุมัติแล้ว') || status.includes('ออกฝึกงาน') || status.includes('ฝึกงานเสร็จแล้ว')) return '#10b981';
+      if (status.includes('รอสถานประกอบการ')) return '#6366f1';
+      if (status.includes('รอ')) return '#8b5cf6';
+      return '#7c3aed';
+    };
+
     return Object.entries(map)
-      .map(([status, total], index) => ({ status, total, color: ['#2563eb', '#db2777', '#7c3aed', '#16a34a', '#dc2626', '#ea580c', '#0f766e'][index % 7] }))
+      .map(([status, total]) => ({ status, total, color: statusColor(status) }))
       .sort((a, b) => b.total - a.total);
   }, [filteredRequests]);
 
@@ -224,8 +233,7 @@ const AdminReportsPage = () => {
 
     return Object.entries(map)
       .map(([department, total]) => ({ department, total }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
+      .sort((a, b) => b.total - a.total);
   }, [filteredRequests]);
 
   const summary = useMemo(() => {
@@ -247,7 +255,7 @@ const AdminReportsPage = () => {
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
         layout: root.verticalLayout,
-        innerRadius: am5.percent(48),
+        innerRadius: am5.percent(72),
       }),
     );
 
@@ -256,6 +264,9 @@ const AdminReportsPage = () => {
         name: 'Status',
         valueField: 'value',
         categoryField: 'category',
+        tooltip: am5.Tooltip.new(root, {
+          labelText: '{category}: {value} คำร้อง ({valuePercentTotal.formatNumber(\'0.0\')}%)',
+        }),
       }),
     );
 
@@ -265,14 +276,28 @@ const AdminReportsPage = () => {
       sliceSettings: {
         fill: am5.color(item.color),
         stroke: am5.color('#ffffff'),
-        strokeWidth: 1,
+        strokeWidth: 2,
       },
     }));
 
     series.data.setAll(pieData);
-    series.slices.template.setAll({ templateField: 'sliceSettings', tooltipText: '{category}: {value}' });
-    series.labels.template.setAll({ oversizedBehavior: 'truncate', maxWidth: 120, fontSize: 12 });
-    series.ticks.template.setAll({ forceHidden: false });
+    series.slices.template.setAll({
+      templateField: 'sliceSettings',
+      tooltipText: '{category}: {value} คำร้อง ({valuePercentTotal.formatNumber(\'0.0\')}%)',
+      cornerRadius: 4,
+    });
+    series.labels.template.set('forceHidden', true);
+    series.ticks.template.set('forceHidden', true);
+
+    const pieTooltip = series.get('tooltip');
+    if (pieTooltip) {
+      pieTooltip.get('background').setAll({
+        fill: am5.color('#1e1b4b'),
+        fillOpacity: 0.95,
+        strokeOpacity: 0,
+      });
+      pieTooltip.label.setAll({ fill: am5.color('#ffffff'), fontSize: 12 });
+    }
 
     return () => {
       root.dispose();
@@ -301,16 +326,31 @@ const AdminReportsPage = () => {
     const yAxis = chart.yAxes.push(
       am5xy.CategoryAxis.new(root, {
         categoryField: 'department',
-        renderer: am5xy.AxisRendererY.new(root, { minGridDistance: 20 }),
+        renderer: am5xy.AxisRendererY.new(root, { minGridDistance: 24 }),
       }),
     );
+
+    const yRenderer = yAxis.get('renderer');
+    yRenderer.labels.template.setAll({
+      oversizedBehavior: 'truncate',
+      maxWidth: 140,
+      fontSize: 12,
+      fill: am5.color('#475569'),
+    });
+    yRenderer.grid.template.setAll({ strokeOpacity: 0 });
 
     const xAxis = chart.xAxes.push(
       am5xy.ValueAxis.new(root, {
         min: 0,
         renderer: am5xy.AxisRendererX.new(root, {}),
+        numberFormat: '#',
+        maxPrecision: 0,
       }),
     );
+
+    const xRenderer = xAxis.get('renderer');
+    xRenderer.grid.template.setAll({ stroke: am5.color('#f1f5f9'), strokeOpacity: 1 });
+    xRenderer.labels.template.setAll({ fontSize: 11, fill: am5.color('#94a3b8') });
 
     const series = chart.series.push(
       am5xy.ColumnSeries.new(root, {
@@ -319,17 +359,36 @@ const AdminReportsPage = () => {
         yAxis,
         valueXField: 'total',
         categoryYField: 'department',
-        tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: {valueX}' }),
+        tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: {valueX} คำร้อง' }),
       }),
     );
 
-    series.columns.template.setAll({
-      cornerRadiusTR: 6,
-      cornerRadiusBR: 6,
-      fill: am5.color('#7c3aed'),
-      strokeOpacity: 0,
-      height: am5.percent(60),
+    const barGradient = am5.LinearGradient.new(root, {
+      rotation: 0,
+      stops: [
+        { color: am5.color('#7c3aed') },
+        { color: am5.color('#6366f1') },
+      ],
     });
+
+    series.columns.template.setAll({
+      cornerRadiusTR: 8,
+      cornerRadiusBR: 8,
+      fillGradient: barGradient,
+      strokeOpacity: 0,
+      height: am5.percent(55),
+      tooltipText: '{categoryY}: {valueX} คำร้อง',
+    });
+
+    const barTooltip = series.get('tooltip');
+    if (barTooltip) {
+      barTooltip.get('background').setAll({
+        fill: am5.color('#1e1b4b'),
+        fillOpacity: 0.95,
+        strokeOpacity: 0,
+      });
+      barTooltip.label.setAll({ fill: am5.color('#ffffff'), fontSize: 12 });
+    }
 
     yAxis.data.setAll(departmentStats);
     series.data.setAll(departmentStats);
@@ -346,6 +405,9 @@ const AdminReportsPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -441,10 +503,10 @@ const AdminReportsPage = () => {
           }}
         >
           {[
-            { label: 'คำร้องทั้งหมด', value: summary.total, color: '#3b82f6', icon: STAT_EMOJI.TOTAL },
-            { label: 'รอตรวจสอบ', value: summary.pending, color: '#f59e0b', icon: STAT_EMOJI.PENDING },
+            { label: 'คำร้องทั้งหมด', value: summary.total, color: '#6366f1', icon: STAT_EMOJI.TOTAL },
+            { label: 'รอตรวจสอบ', value: summary.pending, color: '#8b5cf6', icon: STAT_EMOJI.PENDING },
             { label: 'อนุมัติแล้ว', value: summary.approved, color: '#10b981', icon: STAT_EMOJI.APPROVED },
-            { label: 'ไม่อนุมัติ', value: summary.rejected, color: '#ef4444', icon: STAT_EMOJI.REJECTED },
+            { label: 'ไม่อนุมัติ', value: summary.rejected, color: '#f43f5e', icon: STAT_EMOJI.REJECTED },
           ].map((card) => (
             <StatCard
               key={card.label}
@@ -464,14 +526,112 @@ const AdminReportsPage = () => {
             mb: 2,
           }}
         >
-          <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>กราฟสัดส่วนสถานะคำร้องฝึกงาน</Typography>
-            <Box ref={statusPieRef} className="report-amchart" />
+          <Paper
+            elevation={0}
+            sx={{ border: '1px solid rgba(237, 233, 254, 0.8)', borderRadius: '1.5rem', p: 3, bgcolor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, color: '#111827' }}>กราฟสัดส่วนสถานะคำร้องฝึกงาน</Typography>
+            <Typography variant="caption" sx={{ color: '#9ca3af', display: 'block', mb: 1 }}>สัดส่วนสถานะตามตัวกรองที่เลือก</Typography>
+            {statusDistribution.length > 0 ? (
+              <>
+                <Box sx={{ position: 'relative', height: { xs: 220, sm: 260 }, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box ref={statusPieRef} sx={{ position: 'absolute', inset: 0 }} />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '1.875rem', fontWeight: 800, color: '#111827', lineHeight: 1.2 }}>
+                      {summary.total}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#9ca3af' }}>
+                      คำร้องทั้งหมด
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    pt: 2,
+                    borderTop: '1px solid #f3f4f6',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: 1,
+                  }}
+                >
+                  {statusDistribution.map((item) => (
+                    <Box
+                      key={item.status}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                        p: 1,
+                        borderRadius: '0.75rem',
+                        bgcolor: 'rgba(249, 250, 251, 0.8)',
+                        transition: 'background-color 0.15s',
+                        '&:hover': { bgcolor: 'rgba(245, 243, 255, 0.6)' },
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                        <Box component="span" sx={{ width: 10, height: 10, borderRadius: '9999px', flexShrink: 0, bgcolor: item.color }} />
+                        <Typography
+                          component="span"
+                          sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {item.status}
+                        </Typography>
+                      </Box>
+                      <Typography component="span" sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#111827', flexShrink: 0 }}>
+                        {item.total}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </>
+            ) : (
+              <Box
+                sx={{
+                  minHeight: 240,
+                  borderRadius: 2,
+                  border: '1px dashed #d1d5db',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#94a3b8',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  background: '#f8fafc',
+                }}
+              >
+                ยังไม่มีข้อมูล
+              </Box>
+            )}
           </Paper>
 
-          <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>กราฟจำนวนคำร้องแยกตามสาขาวิชา</Typography>
-            <Box ref={departmentBarRef} className="report-amchart" />
+          <Paper
+            elevation={0}
+            sx={{ border: '1px solid rgba(237, 233, 254, 0.8)', borderRadius: '1.5rem', p: 3, bgcolor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, color: '#111827' }}>กราฟจำนวนคำร้องแยกตามสาขาวิชา</Typography>
+            <Typography variant="caption" sx={{ color: '#9ca3af', display: 'block', mb: 1 }}>แตะแท่งกราฟเพื่อดูชื่อสาขาเต็มและจำนวนคำร้อง</Typography>
+            <Box sx={{ width: '100%', overflowX: 'auto' }}>
+              <Box
+                ref={departmentBarRef}
+                sx={{
+                  width: '100%',
+                  minWidth: 280,
+                  height: Math.max(280, departmentStats.length * 44),
+                }}
+              />
+            </Box>
           </Paper>
         </Box>
 

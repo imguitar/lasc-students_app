@@ -12,8 +12,13 @@ router.get('/', authenticate, async (req, res) => {
       return res.status(401).json({ success: false, message: 'ไม่พบข้อมูลผู้ใช้งาน (Unauthorized)' });
     }
 
+    // แนบ department ของคำร้องที่เกี่ยวข้อง (ถ้ามี) เพื่อให้ frontend กรองตามสาขาวิชาได้
     const [rows] = await pool.query(
-      'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+      `SELECT n.*, r.department AS department
+       FROM notifications n
+       LEFT JOIN requests r ON r.id = n.request_id
+       WHERE n.user_id = ?
+       ORDER BY n.created_at DESC LIMIT 50`,
       [userId]
     );
     res.json({ success: true, data: rows || [] });

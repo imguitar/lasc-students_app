@@ -7,6 +7,8 @@ const pool = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const requestRoutes = require('./routes/requestRoutes');
+const publicRequestRoutes = require('./routes/publicRequestRoutes');
+const { authenticate } = require('./middlewares/auth');
 const checkinRoutes = require('./routes/checkinRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const evaluationRoutes = require('./routes/evaluationRoutes');
@@ -14,6 +16,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const companyRoutes = require('./routes/companyRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const internshipRoutes = require('./routes/internshipRoutes');
 
 // Import Cron
 const initCronJobs = require('./cron/internshipCron');
@@ -24,13 +27,28 @@ const PORT = process.env.PORT || 5000;
 // =============================================
 // Middlewares
 // =============================================
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean)
-  : null;
+// รองรับทั้ง localhost dev และ production domain — ตั้งเพิ่มได้ผ่าน CORS_ORIGIN (comma-separated)
+// origin ไม่มี path จึง strip path ออกจาก FRONTEND_URL/COOP_PUBLIC_URL ก่อน (เช่น .../coop)
+const toOrigin = (value) => {
+  if (!value) return null;
+  try {
+    return new URL(String(value).trim()).origin;
+  } catch (_) {
+    return null;
+  }
+};
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  toOrigin(process.env.FRONTEND_URL),
+  toOrigin(process.env.COOP_PUBLIC_URL),
+  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()) : []),
+].filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || !allowedOrigins || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
@@ -71,14 +89,15 @@ app.get('/api/health', async (req, res) => {
 // =============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/requests', requestRoutes);
-app.use('/api/public/requests', requestRoutes);
+app.use('/api/requests', authenticate, requestRoutes);
+app.use('/api/public/requests', publicRequestRoutes);
 app.use('/api/checkins', checkinRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payment-proofs', paymentRoutes);
 app.use('/api/public', companyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/internship', internshipRoutes);
 app.use('/api', evaluationRoutes);
 app.use('/api', announcementRoutes);
 

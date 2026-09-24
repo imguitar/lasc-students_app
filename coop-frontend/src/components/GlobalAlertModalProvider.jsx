@@ -10,7 +10,7 @@ import {
   Typography,
   Zoom,
 } from '@mui/material';
-import { ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 function GlobalAlertModalProvider({ children }) {
   const [open, setOpen] = useState(false);
@@ -21,6 +21,7 @@ function GlobalAlertModalProvider({ children }) {
     message: '',
     confirmText: 'ยืนยัน',
     cancelText: 'ยกเลิก',
+    tone: 'danger',
   });
   const alertQueueRef = useRef([]);
   const isShowingRef = useRef(false);
@@ -61,6 +62,7 @@ function GlobalAlertModalProvider({ children }) {
       message: nextConfirm.message || '',
       confirmText: nextConfirm.confirmText || 'ยืนยัน',
       cancelText: nextConfirm.cancelText || 'ยกเลิก',
+      tone: nextConfirm.tone || 'danger',
     });
   }, []);
 
@@ -99,6 +101,7 @@ function GlobalAlertModalProvider({ children }) {
           title: options.title,
           confirmText: options.confirmText,
           cancelText: options.cancelText,
+          tone: options.tone,
           resolve,
         });
 
@@ -185,9 +188,11 @@ function GlobalAlertModalProvider({ children }) {
         }}
       >
         <DialogTitle sx={{ pt: 2, pb: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ width: 80, height: 80, borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Box sx={{ width: 56, height: 56, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ExclamationTriangleIcon style={{ width: 32, height: 32, color: '#ef4444' }} />
+          <Box sx={{ width: 80, height: 80, borderRadius: '50%', background: confirmModal.tone === 'primary' ? '#f5f3ff' : '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ width: 56, height: 56, borderRadius: '50%', background: confirmModal.tone === 'primary' ? '#ede9fe' : '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {confirmModal.tone === 'primary'
+                ? <CheckCircleIcon style={{ width: 32, height: 32, color: '#7c3aed' }} />
+                : <ExclamationTriangleIcon style={{ width: 32, height: 32, color: '#ef4444' }} />}
             </Box>
           </Box>
           <Typography variant="h5" component="div" sx={{ fontWeight: 800, color: '#111111', mt: 1, letterSpacing: '-0.5px' }}>
@@ -224,18 +229,22 @@ function GlobalAlertModalProvider({ children }) {
             variant="contained"
             disableElevation
             autoFocus
-            sx={{ 
-              background: '#ef4444', 
-              color: 'white', 
-              fontWeight: 700, 
-              px: 3, 
-              py: 1, 
-              borderRadius: '999px', 
+            sx={{
+              background: confirmModal.tone === 'primary' ? '#7c3aed' : '#ef4444',
+              color: 'white',
+              fontWeight: 700,
+              px: 3,
+              py: 1,
+              borderRadius: '999px',
               whiteSpace: 'nowrap',
               textTransform: 'none',
               fontSize: '1rem',
-              boxShadow: '0 4px 6px -1px rgb(239 68 68 / 0.4)',
-              '&:hover': { background: '#dc2626', boxShadow: '0 4px 6px -1px rgb(220 38 38 / 0.4)' } 
+              boxShadow: confirmModal.tone === 'primary'
+                ? '0 4px 6px -1px rgb(124 58 237 / 0.4)'
+                : '0 4px 6px -1px rgb(239 68 68 / 0.4)',
+              '&:hover': confirmModal.tone === 'primary'
+                ? { background: '#6d28d9', boxShadow: '0 4px 6px -1px rgb(109 40 217 / 0.4)' }
+                : { background: '#dc2626', boxShadow: '0 4px 6px -1px rgb(220 38 38 / 0.4)' },
             }}
           >
             {confirmModal.confirmText}

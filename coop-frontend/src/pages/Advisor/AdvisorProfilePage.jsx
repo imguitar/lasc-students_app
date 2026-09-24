@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
+import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import {
   TextField,
   Button,
@@ -24,15 +24,15 @@ import {
   PencilSquareIcon,
   ClockIcon,
   CheckCircleIcon,
-  ClipboardDocumentListIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
-import asyncStorage from '../../../utils/asyncStorage';
-import api from '../../../api/axios';
-import './DashboardPage.css';
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import asyncStorage from '../../utils/asyncStorage';
+import api from '../../api/axios';
+import '../Admin/Dashboard/AdminDashboardPage.css';
+import AdvisorSidebar from '../../components/AdvisorSidebar';
+import UserProfileMenu from '../../components/UserProfileMenu';
+import NotificationBell from '../../components/NotificationBell';
+import DateTimeIndicator from '../../components/DateTimeIndicator';
 
 const DEPARTMENT_OPTIONS = [
   'สาขาวิชาวิทยาการคอมพิวเตอร์',
@@ -49,22 +49,21 @@ const DEPARTMENT_OPTIONS = [
   'สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม'
 ];
 
-const ProfilePage = () => {
+const AdvisorProfilePage = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [requestStatus, setRequestStatus] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileInputRef = useRef(null);
   const [form, setForm] = useState({
     name: '',
     email: '',
     username: '',
     phone: '',
-    studentId: '',
-    major: ''
+    position: '',
+    department: ''
   });
-  const [avatarPreview, setAvatarPreview] = useState(null);
-  const fileInputRef = useRef(null);
-  const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [passModal, setPassModal] = useState({
     open: false,
@@ -79,129 +78,93 @@ const ProfilePage = () => {
     let mounted = true;
     asyncStorage.getItem('user').then((raw) => {
       if (!mounted) return;
-      if (raw) {
-        try {
-          const u = JSON.parse(raw);
-          setUser(u);
-          const sid = u.student_code || u.studentId || u.username || '';
-          setForm({
-            name: u.full_name || u.name || '',
-            email: (u.email && !u.email.includes('@student.sskru.ac.th'))
-              ? u.email
-              : (sid ? `stu${sid}@sskru.ac.th` : ''),
-            username: u.username || '',
-            phone: u.phone || '',
-            studentId: u.studentId || u.student_code || '',
-            major: u.major || u.department || ''
-          });
-          setAvatarPreview(u.avatar || null);
-
-          const studentId = u.student_code || u.studentId || u.username;
-          if (studentId) {
-            api.get(`/requests?studentId=${studentId}`)
-              .then(res => {
-                const list = res.data.data || [];
-                if (list.length > 0) {
-                  const latest = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                  setRequestStatus(latest.status || '');
-                } else {
-                  setRequestStatus('ยังไม่ยื่นคำร้อง');
-                }
-              })
-              .catch(() => {});
-          }
-        } catch (e) {
-          setUser(null);
+      if (!raw) {
+        navigate('/login');
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        const role = String(parsed.role || '').toLowerCase();
+        if (role !== 'advisor' && role !== 'teacher') {
+          navigate('/dashboard');
+          return;
         }
-      } else {
+        setUser(parsed);
+        setForm({
+          name: parsed.full_name || parsed.name || '',
+          email: parsed.email || '',
+          username: parsed.username || '',
+          phone: parsed.phone || '',
+          position: parsed.position || 'อาจารย์ที่ปรึกษา',
+          department: parsed.department || parsed.major || ''
+        });
+        setAvatarPreview(parsed.avatar || null);
+      } catch (error) {
+        setUser(null);
         navigate('/login');
       }
     });
-    return () => (mounted = false);
+    return () => { mounted = false; };
   }, [navigate]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleLogout = async () => {
+    await asyncStorage.removeItem('user');
+    setUser(null);
+    navigate('/');
+  };
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
     if (name === 'phone') {
       const numericValue = value.replace(/\D/g, '').slice(0, 10);
-      setForm(prev => ({ ...prev, [name]: numericValue }));
+      setForm((prev) => ({ ...prev, [name]: numericValue }));
     } else {
-      setForm(prev => ({ ...prev, [name]: value }));
+      setForm((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
     try {
-      let updatedUser = {
+      let updated = {
         ...user,
-        email: form.email,
-        phone: form.phone,
         name: form.name,
         full_name: form.name,
-        major: form.major,
+        email: form.email,
+        phone: form.phone,
+        position: form.position,
+        department: form.department,
         avatar: avatarPreview,
       };
 
       if (user.id) {
-        try {
-          const res = await api.put(`/users/${user.id}`, {
-            name: form.name,
-            email: form.email,
-            phone: form.phone,
-            studentId: form.studentId,
-            department: form.major
-          });
-          if (res.data && res.data.data) {
-            updatedUser = { ...updatedUser, ...res.data.data };
-          }
-        } catch (apiErr) {
-          console.error("Failed to update user profile on server:", apiErr);
+        const res = await api.put(`/users/${user.id}`, {
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          position: form.position,
+          department: form.department,
+          avatar: avatarPreview
+        });
+        if (res.data && res.data.data) {
+          updated = { ...updated, ...res.data.data };
         }
       }
 
-      await asyncStorage.setItem('user', JSON.stringify(updatedUser));
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-
-      const studentId = updatedUser.student_code || updatedUser.studentId || updatedUser.username;
-      if (studentId) {
-        try {
-          const reqRes = await api.get(`/requests?studentId=${studentId}`);
-          const requests = reqRes.data.data || [];
-          for (const reqItem of requests) {
-            let details = reqItem.details || {};
-            if (typeof details === 'string') {
-              try { details = JSON.parse(details); } catch (e) { }
-            }
-            details.studentPhone = form.phone;
-            if (!details.student_info) details.student_info = {};
-            details.student_info.phone = form.phone;
-            details.student_info.email = form.email;
-
-            await api.put(`/requests/${reqItem.id}`, {
-              details: JSON.stringify(details)
-            });
-          }
-        } catch (reqSyncErr) {
-          console.log("Notice: Request details sync status:", reqSyncErr.message);
-        }
-      }
-
-      setUser(updatedUser);
+      await asyncStorage.setItem('user', JSON.stringify(updated));
+      localStorage.setItem('user', JSON.stringify(updated));
+      setUser(updated);
       setEditing(false);
       alert('บันทึกข้อมูลเสร็จสิ้น');
-    } catch (error) {
-      console.error("Failed to save profile:", error);
+    } catch (err) {
+      console.error("Failed to save advisor profile:", err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
     }
   };
@@ -239,9 +202,7 @@ const ProfilePage = () => {
     setPassModal(prev => ({ ...prev, submitting: true, error: '' }));
     try {
       if (user && user.id) {
-        await api.put(`/users/${user.id}`, {
-          password: passModal.newPassword
-        });
+        await api.put(`/users/${user.id}`, { password: passModal.newPassword });
       }
       alert('เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว');
       setPassModal({ open: false, newPassword: '', confirmPassword: '', showPass: false, submitting: false, error: '' });
@@ -251,19 +212,13 @@ const ProfilePage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await asyncStorage.removeItem('user');
-    setUser(null);
-    navigate('/');
-  };
-
   if (!user) return null;
 
   const inputClass = (editable) =>
     `w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && editable ? 'bg-white' : 'bg-gray-50/70'}`;
 
   return (
-    <div className="dashboard-container">
+    <div className="admin-dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
@@ -280,17 +235,17 @@ const ProfilePage = () => {
           <UserProfileMenu />
         </div>
       </div>
-      <StudentSidebar
+      <AdvisorSidebar
         isMenuOpen={isMenuOpen}
         setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/profile"
+        currentPath="/advisor-dashboard/profile"
         handleLogout={handleLogout}
       />
 
-      <main className="dashboard-main">
-        <header className="dashboard-header">
+      <main className="admin-main">
+        <header className="admin-header">
           <div>
-            <h1>ข้อมูลส่วนตัว</h1>
+            <h1>ข้อมูลอาจารย์</h1>
             <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
           </div>
         </header>
@@ -308,7 +263,7 @@ const ProfilePage = () => {
                       <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-4xl font-extrabold">
-                        {(user.full_name || user.name || user.username || 'U').charAt(0).toUpperCase()}
+                        {(user.full_name || user.name || user.username || 'A').charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -333,7 +288,7 @@ const ProfilePage = () => {
                   {user.full_name || user.name || user.username}
                 </h3>
                 <span className="bg-purple-50 text-purple-700 border border-purple-200/60 font-semibold px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5 mt-2">
-                  <AcademicCapIcon className="w-3.5 h-3.5" /> นักศึกษา
+                  <UserGroupIcon className="w-3.5 h-3.5" /> อาจารย์ที่ปรึกษา / อาจารย์นิเทศ
                 </span>
               </div>
 
@@ -342,16 +297,16 @@ const ProfilePage = () => {
                   <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
                   สถานะบัญชี: <span className="font-semibold text-emerald-600">กำลังใช้งาน</span>
                 </span>
-                <span className="inline-flex items-center gap-2 text-xs text-slate-600">
-                  <ClipboardDocumentListIcon className="w-4 h-4 text-purple-500 shrink-0" />
-                  สถานะคำร้อง: <span className="font-semibold text-purple-700">{requestStatus || 'กำลังโหลด...'}</span>
-                </span>
-                {form.major && (
+                {form.department && (
                   <span className="inline-flex items-start gap-2 text-xs text-slate-600">
                     <AcademicCapIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
-                    {form.major}
+                    สังกัด: {form.department}
                   </span>
                 )}
+                <span className="inline-flex items-start gap-2 text-xs text-slate-600">
+                  <LockClosedIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
+                  คณะศิลปศาสตร์และวิทยาศาสตร์
+                </span>
               </div>
             </div>
 
@@ -389,8 +344,8 @@ const ProfilePage = () => {
                             email: user.email || '',
                             username: user.username || '',
                             phone: user.phone || '',
-                            studentId: user.studentId || user.student_code || '',
-                            major: user.major || user.department || ''
+                            position: user.position || 'อาจารย์ที่ปรึกษา',
+                            department: user.department || user.major || ''
                           });
                           setAvatarPreview(user.avatar || null);
                         }}
@@ -412,17 +367,7 @@ const ProfilePage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">รหัสนักศึกษา</label>
-                  <input
-                    type="text"
-                    name="studentId"
-                    value={form.studentId}
-                    disabled
-                    className={inputClass(false)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">ชื่อ-นามสกุล</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">ชื่อ-นามสกุลอาจารย์</label>
                   <input
                     type="text"
                     name="name"
@@ -433,18 +378,29 @@ const ProfilePage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">สาขาวิชา</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">ตำแหน่งทางวิชาการ</label>
+                  <input
+                    type="text"
+                    name="position"
+                    value={form.position}
+                    onChange={handleChange}
+                    disabled={!editing}
+                    className={inputClass(true)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">สาขาวิชาที่สังกัด</label>
                   <select
-                    name="major"
-                    value={form.major}
+                    name="department"
+                    value={form.department}
                     onChange={handleChange}
                     disabled={!editing}
                     className={`${inputClass(true)} cursor-pointer disabled:cursor-default`}
                   >
                     <option value="">เลือกสาขา</option>
                     {DEPARTMENT_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                    {form.major && !DEPARTMENT_OPTIONS.includes(form.major) && (
-                      <option value={form.major}>{form.major}</option>
+                    {form.department && !DEPARTMENT_OPTIONS.includes(form.department) && (
+                      <option value={form.department}>{form.department}</option>
                     )}
                   </select>
                 </div>
@@ -459,7 +415,7 @@ const ProfilePage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">อีเมล</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">อีเมลติดต่อ</label>
                   <input
                     type="email"
                     name="email"
@@ -470,7 +426,7 @@ const ProfilePage = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">เบอร์โทรศัพท์</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">เบอร์โทรศัพท์ภายใน / มือถือ</label>
                   <input
                     type="text"
                     name="phone"
@@ -566,7 +522,6 @@ const ProfilePage = () => {
                 }}
               />
 
-              {/* Real-time Password Strength Gauge Bar */}
               {passModal.newPassword && (() => {
                 const strength = getPasswordStrength(passModal.newPassword);
                 return (
@@ -640,4 +595,4 @@ const ProfilePage = () => {
   );
 };
 
-export default ProfilePage;
+export default AdvisorProfilePage;

@@ -22,8 +22,13 @@ import {
   XCircle,
   Inbox,
   Info,
+  Video,
+  MapPin,
+  UserRound,
+  ChevronDown,
 } from 'lucide-react';
 import StudentSidebar from '../../../components/StudentSidebar';
+import AdvisorSidebar from '../../../components/AdvisorSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
@@ -148,9 +153,11 @@ const StudentNotificationsPage = () => {
   const [filter, setFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [requestLoading, setRequestLoading] = useState(false);
   const [pageError, setPageError] = useState('');
+  const [userRole, setUserRole] = useState('student');
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -174,6 +181,10 @@ const StudentNotificationsPage = () => {
       navigate('/login');
       return;
     }
+    try {
+      const parsed = JSON.parse(userStr);
+      if (parsed?.role) setUserRole(parsed.role);
+    } catch (_) {}
     loadNotifications();
   }, [navigate]);
 
@@ -243,6 +254,10 @@ const StudentNotificationsPage = () => {
   const filtered = notifications.filter((n) => (filter === 'unread' ? !n.is_read : true));
 
   const selectedNotice = notifications.find((n) => n.id === selectedId) || null;
+  const isAdvisor = userRole === 'advisor';
+  const homePath = isAdvisor ? '/advisor-dashboard' : userRole === 'admin' ? '/admin-dashboard' : '/dashboard';
+  const isCompanyNotice = selectedNotice?.type === 'company_response';
+  const isSupervisionNotice = ['supervision_assigned', 'supervision_completed'].includes(selectedNotice?.type);
   const details = selectedRequest?.details || {};
   const companyResponse = details.companyResponse || {};
   const dispatchLetter = parseDispatchLetter(selectedRequest?.dispatchLetter || details.dispatchLetter);
@@ -265,6 +280,9 @@ const StudentNotificationsPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -273,12 +291,21 @@ const StudentNotificationsPage = () => {
           <UserProfileMenu />
         </div>
       </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard"
-        handleLogout={handleLogout}
-      />
+      {isAdvisor ? (
+        <AdvisorSidebar
+          isMenuOpen={isMenuOpen}
+          setIsMenuOpen={setIsMenuOpen}
+          currentPath="/dashboard/notifications"
+          handleLogout={handleLogout}
+        />
+      ) : (
+        <StudentSidebar
+          isMenuOpen={isMenuOpen}
+          setIsMenuOpen={setIsMenuOpen}
+          currentPath="/dashboard"
+          handleLogout={handleLogout}
+        />
+      )}
 
       <main className="dashboard-main max-w-full overflow-x-hidden">
         <div className="px-1 sm:px-2">
@@ -286,7 +313,7 @@ const StudentNotificationsPage = () => {
           <div className="flex items-start gap-3 mb-5 flex-wrap">
             <button
               type="button"
-              onClick={() => (selectedId && window.innerWidth < 768 ? setSelectedId(null) : navigate('/dashboard'))}
+              onClick={() => navigate(homePath)}
               className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition cursor-pointer"
               aria-label="ย้อนกลับ"
             >
@@ -303,7 +330,9 @@ const StudentNotificationsPage = () => {
                   </span>
                 )}
               </div>
-              <p className="text-slate-400 text-xs mt-1 m-0">ติดตามผลการตอบรับจากสถานประกอบการและสถานะคำร้องของคุณ</p>
+              <p className="text-slate-400 text-xs mt-1 m-0">
+                {isAdvisor ? 'การแจ้งเตือนการมอบหมายนิเทศและความเคลื่อนไหวที่เกี่ยวข้องกับคุณ' : 'ติดตามผลการตอบรับจากสถานประกอบการและสถานะคำร้องของคุณ'}
+              </p>
             </div>
           </div>
 
@@ -343,8 +372,8 @@ const StudentNotificationsPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 items-start">
-              {/* Left: List View */}
-              <div className={`${selectedId ? 'hidden md:block' : 'block'} bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden`}>
+              {/* Left: List View — always visible (mobile uses inline accordion) */}
+              <div className="block bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden">
                 {filtered.length === 0 ? (
                   <div className="py-16 px-4 flex flex-col items-center justify-center text-center gap-2">
                     <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
@@ -358,65 +387,163 @@ const StudentNotificationsPage = () => {
                     {filtered.map((notice) => {
                       const isUnread = !notice.is_read;
                       const isSelected = notice.id === selectedId;
+                      const isExpanded = expandedId === notice.id;
                       const isCompanyResponse = notice.type === 'company_response';
+                      const isSupervision = ['supervision_assigned', 'supervision_completed'].includes(notice.type);
                       const accepted = isAcceptedNotice(notice);
                       const Icon = noticeIcon(notice.type);
                       return (
-                        <button
-                          key={notice.id}
-                          type="button"
-                          onClick={() => handleSelectNotice(notice)}
-                          className={`w-full text-left p-3.5 transition-colors cursor-pointer border-none ${
-                            isSelected
-                              ? 'bg-violet-50/70 border-l-4 border-l-violet-600'
-                              : isUnread
-                                ? 'bg-white hover:bg-slate-50 border-l-4 border-l-violet-400'
-                                : 'bg-white hover:bg-slate-50 border-l-4 border-l-transparent'
-                          }`}
-                          style={{ borderTop: 'none', borderRight: 'none', borderBottom: 'none' }}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
-                              isUnread ? 'bg-violet-50 border-violet-200/80' : 'bg-slate-100/70 border-slate-200/40'
-                            }`}>
-                              <Icon className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className={`m-0 text-xs leading-snug truncate ${isUnread ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>
-                                  {notice.title}
-                                </p>
-                                {isUnread && <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" />}
+                        <div key={notice.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedId((prev) => (prev === notice.id ? null : notice.id));
+                              handleSelectNotice(notice);
+                            }}
+                            className={`w-full text-left p-3.5 transition-colors cursor-pointer border-none select-none ${
+                              isSelected
+                                ? 'bg-violet-50/70 border-l-4 border-l-violet-600'
+                                : isUnread
+                                  ? 'bg-white hover:bg-slate-50 border-l-4 border-l-violet-400'
+                                  : 'bg-white hover:bg-slate-50 border-l-4 border-l-transparent'
+                            }`}
+                            style={{ borderTop: 'none', borderRight: 'none', borderBottom: 'none' }}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                isUnread ? 'bg-violet-50 border-violet-200/80' : 'bg-slate-100/70 border-slate-200/40'
+                              }`}>
+                                <Icon className={`w-4 h-4 ${isUnread ? 'text-violet-600' : 'text-slate-400'}`} />
                               </div>
-                              {notice.message && (
-                                <p className={`m-0 mt-1 text-[11px] leading-relaxed line-clamp-2 break-words ${isUnread ? 'text-slate-600' : 'text-slate-400'}`}>
-                                  {notice.message}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 mt-1.5">
-                                {isCompanyResponse && (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                    accepted
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                      : 'bg-rose-50 text-rose-600 border border-rose-100'
-                                  }`}>
-                                    <span className={`w-1 h-1 rounded-full ${accepted ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                    {accepted ? 'ตอบรับ' : 'ปฏิเสธ'}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className={`m-0 text-xs leading-snug truncate ${isUnread ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>
+                                    {notice.title}
+                                  </p>
+                                  <span className="flex items-center gap-1.5 shrink-0">
+                                    {isUnread && <span className="w-2 h-2 rounded-full bg-violet-600" />}
+                                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 md:hidden ${isExpanded ? 'rotate-180' : ''}`} />
                                   </span>
+                                </div>
+                                {notice.message && (
+                                  <p className={`m-0 mt-1 text-[11px] leading-relaxed break-words ${isExpanded ? '' : 'line-clamp-2'} ${isUnread ? 'text-slate-600' : 'text-slate-400'}`}>
+                                    {notice.message}
+                                  </p>
                                 )}
-                                <span className="text-[10px] text-slate-400">{timeAgo(notice.created_at)}</span>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  {isCompanyResponse && (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                      accepted
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                        : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                    }`}>
+                                      <span className={`w-1 h-1 rounded-full ${accepted ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                      {accepted ? 'ตอบรับ' : 'ปฏิเสธ'}
+                                    </span>
+                                  )}
+                                  {isSupervision && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-100">
+                                      นิเทศ
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-400">{timeAgo(notice.created_at)}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+
+                          {/* Collapsible detail — mobile only */}
+                          {isExpanded && (
+                            <div className="md:hidden px-3.5 pb-3.5 pt-1 bg-violet-50/40 border-l-4 border-l-violet-600 transition-all duration-300 ease-in-out">
+                              {notice.request_id && requestLoading && isSelected && (
+                                <div className="flex items-center gap-2 py-2 text-[11px] text-slate-400">
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-500" />
+                                  กำลังโหลดรายละเอียด...
+                                </div>
+                              )}
+
+                              {isSelected && selectedRequest && isSupervision && (
+                                <div className="rounded-xl bg-white border border-violet-100 p-3 my-2 space-y-2">
+                                  <div className="text-[10px] font-bold text-violet-700">รายละเอียดการนิเทศ</div>
+                                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                    <div>
+                                      <div className="text-slate-400">วันนัดนิเทศ</div>
+                                      <div className="font-bold text-slate-800">{formatDateThai(selectedRequest.supervisionAppointment?.date)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-400">รูปแบบ</div>
+                                      <div className="font-bold text-slate-800 flex items-center gap-1">
+                                        {selectedRequest.supervisionAppointment?.mode === 'Onsite'
+                                          ? <MapPin className="w-3 h-3 text-violet-500" />
+                                          : <Video className="w-3 h-3 text-violet-500" />}
+                                        {selectedRequest.supervisionAppointment?.mode || '-'}
+                                      </div>
+                                    </div>
+                                    <div className="col-span-2">
+                                      <div className="text-slate-400">อาจารย์ผู้นิเทศ</div>
+                                      <div className="font-bold text-slate-800">{selectedRequest.supervisionAppointment?.advisorName || '-'}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {isSelected && selectedRequest && isCompanyResponse && (signatureUrl || signerName) && (
+                                <div className="rounded-xl bg-white border border-slate-100 p-3 my-2 flex items-center gap-3">
+                                  {signatureUrl && (
+                                    <img src={signatureUrl} alt="ลายเซ็น" className="h-12 max-w-[110px] object-contain border border-slate-200 rounded-lg bg-white p-1" />
+                                  )}
+                                  <div className="min-w-0">
+                                    {signerName && <div className="text-xs font-bold text-slate-800 truncate">{signerName}</div>}
+                                    {signerPosition && <div className="text-[10px] text-slate-400">{signerPosition}</div>}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                {isAdvisor && isSupervision ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/advisor-dashboard/supervision')}
+                                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-violet-600 text-white text-[11px] font-semibold transition cursor-pointer border-none"
+                                    >
+                                      <CalendarDays className="w-3.5 h-3.5" />
+                                      ไปยังหน้านิเทศ
+                                    </button>
+                                    {notice.request_id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => navigate(`/advisor-dashboard/supervision/evaluate/${notice.request_id}`)}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-violet-200 text-violet-700 text-[11px] font-semibold transition cursor-pointer bg-white"
+                                      >
+                                        <PenTool className="w-3.5 h-3.5" />
+                                        บันทึก/ดูผลนิเทศ
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewRequest(notice)}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-violet-600 text-white text-[11px] font-semibold transition cursor-pointer border-none"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    {isAdvisor ? 'ดูข้อมูลคำร้อง' : 'ดูคำร้องฉบับเต็ม'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
                 )}
               </div>
 
-              {/* Right: Reading Pane */}
-              <div className={`${selectedId ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-100 shadow-2xs min-h-[400px]`}>
+              {/* Right: Reading Pane — desktop only (mobile reads inline via accordion) */}
+              <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-2xs min-h-[400px]">
                 {!selectedNotice ? (
                   <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center gap-2 py-16 px-4">
                     <div className="w-14 h-14 rounded-2xl bg-violet-50 border border-violet-100 text-violet-500 flex items-center justify-center">
@@ -438,7 +565,7 @@ const StudentNotificationsPage = () => {
                           <span>{timeAgo(selectedNotice.created_at)}</span>
                         </div>
                       </div>
-                      {selectedNotice.type === 'company_response' && (
+                      {isCompanyNotice && (
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
                           isAccepted
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -446,6 +573,12 @@ const StudentNotificationsPage = () => {
                         }`}>
                           {isAccepted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                           {isAccepted ? 'ตอบรับแล้ว' : 'ปฏิเสธ'}
+                        </span>
+                      )}
+                      {isSupervisionNotice && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 bg-violet-50 text-violet-700 border border-violet-200">
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          นิเทศ
                         </span>
                       )}
                     </div>
@@ -467,7 +600,8 @@ const StudentNotificationsPage = () => {
 
                       {selectedRequest && (
                         <>
-                          {/* Confirmation Bar */}
+                          {/* Confirmation Bar — เฉพาะแจ้งเตือนผลตอบรับสถานประกอบการ */}
+                          {isCompanyNotice && (
                           <div className={`rounded-xl px-4 py-3 flex items-center gap-2.5 text-xs font-semibold ${
                             isAccepted
                               ? 'bg-emerald-50 border border-emerald-100 text-emerald-700'
@@ -478,6 +612,7 @@ const StudentNotificationsPage = () => {
                               ? 'สถานประกอบการยืนยันรับคุณเข้าฝึกงานแล้ว'
                               : 'สถานประกอบการปฏิเสธคำร้องฝึกงานนี้'}
                           </div>
+                          )}
 
                           {/* Internship Dates */}
                           {(internshipStart || internshipEnd) && (
@@ -492,8 +627,8 @@ const StudentNotificationsPage = () => {
                             </div>
                           )}
 
-                          {/* Signature Zone */}
-                          {(signatureUrl || signerName) && (
+                          {/* Signature Zone — เฉพาะผลตอบรับสถานประกอบการ */}
+                          {isCompanyNotice && (signatureUrl || signerName) && (
                             <div className="rounded-2xl border border-slate-100 p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <PenTool className="w-4 h-4 text-violet-600" />
@@ -513,8 +648,8 @@ const StudentNotificationsPage = () => {
                             </div>
                           )}
 
-                          {/* Attachment Zone */}
-                          {dispatchLetter?.dataUrl && (
+                          {/* Attachment Zone — เฉพาะผลตอบรับสถานประกอบการ */}
+                          {isCompanyNotice && dispatchLetter?.dataUrl && (
                             <div className="rounded-2xl border border-slate-100 p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <Paperclip className="w-4 h-4 text-violet-600" />
@@ -554,16 +689,90 @@ const StudentNotificationsPage = () => {
                             </div>
                           )}
 
-                          {/* Actions */}
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleViewRequest(selectedNotice)}
-                              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none"
-                            >
-                              <Eye className="w-4 h-4" />
-                              ดูคำร้องฉบับเต็ม
-                            </button>
+                          {/* Supervision Detail — เฉพาะแจ้งเตือนนิเทศ */}
+                          {isSupervisionNotice && (
+                            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <CalendarDays className="w-4 h-4 text-violet-600" />
+                                <span className="text-xs font-bold text-slate-700">รายละเอียดการนิเทศ</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div className="rounded-xl bg-white border border-slate-100 p-3">
+                                  <div className="text-[10px] text-slate-400 mb-0.5">วันนัดนิเทศ</div>
+                                  <div className="text-xs font-bold text-slate-800">
+                                    {formatDateThai(selectedRequest.supervisionAppointment?.date)}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl bg-white border border-slate-100 p-3">
+                                  <div className="text-[10px] text-slate-400 mb-0.5">รูปแบบ</div>
+                                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    {selectedRequest.supervisionAppointment?.mode === 'Onsite'
+                                      ? <MapPin className="w-3.5 h-3.5 text-violet-500" />
+                                      : <Video className="w-3.5 h-3.5 text-violet-500" />}
+                                    {selectedRequest.supervisionAppointment?.mode || '-'}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl bg-white border border-slate-100 p-3">
+                                  <div className="text-[10px] text-slate-400 mb-0.5">อาจารย์ผู้นิเทศ</div>
+                                  <div className="text-xs font-bold text-slate-800">
+                                    {selectedRequest.supervisionAppointment?.advisorName || '-'}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl bg-white border border-slate-100 p-3">
+                                  <div className="text-[10px] text-slate-400 mb-0.5">นักศึกษา / สถานประกอบการ</div>
+                                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0">
+                                    <UserRound className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                                    <span className="truncate">
+                                      {selectedRequest.studentName || selectedRequest.studentId || '-'}
+                                    </span>
+                                  </div>
+                                  {selectedRequest.company && (
+                                    <div className="text-[10px] text-slate-400 mt-1 truncate">{selectedRequest.company}</div>
+                                  )}
+                                </div>
+                              </div>
+                              {selectedRequest.supervisionAppointment?.note && (
+                                <div className="rounded-xl bg-white border border-slate-100 p-3">
+                                  <div className="text-[10px] text-slate-400 mb-0.5">หมายเหตุ</div>
+                                  <div className="text-xs text-slate-600 leading-relaxed">{selectedRequest.supervisionAppointment.note}</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Actions — เลือกปุ่มตามประเภทแจ้งเตือนและบทบาทผู้ใช้ */}
+                          <div className="flex items-center gap-2 pt-1 flex-wrap">
+                            {isAdvisor && isSupervisionNotice ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate('/advisor-dashboard/supervision')}
+                                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none"
+                                >
+                                  <CalendarDays className="w-4 h-4" />
+                                  ไปยังหน้านิเทศ
+                                </button>
+                                {selectedNotice.request_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/advisor-dashboard/supervision/evaluate/${selectedNotice.request_id}`)}
+                                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-violet-200 hover:bg-violet-50 text-violet-700 text-xs font-semibold transition cursor-pointer bg-transparent"
+                                  >
+                                    <PenTool className="w-4 h-4" />
+                                    บันทึก/ดูผลนิเทศ
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleViewRequest(selectedNotice)}
+                                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none"
+                              >
+                                <Eye className="w-4 h-4" />
+                                {isAdvisor ? 'ดูข้อมูลคำร้อง' : 'ดูคำร้องฉบับเต็ม'}
+                              </button>
+                            )}
                           </div>
                         </>
                       )}

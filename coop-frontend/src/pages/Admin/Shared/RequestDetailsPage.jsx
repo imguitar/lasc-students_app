@@ -546,7 +546,11 @@ const RequestDetailsPage = () => {
             )}
             <div className="detail-item">
               <span className="detail-label">โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">{details.student_info?.phone || '-'} / {details.student_info?.email || '-'}</span>
+              <span className="detail-value">
+                {details.student_info?.phone || '-'} / {(details.student_info?.email && !details.student_info.email.includes('@student.sskru.ac.th'))
+                  ? details.student_info.email
+                  : (request.studentId ? `stu${request.studentId}@sskru.ac.th` : '-')}
+              </span>
             </div>
             {studentAddress && studentAddress !== '-' && (
               <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
@@ -773,6 +777,26 @@ const RequestDetailsPage = () => {
           </section>
         )}
 
+        {/* นักศึกษาเห็นเฉพาะสถานะนิเทศ + ข้อเสนอแนะ — ซ่อนคะแนนรวมทั้งหมด */}
+        {advisorEvaluation && userRole === 'student' && (
+          <section className="detail-section" style={{ marginTop: '30px', padding: '24px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: advisorEvaluation.studentComments ? '16px' : 0 }}>
+              <h3 style={{ color: '#166534', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
+                <ChartBarIcon style={{ width: 20, height: 20 }} /> ผลการนิเทศและประเมิน (โดยอาจารย์ที่ปรึกษา)
+              </h3>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '999px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: '0.85rem', fontWeight: 600 }}>
+                <Check size={15} /> นิเทศเสร็จแล้ว
+              </span>
+            </div>
+            {advisorEvaluation.studentComments && (
+              <div className="detail-item" style={{ backgroundColor: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                <span className="detail-label" style={{ color: '#166534', fontSize: '0.9rem', marginBottom: '4px', display: 'block' }}>ข้อเสนอแนะจากอาจารย์ที่ปรึกษา</span>
+                <span className="detail-value" style={{ display: 'block', lineHeight: 1.6 }}>{advisorEvaluation.studentComments}</span>
+              </div>
+            )}
+          </section>
+        )}
+
         {advisorEvaluation && (userRole === 'admin' || userRole === 'advisor') && (
           <section className="detail-section" style={{ marginTop: '30px', padding: '24px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -853,8 +877,22 @@ const RequestDetailsPage = () => {
               </div>
               <div className="detail-item">
                 <span className="detail-label">สถานะการประเมิน</span>
-                <span className="detail-value" style={{ fontWeight: 'bold', color: '#10b981' }}>
-                  ประเมินเสร็จแล้ว
+                <span
+                  className="detail-value"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    color: '#047857',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  <Check size={15} /> สถานประกอบการบันทึกผลการประเมินเรียบร้อยแล้ว
                 </span>
               </div>
             </div>

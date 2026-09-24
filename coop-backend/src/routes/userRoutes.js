@@ -8,11 +8,22 @@ const { toFrontendUser, USER_SELECT_SQL, DEPARTMENT_MAP, DEPARTMENT_NAME_TO_ID }
 // GET /api/users — ดึงผู้ใช้ทั้งหมด
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { role, search } = req.query;
+    const { role, search, department_id, department } = req.query;
     let sql = `${USER_SELECT_SQL} WHERE 1=1`;
     const params = [];
 
     if (role) { sql += ' AND u.role = ?'; params.push(role); }
+    // กรองตามสาขา: เทียบ profile.department_id หรือ user.department (normalize ตัด "สาขาวิชา"/ช่องว่าง)
+    if (department_id || department) {
+      const deptName = department || DEPARTMENT_MAP[Number(department_id)] || '';
+      const deptCore = deptName.replace(/สาขาวิชา/g, '').replace(/\s+/g, '');
+      sql += ` AND (
+        p.department_id = ?
+        OR REPLACE(REPLACE(TRIM(u.department), 'สาขาวิชา', ''), ' ', '') = ?
+        OR REPLACE(REPLACE(TRIM(u.department), 'สาขาวิชา', ''), ' ', '') LIKE CONCAT('%', ?, '%')
+      )`;
+      params.push(Number(department_id) || 0, deptCore, deptCore);
+    }
     if (search) {
       sql += ' AND (u.username LIKE ? OR u.email LIKE ? OR p.firstname LIKE ? OR p.lastname LIKE ? OR p.profile_id LIKE ?)';
       const s = `%${search}%`;
@@ -29,6 +40,51 @@ router.get('/', authenticate, async (req, res) => {
         const code = String(student.student_code || student.studentId || student.username || '').trim();
         return allowedPrefixes.some(prefix => code.startsWith(prefix)) || code.startsWith('student');
       });
+
+      // แนบคำร้องล่าสุดของนักศึกษาแต่ละคน (สถานะ/บริษัท/เบอร์โทรจากฟอร์ม) สำหรับหน้าอาจารย์ที่ปรึกษา
+      try {
+        const codes = users
+          .map((u) => String(u.student_code || u.studentId || u.username || '').trim())
+          .filter(Boolean);
+        if (codes.length > 0) {
+          const [reqRows] = await pool.query(
+            `SELECT r.id, r.studentId, r.status, r.company, r.details
+             FROM requests r
+             INNER JOIN (
+               SELECT studentId, MAX(id) AS maxId
+               FROM requests WHERE studentId IN (?) GROUP BY studentId
+             ) latest ON r.id = latest.maxId`,
+            [codes]
+          );
+          const reqMap = {};
+          reqRows.forEach((row) => {
+            let phone = '';
+            try {
+              const d = typeof row.details === 'string' ? JSON.parse(row.details) : row.details;
+              phone = d?.student_info?.phone || d?.student_info?.tel || d?.phone || '';
+            } catch (_) {}
+            reqMap[String(row.studentId)] = {
+              requestId: row.id,
+              status: row.status || '',
+              company: row.company || '',
+              phone,
+            };
+          });
+          users = users.map((u) => {
+            const req = reqMap[String(u.student_code || u.studentId || u.username || '').trim()];
+            if (!req) return u;
+            return {
+              ...u,
+              latest_request_status: req.status,
+              company_name: req.company,
+              request_id: req.requestId,
+              request_phone: req.phone,
+            };
+          });
+        }
+      } catch (enrichErr) {
+        console.warn('[Users] ดึงคำร้องล่าสุดของนักศึกษาไม่สำเร็จ:', enrichErr.message);
+      }
     }
 
     res.json({ success: true, data: users });

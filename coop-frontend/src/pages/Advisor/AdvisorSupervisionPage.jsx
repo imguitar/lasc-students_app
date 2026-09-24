@@ -9,10 +9,8 @@ import {
     Card,
     CardContent,
     Dialog,
-    DialogActions,
     DialogContent,
-    DialogTitle,
-    LinearProgress,
+    Menu,
     MenuItem,
     Paper,
     Snackbar,
@@ -23,10 +21,9 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
     Typography,
 } from '@mui/material';
-import { STAT_EMOJI } from '../../utils/statEmojis';
+import { CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Users, Video, MapPin, X } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
@@ -40,6 +37,7 @@ const AdvisorSupervisionPage = () => {
     const [advisorName, setAdvisorName] = useState('');
     const [advisorDept, setAdvisorDept] = useState('');
     const [isDepartmentHead, setIsDepartmentHead] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState(null);
     const [departmentAdvisors, setDepartmentAdvisors] = useState([]);
     const [supervisionRows, setSupervisionRows] = useState([]);
     const [appointmentDialog, setAppointmentDialog] = useState({
@@ -52,6 +50,9 @@ const AdvisorSupervisionPage = () => {
         advisorId: ''
     });
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+    const [actionMenu, setActionMenu] = useState({ anchor: null, request: null });
+
+    const closeActionMenu = () => setActionMenu({ anchor: null, request: null });
 
     const toDate = (value) => {
         if (!value) return null;
@@ -95,15 +96,50 @@ const AdvisorSupervisionPage = () => {
         return 'นัดแล้ว';
     };
 
-    const loadSupervisionRows = async (dept) => {
+    // ตัดคำนำหน้า "สาขา"/"สาขาวิชา" และช่องว่างออกก่อนเทียบ กันชื่อสาขาไม่ตรงกันเป๊ะ
+    const normalizeDept = (value) =>
+        String(value || '')
+            .replace(/^\s*สาขาวิชา\s*/, '')
+            .replace(/^\s*สาขา\s*/, '')
+            .replace(/\s+/g, '')
+            .trim();
+
+    // เช็คว่าคำร้องนี้มอบหมายให้ผู้ใช้ปัจจุบันเป็นผู้นิเทศหรือไม่
+    const isAssignedToMe = (request, me) => {
+        const appt = request?.supervisionAppointment;
+        if (!appt || !me) return false;
+        const assignedId = appt.advisorId ? Number(appt.advisorId) : null;
+        const assignedName = String(appt.advisorName || '').trim();
+        const myName = String(me.name || '').trim();
+        return Boolean(
+            (assignedId && assignedId === Number(me.id)) ||
+            (assignedName && myName && assignedName === myName)
+        );
+    };
+
+    const loadSupervisionRows = async (dept, me) => {
         try {
             const res = await api.get('/requests');
             const allRequests = res.data.data || [];
-            const activeStatuses = ['อนุมัติแล้ว', 'ออกฝึกงาน', 'ฝึกงานเสร็จแล้ว'];
+            const activeStatuses = [
+                'อนุมัติแล้ว', 'อนุมัติแล้ว (รอออกฝึกงาน)',
+                'รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน',
+                'สถานประกอบการตอบรับแล้ว', 'ตอบรับแล้ว',
+                'ออกฝึกงาน', 'กำลังออกฝึกงาน',
+                'สิ้นสุดการฝึกงาน (รอประเมิน)', 'ประเมินเสร็จแล้ว', 'ฝึกงานเสร็จแล้ว',
+                // enum ภาษาอังกฤษที่อาจเจอในฐานข้อมูล
+                'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'APPROVED', 'COMPLETED'
+            ];
+            const deptKey = normalizeDept(dept);
             const filtered = allRequests.filter((request) => {
-                const sameDept = dept ? (request.department || '') === dept : true;
-                return sameDept && activeStatuses.includes(request.status);
+                const sameDept = deptKey ? normalizeDept(request.department) === deptKey : true;
+                if (!sameDept || !activeStatuses.includes(request.status)) return false;
+                // อาจารย์ทั่วไปเห็นเฉพาะนักศึกษาที่ตนได้รับมอบหมายเป็นผู้นิเทศ
+                // ประธานสาขาเห็นภาพรวมทั้งหมดเพื่อจัดการนัดหมาย
+                if (!me?.isDepartmentHead) return isAssignedToMe(request, me);
+                return true;
             });
+            console.log('[Supervision] dept:', dept, '| total:', allRequests.length, '| matched:', filtered.length);
             setSupervisionRows(filtered);
         } catch (err) {
             console.error('Failed to load requests:', err);
@@ -124,17 +160,25 @@ const AdvisorSupervisionPage = () => {
         }
 
         const dept = user.department || user.major || '';
-        setAdvisorName(user.name || user.full_name || 'อาจารย์ที่ปรึกษา');
+        const myName = user.name || user.full_name || 'อาจารย์ที่ปรึกษา';
+        const me = { id: user.id, name: myName, isDepartmentHead: Boolean(user.isDepartmentHead) };
+        setAdvisorName(myName);
         setAdvisorDept(dept);
-        setIsDepartmentHead(Boolean(user.isDepartmentHead));
-        loadSupervisionRows(dept);
+        setIsDepartmentHead(me.isDepartmentHead);
+        setCurrentUserId(user.id);
+        loadSupervisionRows(dept, me);
 
         // ประธานสาขาเปลี่ยนได้จากระบบฐานข้อมูลนักศึกษา ค่าใน localStorage จึงอาจเก่า
-        // ดึงค่าล่าสุดจากเซิร์ฟเวอร์ทับเสมอ
+        // ดึงค่าล่าสุดจากเซิร์ฟเวอร์ทับเสมอ แล้วโหลดรายการใหม่ตามสิทธิ์จริง
         api.get('/auth/me')
             .then((res) => {
                 const fresh = res.data?.user;
-                if (fresh) setIsDepartmentHead(Boolean(fresh.isDepartmentHead));
+                if (!fresh) return;
+                const freshHead = Boolean(fresh.isDepartmentHead);
+                setIsDepartmentHead(freshHead);
+                if (freshHead !== me.isDepartmentHead) {
+                    loadSupervisionRows(dept, { ...me, isDepartmentHead: freshHead });
+                }
             })
             .catch(() => {});
 
@@ -142,7 +186,8 @@ const AdvisorSupervisionPage = () => {
         api.get('/users?role=advisor')
             .then((res) => {
                 const list = res.data?.data || [];
-                const matched = dept ? list.filter((a) => a.department === dept) : list;
+                const deptKey = normalizeDept(dept);
+                const matched = deptKey ? list.filter((a) => normalizeDept(a.department) === deptKey) : list;
                 setDepartmentAdvisors(matched.length > 0 ? matched : list);
             })
             .catch(() => {});
@@ -246,6 +291,9 @@ const AdvisorSupervisionPage = () => {
                     <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
                     <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
                         <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
                     </Link>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -278,10 +326,10 @@ const AdvisorSupervisionPage = () => {
                     }}
                 >
                     {[
-                        { title: 'นักศึกษาที่ดูแลทั้งหมด', value: summary.totalStudents, icon: STAT_EMOJI.TOTAL, color: '#3b82f6' },
-                        { title: 'รอนัดนิเทศ', value: summary.pendingSchedule, icon: STAT_EMOJI.PENDING, color: '#f59e0b' },
-                        { title: 'นิเทศสัปดาห์นี้', value: summary.thisWeek, icon: STAT_EMOJI.CALENDAR, color: '#0284c7' },
-                        { title: 'ยังไม่ประเมิน', value: summary.pendingEvaluation, icon: STAT_EMOJI.NOTE, color: '#10b981' },
+                        { title: 'นักศึกษาที่ดูแลทั้งหมด', value: summary.totalStudents, icon: <Users className="w-5 h-5" />, color: '#3b82f6' },
+                        { title: 'รอนัดนิเทศ', value: summary.pendingSchedule, icon: <CalendarClock className="w-5 h-5" />, color: '#f59e0b' },
+                        { title: 'นิเทศสัปดาห์นี้', value: summary.thisWeek, icon: <CalendarDays className="w-5 h-5" />, color: '#0284c7' },
+                        { title: 'ยังไม่ประเมิน', value: summary.pendingEvaluation, icon: <ClipboardCheck className="w-5 h-5" />, color: '#10b981' },
                     ].map((item) => (
                         <StatCard
                             key={item.title}
@@ -349,31 +397,22 @@ const AdvisorSupervisionPage = () => {
                                                     </Stack>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                                        {isDepartmentHead ? (
-                                                            request.supervisionAppointment?.date ? (
-                                                                <Button size="small" variant="outlined" color="info" onClick={() => openAppointmentDialog(request)}>
-                                                                    แก้ไขวันนัด/อาจารย์
-                                                                </Button>
-                                                            ) : (
-                                                                <Button size="small" variant="outlined" onClick={() => openAppointmentDialog(request)}>
-                                                                    กำหนดวัน/อาจารย์
-                                                                </Button>
-                                                            )
-                                                        ) : (
-                                                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '4px' }}>
-                                                                (กำหนดโดยประธานสาขา)
-                                                            </span>
-                                                        )}
-                                                        <Button 
-                                                            size="small" 
-                                                            variant={(supervisionStatus === 'นิเทศเสร็จสิ้น' || supervisionStatus === 'นิเทศแล้ว' || request.hasAdvisorEval) ? 'outlined' : 'contained'} 
-                                                            color={(supervisionStatus === 'นิเทศเสร็จสิ้น' || supervisionStatus === 'นิเทศแล้ว' || request.hasAdvisorEval) ? 'success' : 'primary'}
-                                                            onClick={() => navigate(`/advisor-dashboard/supervision/evaluate/${request.id}`)}
-                                                        >
-                                                            {(supervisionStatus === 'นิเทศเสร็จสิ้น' || supervisionStatus === 'นิเทศแล้ว' || request.hasAdvisorEval) ? 'นิเทศเสร็จสิ้น' : 'บันทึกผลนิเทศ'}
-                                                        </Button>
-                                                    </Stack>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        endIcon={<ChevronDown className="w-3.5 h-3.5" />}
+                                                        onClick={(e) => setActionMenu({ anchor: e.currentTarget, request })}
+                                                        sx={{
+                                                            borderColor: '#ddd6fe',
+                                                            color: '#6d28d9',
+                                                            fontWeight: 600,
+                                                            borderRadius: '10px',
+                                                            textTransform: 'none',
+                                                            '&:hover': { borderColor: '#a78bfa', bgcolor: '#f5f3ff' }
+                                                        }}
+                                                    >
+                                                        จัดการ
+                                                    </Button>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -391,63 +430,182 @@ const AdvisorSupervisionPage = () => {
                 </Paper>
             </main>
 
-            <Dialog open={appointmentDialog.open} onClose={closeAppointmentDialog} fullWidth maxWidth="sm">
-                <DialogTitle>กำหนดวันนิเทศ</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 1 }}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="อาจารย์ผู้รับผิดชอบนิเทศ (กำหนดโดยประธานสาขาวิชา)"
-                            value={appointmentDialog.advisorName}
-                            onChange={(event) => {
-                                const selectedName = event.target.value;
-                                const found = departmentAdvisors.find((a) => a.name === selectedName || a.username === selectedName);
-                                setAppointmentDialog((prev) => ({
-                                    ...prev,
-                                    advisorName: selectedName,
-                                    advisorId: found ? found.id : ''
-                                }));
-                            }}
+            <Menu
+                anchorEl={actionMenu.anchor}
+                open={Boolean(actionMenu.anchor)}
+                onClose={closeActionMenu}
+                PaperProps={{
+                    className: '!rounded-2xl !shadow-[0_12px_40px_-8px_rgba(109,40,217,0.25)]',
+                    sx: { mt: 0.5, minWidth: 220, border: '1px solid #ede9fe' }
+                }}
+            >
+                {(() => {
+                    const req = actionMenu.request;
+                    const done = req && (getSupervisionStatus(req) === 'นิเทศเสร็จสิ้น' || req.hasAdvisorEval);
+                    const mine = req && isAssignedToMe(req, { id: currentUserId, name: advisorName });
+                    // ผู้ที่ไม่ได้รับมอบหมายเห็นเฉพาะผลที่บันทึกแล้ว (อ่านอย่างเดียว) — ซ่อนปุ่มบันทึกผลนิเทศ
+                    const canEvaluate = done || mine;
+                    return [
+                        <MenuItem
+                            key="schedule"
+                            disabled={!isDepartmentHead || done}
+                            onClick={() => { if (isDepartmentHead && !done && req) openAppointmentDialog(req); closeActionMenu(); }}
+                            sx={{ fontSize: '0.8125rem', fontWeight: 600, gap: 1.25, py: 1.25, color: '#334155' }}
                         >
-                            {departmentAdvisors.map((adv) => (
-                                <MenuItem key={adv.id} value={adv.name || adv.username}>
-                                    {adv.name || adv.username} {adv.isDepartmentHead ? '👑 (ประธานสาขา)' : ''}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        <TextField
-                            fullWidth
-                            type="date"
-                            label="วันที่นิเทศ"
-                            value={appointmentDialog.date}
-                            onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, date: event.target.value }))}
-                            InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                            select
-                            fullWidth
-                            label="รูปแบบ"
-                            value={appointmentDialog.mode}
-                            onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, mode: event.target.value }))}
-                        >
-                            <MenuItem value="Online">Online</MenuItem>
-                            <MenuItem value="Onsite">Onsite</MenuItem>
-                        </TextField>
-                        <TextField
-                            fullWidth
-                            multiline
-                            minRows={3}
-                            label="หมายเหตุ"
-                            value={appointmentDialog.note}
-                            onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, note: event.target.value }))}
-                        />
-                    </Stack>
+                            <CalendarClock className="w-4 h-4 text-violet-500" />
+                            {req?.supervisionAppointment?.date ? 'แก้ไขวันนัด/อาจารย์' : 'กำหนดวัน/อาจารย์'}
+                            {done ? (
+                                <Typography component="span" variant="caption" sx={{ color: '#94a3b8', ml: 'auto' }}>
+                                    บันทึกผลแล้ว
+                                </Typography>
+                            ) : !isDepartmentHead && (
+                                <Typography component="span" variant="caption" sx={{ color: '#94a3b8', ml: 'auto' }}>
+                                    เฉพาะประธานสาขา
+                                </Typography>
+                            )}
+                        </MenuItem>,
+                        canEvaluate && (
+                            <MenuItem
+                                key="evaluate"
+                                onClick={() => { if (req) navigate(`/advisor-dashboard/supervision/evaluate/${req.id}`); closeActionMenu(); }}
+                                sx={{ fontSize: '0.8125rem', fontWeight: 600, gap: 1.25, py: 1.25, color: done ? '#059669' : '#334155' }}
+                            >
+                                <ClipboardCheck className={`w-4 h-4 ${done ? 'text-emerald-500' : 'text-violet-500'}`} />
+                                {done ? 'ดูผลนิเทศ (เสร็จสิ้น)' : 'บันทึกผลนิเทศ'}
+                            </MenuItem>
+                        )
+                    ].filter(Boolean);
+                })()}
+            </Menu>
+
+            <Dialog
+                open={appointmentDialog.open}
+                onClose={closeAppointmentDialog}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    className: '!rounded-3xl !shadow-[0_24px_64px_-12px_rgba(109,40,217,0.25)]',
+                    sx: { overflow: 'hidden' }
+                }}
+            >
+                <div className="px-6 pt-6 pb-5 border-b border-slate-100 flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                            <CalendarClock className="w-5 h-5 text-violet-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-800 m-0">กำหนดวันนิเทศ</h3>
+                            <p className="text-[11px] text-slate-400 mt-0.5 m-0">เลือกอาจารย์ผู้นิเทศ วันที่ และรูปแบบการนิเทศ</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={closeAppointmentDialog}
+                        className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer border-none bg-transparent"
+                        aria-label="ปิด"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <DialogContent sx={{ px: 3, py: 2.5 }}>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-2">
+                                อาจารย์ผู้รับผิดชอบนิเทศ
+                                {departmentAdvisors.find((a) => (a.name || a.username) === appointmentDialog.advisorName)?.isDepartmentHead && (
+                                    <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 border border-violet-100 rounded-full px-2 py-0.5">ประธานสาขา</span>
+                                )}
+                            </label>
+                            <div className="relative">
+                                <select
+                                    value={appointmentDialog.advisorName}
+                                    onChange={(event) => {
+                                        const selectedName = event.target.value;
+                                        const found = departmentAdvisors.find((a) => a.name === selectedName || a.username === selectedName);
+                                        setAppointmentDialog((prev) => ({
+                                            ...prev,
+                                            advisorName: selectedName,
+                                            advisorId: found ? found.id : ''
+                                        }));
+                                    }}
+                                    className="w-full appearance-none h-11 pl-3.5 pr-10 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition cursor-pointer"
+                                >
+                                    <option value="">— เลือกอาจารย์ผู้นิเทศ —</option>
+                                    {departmentAdvisors.map((adv) => (
+                                        <option key={adv.id} value={adv.name || adv.username}>
+                                            {adv.name || adv.username}{adv.isDepartmentHead ? ' (ประธานสาขา)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1.5 m-0">กำหนดโดยประธานสาขาวิชา</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">วันที่นิเทศ</label>
+                                <input
+                                    type="date"
+                                    value={appointmentDialog.date}
+                                    onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, date: event.target.value }))}
+                                    className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">รูปแบบการนิเทศ</label>
+                                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 rounded-xl">
+                                    {[
+                                        { value: 'Online', icon: <Video className="w-3.5 h-3.5" /> },
+                                        { value: 'Onsite', icon: <MapPin className="w-3.5 h-3.5" /> },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => setAppointmentDialog((prev) => ({ ...prev, mode: opt.value }))}
+                                            className={`h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer border-none ${
+                                                appointmentDialog.mode === opt.value
+                                                    ? 'bg-white text-violet-700 shadow-sm'
+                                                    : 'bg-transparent text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            {opt.icon}
+                                            {opt.value}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">หมายเหตุ</label>
+                            <textarea
+                                value={appointmentDialog.note}
+                                onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, note: event.target.value }))}
+                                placeholder="รายละเอียดเพิ่มเติม เช่น ลิงก์ประชุม หรือสถานที่นัดหมาย..."
+                                className="w-full box-border rounded-xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 resize-none h-20 text-slate-700 bg-slate-50/70 focus:bg-white transition"
+                            />
+                        </div>
+                    </div>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={closeAppointmentDialog}>ยกเลิก</Button>
-                    <Button variant="contained" onClick={saveAppointment}>บันทึก</Button>
-                </DialogActions>
+
+                <div className="px-6 py-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={closeAppointmentDialog}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-white"
+                    >
+                        ยกเลิก
+                    </button>
+                    <button
+                        type="button"
+                        onClick={saveAppointment}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none"
+                    >
+                        บันทึกการนัดหมาย
+                    </button>
+                </div>
             </Dialog>
 
             <Snackbar

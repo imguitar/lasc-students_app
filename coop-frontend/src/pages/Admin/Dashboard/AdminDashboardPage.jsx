@@ -328,36 +328,40 @@ const AdminDashboardPage = () => {
   });
 
   const statusCounts = useMemo(() => {
-    const count = {
-      total: allRequests.length,
-      pendingAdmin: allRequests.filter((req) => req.status === 'รอผู้ดูแลระบบตรวจสอบ' || req.status === 'รอผู้ดูแลระบบอนุมัติ').length,
-      waitingCompany: allRequests.filter((req) => req.status === 'รอสถานประกอบการตอบรับ').length,
-      waitingAdvisor: allRequests.filter((req) => req.status === 'รออาจารย์อนุมัติเริ่มฝึกงาน').length,
-      approved: allRequests.filter((req) => req.status === 'อนุมัติแล้ว' || req.status === 'ออกฝึกงาน').length,
-      rejected: allRequests.filter((req) => req.status.includes('ไม่อนุมัติ') || req.status === 'ปฏิเสธ').length,
-    };
+    // จัดกลุ่มด้วย includes() — ชื่อสถานะจริงในระบบหลากหลายกว่าที่ hardcode ไว้
+    // (เช่น 'รออาจารย์ที่ปรึกษาอนุมัติ' เคยไม่เข้า bucket ไหนเลย → กราฟว่างทั้งที่มีคำร้อง)
+    const count = { total: allRequests.length, pendingAdmin: 0, waitingAdvisor: 0, waitingCompany: 0, approved: 0, rejected: 0, other: 0 };
+    allRequests.forEach((req) => {
+      const s = String(req.status || '');
+      if (s.includes('ไม่อนุมัติ') || s.includes('ปฏิเสธ') || s.includes('แก้ไข')) count.rejected++;
+      else if (s.includes('รอสถานประกอบการ')) count.waitingCompany++;
+      else if (s.includes('รออาจารย์')) count.waitingAdvisor++;
+      else if (s.includes('รอ')) count.pendingAdmin++;
+      else if (s.includes('อนุมัติ') || s.includes('ออกฝึกงาน') || s.includes('ตอบรับ') || s.includes('ประเมิน') || s.includes('สิ้นสุด')) count.approved++;
+      else count.other++;
+    });
     return count;
   }, [allRequests]);
 
   const summaryCards = useMemo(() => ([
-    { key: 'total', label: 'ทั้งหมด', value: statusCounts.total, color: '#2563eb', icon: STAT_EMOJI.TOTAL },
-    { key: 'pendingAdmin', label: 'รอตรวจสอบ', value: statusCounts.pendingAdmin, color: '#db2777', icon: STAT_EMOJI.PENDING },
-    { key: 'waitingCompany', label: 'รอสถานประกอบการ', value: statusCounts.waitingCompany, color: '#7c3aed', icon: STAT_EMOJI.PENDING },
-    { key: 'approved', label: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#16a34a', icon: STAT_EMOJI.APPROVED },
-    { key: 'rejected', label: 'ไม่อนุมัติ', value: statusCounts.rejected, color: '#dc2626', icon: STAT_EMOJI.REJECTED },
+    { key: 'total', label: 'ทั้งหมด', value: statusCounts.total, color: '#6366f1', icon: STAT_EMOJI.TOTAL },
+    { key: 'pendingAdmin', label: 'รอตรวจสอบ', value: statusCounts.pendingAdmin, color: '#8b5cf6', icon: STAT_EMOJI.PENDING },
+    { key: 'waitingCompany', label: 'รอสถานประกอบการ', value: statusCounts.waitingCompany, color: '#6366f1', icon: STAT_EMOJI.PENDING },
+    { key: 'approved', label: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#10b981', icon: STAT_EMOJI.APPROVED },
+    { key: 'rejected', label: 'ไม่อนุมัติ', value: statusCounts.rejected, color: '#f43f5e', icon: STAT_EMOJI.REJECTED },
   ]), [statusCounts]);
 
-  const statusChartData = useMemo(() => {
-    return summaryCards
-      .filter((item) => item.key !== 'total')
-      .map((item) => ({
-        category: item.label,
-        value: item.value,
-        color: item.color,
-      }));
-  }, [summaryCards]);
+  const statusChartData = useMemo(() => ([
+    { category: 'รอผู้ดูแลตรวจสอบ', value: statusCounts.pendingAdmin, color: '#8b5cf6' },
+    { category: 'รออาจารย์อนุมัติ', value: statusCounts.waitingAdvisor, color: '#f59e0b' },
+    { category: 'รอสถานประกอบการตอบรับ', value: statusCounts.waitingCompany, color: '#6366f1' },
+    { category: 'อนุมัติ / กำลังฝึกงาน', value: statusCounts.approved, color: '#10b981' },
+    { category: 'ไม่อนุมัติ / ส่งกลับแก้ไข', value: statusCounts.rejected, color: '#f43f5e' },
+    { category: 'อื่นๆ', value: statusCounts.other, color: '#94a3b8' },
+  ].filter((item) => item.value > 0)), [statusCounts]);
 
-  const hasChartData = useMemo(() => statusChartData.some((item) => item.value > 0), [statusChartData]);
+  // มีคำร้องอย่างน้อย 1 รายการ → กราฟต้องวาดเสมอ (catch-all bucket 'อื่นๆ' กันกราฟว่าง)
+  const hasChartData = useMemo(() => statusCounts.total > 0 && statusChartData.length > 0, [statusCounts, statusChartData]);
 
   const latestRequests = useMemo(() => {
     return allRequests
@@ -376,7 +380,7 @@ const AdminDashboardPage = () => {
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
         layout: root.verticalLayout,
-        innerRadius: am5.percent(45),
+        innerRadius: am5.percent(72),
       }),
     );
 
@@ -384,6 +388,9 @@ const AdminDashboardPage = () => {
       am5percent.PieSeries.new(root, {
         valueField: 'value',
         categoryField: 'category',
+        tooltip: am5.Tooltip.new(root, {
+          labelText: '{category}: {value} คำร้อง',
+        }),
       }),
     );
 
@@ -393,13 +400,28 @@ const AdminDashboardPage = () => {
       sliceSettings: {
         fill: am5.color(item.color),
         stroke: am5.color('#ffffff'),
-        strokeWidth: 1,
+        strokeWidth: 2,
       },
     }));
 
     series.data.setAll(pieData);
-    series.slices.template.setAll({ templateField: 'sliceSettings', tooltipText: '{category}: {value}' });
-    series.labels.template.setAll({ fontSize: 12, oversizedBehavior: 'truncate', maxWidth: 110 });
+    series.slices.template.setAll({
+      templateField: 'sliceSettings',
+      tooltipText: '{category}: {value} คำร้อง',
+      cornerRadius: 4,
+    });
+    series.labels.template.set('forceHidden', true);
+    series.ticks.template.set('forceHidden', true);
+
+    const tooltip = series.get('tooltip');
+    if (tooltip) {
+      tooltip.get('background').setAll({
+        fill: am5.color('#1e1b4b'),
+        fillOpacity: 0.95,
+        strokeOpacity: 0,
+      });
+      tooltip.label.setAll({ fill: am5.color('#ffffff'), fontSize: 12 });
+    }
 
     return () => {
       root.dispose();
@@ -1225,6 +1247,9 @@ const AdminDashboardPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -1243,8 +1268,8 @@ const AdminDashboardPage = () => {
       <main className="admin-main">
         <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 className="text-slate-900 font-extrabold text-2xl md:text-3xl tracking-tight">ระบบจัดการคำร้องฝึกงาน</h1>
-            <p className="text-slate-400 text-xs md:text-sm mt-1">จัดการและอนุมัติคำร้องของนักศึกษา</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ภาพรวมระบบฝึกประสบการณ์วิชาชีพ</h1>
+            <p className="text-sm text-gray-500 mt-1">ติดตาม ตรวจสอบ และจัดการกระบวนการฝึกงานของนักศึกษาแบบเรียลไทม์</p>
           </div>
           <Button
             variant="contained"
@@ -1304,7 +1329,69 @@ const AdminDashboardPage = () => {
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2 }}>
               <Box>
                 {hasChartData ? (
-                  <Box ref={pieChartRef} className="dashboard-amchart" />
+                  <>
+                    <Box sx={{ position: 'relative', height: { xs: 220, sm: 260 }, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Box ref={pieChartRef} sx={{ position: 'absolute', inset: 0 }} />
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <Typography sx={{ fontSize: '1.875rem', fontWeight: 800, color: '#111827', lineHeight: 1.2 }}>
+                          {statusCounts.total}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#9ca3af' }}>
+                          คำร้องทั้งหมด
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box
+                      sx={{
+                        mt: 2.5,
+                        pt: 2,
+                        borderTop: '1px solid #f3f4f6',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 1,
+                      }}
+                    >
+                      {statusChartData.map((item) => (
+                        <Box
+                          key={item.category}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 1,
+                            p: 1,
+                            borderRadius: '0.75rem',
+                            bgcolor: 'rgba(249, 250, 251, 0.8)',
+                            transition: 'background-color 0.15s',
+                            '&:hover': { bgcolor: 'rgba(245, 243, 255, 0.6)' },
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                            <Box component="span" sx={{ width: 10, height: 10, borderRadius: '9999px', flexShrink: 0, bgcolor: item.color }} />
+                            <Typography
+                              component="span"
+                              sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            >
+                              {item.category}
+                            </Typography>
+                          </Box>
+                          <Typography component="span" sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#111827', flexShrink: 0 }}>
+                            {item.value}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
                 ) : (
                   <Box
                     sx={{

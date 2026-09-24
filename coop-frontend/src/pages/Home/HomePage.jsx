@@ -1,62 +1,44 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  AppBar,
-  Avatar,
-  Box,
-  Button,
-  IconButton,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Typography,
-} from '@mui/material';
 import api from '../../api/axios';
 import './HomePage.css';
 import logo from '../../assets/LASC-SSKRU-1.png';
 import sskruBg from '../../assets/SSKRU_BG.png';
-import { 
-  PhoneIcon, 
-  EnvelopeIcon, 
-  MapPinIcon, 
-  CalendarIcon, 
-  ChevronLeftIcon, 
-  ChevronRightIcon, 
-  ArrowRightIcon, 
-  DocumentPlusIcon, 
-  UserIcon, 
-  ArrowLeftOnRectangleIcon, 
-  BuildingOffice2Icon, 
-  BriefcaseIcon, 
-  SparklesIcon, 
-  MagnifyingGlassIcon, 
-  GlobeAltIcon, 
-  XMarkIcon 
+import {
+  PhoneIcon,
+  EnvelopeIcon,
+  MapPinIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ArrowRightIcon,
+  BuildingOffice2Icon,
+  SparklesIcon,
+  MegaphoneIcon,
+  AcademicCapIcon,
+  BookOpenIcon,
+  StarIcon,
+  DocumentArrowDownIcon,
+  QuestionMarkCircleIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
-import { redirectToProfileLogin, logout } from '../../utils/sso';
+import { redirectToProfileLogin } from '../../utils/sso';
 import NotificationBell from '../../components/NotificationBell';
 import UserProfileMenu from '../../components/UserProfileMenu';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
-  const [companies, setCompanies] = useState([]);
-  const [companySearch, setCompanySearch] = useState('');
-  const [companyProvince, setCompanyProvince] = useState('all');
-  const [selectedCompanyModal, setSelectedCompanyModal] = useState(null);
+  const [stats, setStats] = useState({ companies: 0, students: 0 });
   const carouselRef = useRef(null);
-  const companyCarouselRef = useRef(null);
   const [isCarouselHovered, setIsCarouselHovered] = useState(false);
-  const [isCompanyCarouselHovered, setIsCompanyCarouselHovered] = useState(false);
 
   const scrollCarousel = (direction) => {
     if (carouselRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
       const cardNode = carouselRef.current.querySelector('.news-card');
       const scrollAmount = cardNode ? cardNode.offsetWidth + 24 : 344;
-      
+
       if (direction === 'left') {
         if (scrollLeft <= 10) {
           carouselRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' });
@@ -68,28 +50,6 @@ const HomePage = () => {
           carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
         } else {
           carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-        }
-      }
-    }
-  };
-
-  const scrollCompanyCarousel = (direction) => {
-    if (companyCarouselRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = companyCarouselRef.current;
-      const cardNode = companyCarouselRef.current.querySelector('.company-carousel-card');
-      const scrollAmount = cardNode ? cardNode.offsetWidth + 24 : 344;
-      
-      if (direction === 'left') {
-        if (scrollLeft <= 10) {
-          companyCarouselRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' });
-        } else {
-          companyCarouselRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-        }
-      } else {
-        if (scrollLeft + clientWidth >= scrollWidth - 10) {
-          companyCarouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          companyCarouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
         }
       }
     }
@@ -113,17 +73,20 @@ const HomePage = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch announcements
     api.get('/public/announcements')
       .then(res => setAnnouncements(res.data.data || []))
       .catch(() => setAnnouncements([]));
 
-    // Fetch companies
     api.get('/public/companies')
-      .then(res => setCompanies(res.data.data || []))
-      .catch(() => setCompanies([]));
+      .then(res => {
+        const list = res.data.data || [];
+        setStats({
+          companies: list.length,
+          students: list.reduce((sum, c) => sum + (c.studentCount || 0), 0),
+        });
+      })
+      .catch(() => {});
 
-    // Fetch dynamic admin contact info
     api.get('/public/contact')
       .then(res => {
         if (res.data && res.data.data) {
@@ -139,46 +102,10 @@ const HomePage = () => {
     if (!isCarouselHovered && announcements.length > 0) {
       interval = setInterval(() => {
         scrollCarousel('right');
-      }, 3000); // Scroll every 3 seconds
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [isCarouselHovered, announcements]);
-
-  // Autoplay Company Carousel Effect
-  useEffect(() => {
-    let interval;
-    if (!isCompanyCarouselHovered && companies.length > 0) {
-      interval = setInterval(() => {
-        scrollCompanyCarousel('right');
-      }, 4000);
-    }
-    return () => clearInterval(interval);
-  }, [isCompanyCarouselHovered, companies]);
-
-  const handleLogout = () => {
-    setMenuAnchorEl(null);
-    logout();
-  };
-
-  const handleOpenMenu = (event) => {
-    setMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleCloseMenu = () => {
-    setMenuAnchorEl(null);
-  };
-
-  const getDashboardPath = (role) => {
-    if (role === 'admin') return '/admin-dashboard';
-    if (role === 'advisor') return '/advisor-dashboard';
-    return '/dashboard';
-  };
-
-  const getProfilePath = (role) => {
-    if (role === 'admin') return '/admin-dashboard/profile';
-    if (role === 'student') return '/dashboard/profile';
-    return null;
-  };
 
   const normalizedRole = String(user?.role || '').toLowerCase();
   const navAction = !user
@@ -189,300 +116,309 @@ const HomePage = () => {
         ? { label: 'แดชบอร์ด', to: '/advisor-dashboard' }
         : { label: 'ยื่นคำร้อง', to: '/dashboard/new-request' };
 
+  const navButtonClass = 'rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-5 py-2.5 flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition cursor-pointer border-none no-underline';
+
   return (
-    <div className="home-container">
+    <div className="home-container bg-slate-50/50">
       {/* Utility Bar */}
-      <Box sx={{ background: '#ffffff', color: '#111111', py: 0.8, px: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, fontSize: '0.85rem' }}>
-        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PhoneIcon style={{ width: 16, height: 16 }} /> {contactInfo.phone ? `ติดต่อสอบถาม ${contactInfo.phone}` : 'ติดต่อสอบถาม 02-XXX-XXXX'}
-        </Typography>
-        <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1 }}>
-          <EnvelopeIcon style={{ width: 16, height: 16 }} /> {contactInfo.email || 'contact@example.com'}
-        </Typography>
-      </Box>
+      <div className="bg-purple-950 text-purple-200 text-xs py-2 px-4 md:px-6 flex justify-end items-center gap-4">
+        <span className="inline-flex items-center gap-1.5">
+          <PhoneIcon className="w-3.5 h-3.5 text-amber-300" />
+          {contactInfo.phone ? `ติดต่อสอบถาม ${contactInfo.phone}` : 'ติดต่อสอบถาม 02-XXX-XXXX'}
+        </span>
+        <span className="hidden sm:inline-flex items-center gap-1.5">
+          <EnvelopeIcon className="w-3.5 h-3.5 text-amber-300" />
+          {contactInfo.email || 'contact@example.com'}
+        </span>
+      </div>
 
-      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: '3px solid transparent', borderImage: 'linear-gradient(to right, #000000, #ffffff) 1', bgcolor: '#ffffff', overflow: 'visible' }}>
-        <Toolbar
-          sx={{
-            minHeight: 90,
-            px: { xs: 2, md: 4 },
-            display: 'flex',
-            flexWrap: 'nowrap',
-            justifyContent: 'space-between',
-            gap: 2,
-            overflow: 'visible',
-          }}
-        >
-          <Box sx={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box
-                component="img"
-                src={logo}
-                alt="LASC Logo"
-                sx={{
-                  height: { xs: 36, sm: 44, md: 54 },
-                  width: 'auto',
-                  maxWidth: '100%',
-                  display: 'block',
-                  objectFit: 'contain',
-                }}
-              />
-              <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                <Typography sx={{ 
-                  fontWeight: 800, 
-                  fontSize: { xs: '0.9rem', sm: '1.2rem', md: '1.35rem' }, 
-                  letterSpacing: '0px', 
-                  whiteSpace: 'nowrap',
-                  color: '#111111',
-                  fontFamily: '"Prompt", "Kanit", "Inter", sans-serif'
-                }}>
-                  ระบบฝึกประสบการณ์วิชาชีพ
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
+      {/* Navbar — glassmorphism sticky */}
+      <nav className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-purple-100/60 shadow-xs">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2.5 min-w-0 no-underline">
+            <img src={logo} alt="LASC Logo" className="h-10 sm:h-12 w-auto object-contain shrink-0" />
+            <span className="hidden sm:block font-extrabold text-slate-900 text-base md:text-lg whitespace-nowrap" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
+          </Link>
 
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: { xs: 0.75, sm: 1.25 },
-              flex: '0 0 auto',
-              whiteSpace: 'nowrap',
-              position: 'relative',
-              overflow: 'visible',
-              zIndex: 40,
-            }}
-          >
+          <div className="flex items-center gap-2.5 shrink-0">
             {!user ? (
-              <button
-                type="button"
-                onClick={() => redirectToProfileLogin()}
-                className="rounded-full border border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 text-xs font-semibold px-5 py-2 flex items-center gap-1.5 shadow-xs transition cursor-pointer bg-white"
-                style={{ backgroundColor: '#ffffff', color: '#6d28d9', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
-              >
+              <button type="button" onClick={() => redirectToProfileLogin()} className={navButtonClass}>
                 <span>{navAction.label}</span>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-violet-600" style={{ width: 14, height: 14 }} />
+                <ArrowRightIcon className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <div className="flex items-center gap-2.5">
-                <Link
-                  to={navAction.to}
-                  className="rounded-full border border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 text-xs font-semibold px-5 py-2 flex items-center gap-1.5 shadow-xs transition no-underline cursor-pointer"
-                  style={{ backgroundColor: '#ffffff', color: '#6d28d9', textDecoration: 'none', borderColor: '#ddd6fe', borderWidth: '1px', borderStyle: 'solid' }}
-                >
+              <>
+                <Link to={navAction.to} className={navButtonClass}>
                   <span>{navAction.label}</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5 text-violet-600" style={{ width: 14, height: 14 }} />
+                  <ArrowRightIcon className="w-3.5 h-3.5" />
                 </Link>
                 <NotificationBell />
                 <UserProfileMenu user={user} compact={true} />
-              </div>
+              </>
             )}
-          </Box>
-        </Toolbar>
-      </AppBar>
-
-      {/* Bottom Utility Bar */}
-      <Box sx={{ background: '#ffffff', borderBottom: '1px solid #e5e7eb', color: '#111111', py: 0.8, px: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, fontSize: '0.85rem' }}>
-        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป
-        </Typography>
-      </Box>
-
-      <main className="hero-section" style={{ padding: 0, position: 'relative', minHeight: '450px', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' }}>
-        <img 
-          src={sskruBg} 
-          alt="SSKRU Background" 
-          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          style={{ width: '100%', height: '450px', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }} 
-        />
-        <div className="hero-content" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="hero-buttons">
-            {/* Buttons removed */ }
           </div>
         </div>
-      </main>
+      </nav>
+
+      {/* Ticker Banner — pill */}
+      <div className="px-4 flex justify-center">
+        <div className="bg-purple-50 border border-purple-200/70 text-purple-900 text-xs sm:text-sm py-2 px-5 rounded-full max-w-4xl text-center shadow-xs my-3 inline-flex items-center justify-center gap-2">
+          <MegaphoneIcon className="w-4 h-4 text-purple-500 shrink-0" />
+          <span className="font-medium">ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป</span>
+        </div>
+      </div>
+
+      {/* Hero — rounded image card with purple gradient overlay */}
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
+        <div className="relative h-[380px] sm:h-[460px] rounded-3xl overflow-hidden shadow-2xl border border-purple-100/50">
+          <img
+            src={sskruBg}
+            alt="อาคารจุฬาภรณวลัยลักษณ์"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-700"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-purple-950/90 via-purple-900/40 to-transparent" />
+          <div className="absolute bottom-6 sm:bottom-8 left-6 sm:left-8 right-6 sm:right-8 text-white">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/25 text-purple-100 mb-3">
+              คณะศิลปศาสตร์และวิทยาศาสตร์
+            </span>
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm text-white m-0">
+              ระบบบริหารจัดการการฝึกประสบการณ์วิชาชีพและสหกิจศึกษา
+            </h1>
+            <p className="mt-2 text-purple-100/90 text-sm sm:text-base max-w-2xl font-light leading-relaxed m-0">
+              เชื่อมโยงนักศึกษา อาจารย์ และสถานประกอบการชั้นนำ ยกระดับทักษะสู่วิชาชีพในอนาคต
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Announcements Section */}
       {announcements.length > 0 && (
-        <section className="features-section" style={{ background: '#fcfcfc', padding: '4rem 5%' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem', maxWidth: '100%', margin: '0 auto 2rem auto' }}>
-            <h2 className="section-title" style={{ margin: 0, textAlign: 'left', fontSize: '1.8rem' }}>ข่าวสารและประกาศ</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <Link to="/news" style={{ color: '#111', fontWeight: 600, textDecoration: 'none', fontSize: '0.95rem' }}>ดูข่าวทั้งหมด</Link>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => scrollCarousel('left')} style={{ width: 40, height: 40, borderRadius: 4, border: '1px solid #eaeaea', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <ChevronLeftIcon style={{ width: 20, height: 20, color: '#666' }} />
-                </button>
-                <button onClick={() => scrollCarousel('right')} style={{ width: 40, height: 40, borderRadius: 4, border: '1px solid #eaeaea', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <ChevronRightIcon style={{ width: 20, height: 20, color: '#666' }} />
-                </button>
+        <section className="py-12 sm:py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
+                <div className="w-14 h-1 bg-purple-600 rounded-full mt-2.5" />
               </div>
-            </div>
-          </div>
-          
-          <div 
-            className="news-carousel-container" 
-            ref={carouselRef} 
-            onMouseEnter={() => setIsCarouselHovered(true)}
-            onMouseLeave={() => setIsCarouselHovered(false)}
-            style={{ maxWidth: '100%', margin: '0 auto', display: 'flex', overflowX: 'auto', gap: '24px', scrollBehavior: 'smooth', scrollSnapType: 'x mandatory', paddingBottom: '1rem', msOverflowStyle: 'none', scrollbarWidth: 'none' }}
-          >
-            {announcements.slice(0, 10).map((news) => (
-              <div 
-                key={news.id} 
-                className="news-card" 
-                onClick={() => navigate(`/news/${news.id}`)}
-                style={{ cursor: 'pointer', flex: '0 0 auto', width: 'calc((100% - 48px) / 3)', minWidth: '280px', scrollSnapAlign: 'start', background: '#fff', border: '1px solid #f0f0f0', borderRadius: '0', display: 'flex', flexDirection: 'column', transition: 'all 0.2s ease-in-out', position: 'relative' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.1)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-              >
-                {news.is_pinned === 1 && (
-                  <span style={{
-                    position: 'absolute', top: 12, right: 12,
-                    background: '#fbbf24', color: '#78350f', fontSize: '0.7rem',
-                    fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
-                    display: 'flex', alignItems: 'center', gap: '4px', zIndex: 1
-                  }}><MapPinIcon style={{ width: 12, height: 12 }} /> ปักหมุด</span>
-                )}
-                {news.coverImage ? (
-                  <img src={news.coverImage} alt={news.title} style={{ width: '100%', height: 'auto', aspectRatio: '3/2', objectFit: 'cover', borderBottom: '3px solid #f97316' }} />
-                ) : (
-                  <div style={{ width: '100%', height: 'auto', aspectRatio: '3/2', background: '#f3f4f6', borderBottom: '3px solid #f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#9ca3af' }}>ไม่มีรูปภาพ</span>
-                  </div>
-                )}
-                
-                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                  <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.75rem' }}>
-                    {news.author || 'admin'} &mdash; {new Date(news.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
-                  </p>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#111', marginBottom: '0.75rem', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {news.title}
-                  </h3>
-                  <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, marginBottom: '1.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1 }}>
-                    {news.content}
-                  </p>
-                  
-                  <Link to={`/news/${news.id}`} onClick={(e) => e.stopPropagation()} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111', textDecoration: 'none', display: 'inline-block', marginTop: 'auto' }}>
-                    Read More
-                  </Link>
+              <div className="flex items-center gap-4">
+                <Link to="/news" className="text-sm font-semibold text-purple-700 hover:text-purple-900 no-underline">
+                  ดูข่าวทั้งหมด →
+                </Link>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => scrollCarousel('left')}
+                    className="w-10 h-10 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all"
+                    aria-label="เลื่อนซ้าย"
+                  >
+                    <ChevronLeftIcon className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => scrollCarousel('right')}
+                    className="w-10 h-10 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all"
+                    aria-label="เลื่อนขวา"
+                  >
+                    <ChevronRightIcon className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div
+              className="news-carousel-container flex overflow-x-auto gap-6 pb-4"
+              ref={carouselRef}
+              onMouseEnter={() => setIsCarouselHovered(true)}
+              onMouseLeave={() => setIsCarouselHovered(false)}
+              style={{ scrollBehavior: 'smooth', scrollSnapType: 'x mandatory', msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+            >
+              {announcements.slice(0, 10).map((news) => (
+                <div
+                  key={news.id}
+                  className="news-card group rounded-2xl border border-gray-100 bg-white hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer relative"
+                  onClick={() => navigate(`/news/${news.id}`)}
+                  style={{ flex: '0 0 auto', width: 'calc((100% - 48px) / 3)', minWidth: '280px', scrollSnapAlign: 'start' }}
+                >
+                  {news.is_pinned === 1 && (
+                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 bg-amber-500/10 text-amber-700 border border-amber-200/50 backdrop-blur-sm text-[11px] font-bold px-2.5 py-1 rounded-full">
+                      <MapPinIcon className="w-3 h-3" /> ปักหมุด
+                    </span>
+                  )}
+                  {news.coverImage ? (
+                    <img src={news.coverImage} alt={news.title} className="w-full aspect-[3/2] object-cover" />
+                  ) : (
+                    <div className="w-full aspect-[3/2] bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-50 flex items-center justify-center">
+                      <span className="text-purple-300 text-sm font-medium">ไม่มีรูปภาพ</span>
+                    </div>
+                  )}
+
+                  <div className="p-5 flex flex-col flex-1">
+                    <p className="text-xs text-gray-400 mb-2 m-0">
+                      {news.author || 'admin'} — {new Date(news.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                    <h3 className="text-base font-bold text-gray-800 group-hover:text-purple-700 line-clamp-2 leading-snug m-0 mb-2 transition-colors">
+                      {news.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 m-0 flex-1">
+                      {news.content}
+                    </p>
+                    <span className="text-sm font-bold text-purple-600 group-hover:text-purple-800 mt-4 inline-flex items-center gap-1 transition-colors">
+                      อ่านต่อ <ArrowRightIcon className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* Recommended Companies Gateway Section (ปุ่มกดเข้าสู่หน้ารายชื่อสถานประกอบการแนะนำ) */}
-      <section className="features-section" style={{ background: '#ffffff', padding: '3rem 5%', borderTop: '1px solid #f1f5f9' }}>
-        <div
-          onClick={() => navigate('/companies')}
-          style={{
-            maxWidth: '100%',
-            margin: '0 auto',
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderLeft: '6px solid #f59e0b',
-            borderRadius: '16px',
-            padding: '2.25rem 2.5rem',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1.5rem',
-            cursor: 'pointer',
-            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.05)',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-4px)';
-            e.currentTarget.style.boxShadow = '0 12px 28px rgba(245, 158, 11, 0.15)';
-            e.currentTarget.style.borderColor = '#f59e0b';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 18px rgba(0, 0, 0, 0.05)';
-            e.currentTarget.style.borderColor = '#e2e8f0';
-            e.currentTarget.style.borderLeftColor = '#f59e0b';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flex: '1 1 500px' }}>
-            <div style={{
-              width: 60,
-              height: 60,
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
-              border: '1px solid #fde68a',
-              color: '#d97706',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 2px 8px rgba(217, 119, 6, 0.12)',
-            }}>
-              <BuildingOffice2Icon style={{ width: 32, height: 32, color: '#d97706' }} />
-            </div>
-
-            <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: '2px 10px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, marginBottom: 6 }}>
-                <SparklesIcon style={{ width: 14, height: 14 }} /> แนะนำที่ฝึกงานจากรุ่นพี่
+      {/* Recommended Companies Gateway */}
+      <section className="py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div
+            onClick={() => navigate('/companies')}
+            className="group bg-white border border-gray-100 hover:border-purple-200 rounded-3xl p-8 sm:p-10 flex flex-wrap items-center justify-between gap-6 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+          >
+            <div className="flex items-center gap-5 flex-1 min-w-[280px]">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <BuildingOffice2Icon className="w-8 h-8" />
               </div>
-              <h3 style={{ margin: '0 0 6px 0', fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.3px' }}>
-                สถานประกอบการแนะนำ
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.92rem', color: '#64748b', lineHeight: 1.5 }}>
-                ค้นหาและดูรายชื่อสถานที่ฝึกงานจริงจากรุ่นพี่ที่ผ่านการฝึกงาน เพื่อเป็นแนวทางในการเลือกสถานที่ฝึกประสบการณ์วิชาชีพ
-              </p>
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-purple-700 bg-purple-50 border border-purple-200/70 px-3 py-1 rounded-full text-xs font-bold mb-2">
+                  <SparklesIcon className="w-3.5 h-3.5" /> แนะนำที่ฝึกงานจากรุ่นพี่
+                </div>
+                <h3 className="m-0 mb-1.5 text-2xl font-extrabold text-slate-900 tracking-tight">
+                  สถานประกอบการแนะนำ
+                </h3>
+                <p className="m-0 text-sm text-slate-500 leading-relaxed max-w-xl">
+                  ค้นหาและดูรายชื่อสถานที่ฝึกงานจริงจากรุ่นพี่ที่ผ่านการฝึกงาน เพื่อเป็นแนวทางในการเลือกสถานที่ฝึกประสบการณ์วิชาชีพ
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: '#111111',
-                color: '#fbbf24',
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                padding: '12px 24px',
-                borderRadius: '10px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                transition: 'all 0.2s ease',
-              }}
-            >
+            <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 group-hover:from-purple-700 group-hover:to-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md shadow-purple-500/20 transition-all">
               ดูสถานประกอบการทั้งหมด
-              <ArrowRightIcon style={{ width: 18, height: 18 }} />
+              <ArrowRightIcon className="w-4 h-4" />
             </span>
           </div>
         </div>
       </section>
 
-      <section className="how-it-works" style={{ padding: '4rem 5%', borderTop: '1px solid #e2e8f0' }}>
-        <h2 className="section-title">กำหนดการสำคัญ</h2>
-        <div className="steps-grid" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="step-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start', textAlign: 'left', padding: '2rem' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#4f46e5', background: '#e0e7ff', padding: '6px 16px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>
-              <CalendarIcon style={{ width: 18, height: 18 }} /> สิงหาคม - ตุลาคม
-            </div>
-            <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>ยื่นคำร้องขอฝึกงาน</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem' }}>นักศึกษาเริ่มกรอกข้อมูลคำร้องขอฝึกงานผ่านระบบออนไลน์ และตรวจสอบความถูกต้อง</p>
+      {/* Impact Stats + Resources Hub */}
+      <section className="py-12 sm:py-16 border-t border-purple-100/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Stats Grid */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 m-0">ภาพรวมความสำเร็จของระบบ</h2>
+            <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-0" />
           </div>
-          <div className="step-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start', textAlign: 'left', padding: '2rem' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#d97706', background: '#fef3c7', padding: '6px 16px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>
-              <CalendarIcon style={{ width: 18, height: 18 }} /> พฤศจิกายน
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-12">
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+              <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4">
+                <BuildingOffice2Icon className="w-6 h-6" />
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                {stats.companies > 0 ? `${stats.companies}+` : '50+'}
+              </div>
+              <div className="text-xs text-slate-500 font-medium mt-1">สถานประกอบการชั้นนำที่ร่วมมือ</div>
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>ประกาศผล & ปฐมนิเทศ</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem' }}>ตรวจสอบผลการอนุมัติสถานประกอบการ และเข้าร่วมปฐมนิเทศเตรียมความพร้อม</p>
+
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                <AcademicCapIcon className="w-6 h-6" />
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                {stats.students > 0 ? `${stats.students}+` : '200+'}
+              </div>
+              <div className="text-xs text-slate-500 font-medium mt-1">นักศึกษาที่สำเร็จการฝึกประสบการณ์</div>
+            </div>
+
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                <BookOpenIcon className="w-6 h-6" />
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 tracking-tight">12</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">สาขาวิชา ครอบคลุมทุกหลักสูตรในคณะ</div>
+            </div>
+
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                <StarIcon className="w-6 h-6" />
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 tracking-tight">98%</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">ผลการประเมินระดับดีเยี่ยม</div>
+            </div>
           </div>
-          <div className="step-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start', textAlign: 'left', padding: '2rem' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#16a34a', background: '#dcfce7', padding: '6px 16px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>
-              <CalendarIcon style={{ width: 18, height: 18 }} /> ธันวาคม - มีนาคม
+
+          {/* Resources & Support Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Documents */}
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 sm:p-7">
+              <h3 className="text-lg font-bold text-gray-900 m-0">เอกสารและแบบฟอร์มที่เกี่ยวข้อง</h3>
+              <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-5" />
+              <div className="flex flex-col gap-3">
+                {[
+                  { icon: DocumentArrowDownIcon, title: 'คู่มือการใช้งานระบบฝึกประสบการณ์วิชาชีพออนไลน์', meta: 'PDF' },
+                  { icon: DocumentArrowDownIcon, title: 'แบบฟอร์มบันทึกการปฏิบัติงานประจำวัน', meta: 'Logbook Template' },
+                  { icon: DocumentArrowDownIcon, title: 'เกณฑ์และข้อกำหนดการฝึกงานและสหกิจศึกษาของคณะ', meta: 'เอกสารประกอบ' },
+                ].map((doc, i) => (
+                  <div
+                    key={i}
+                    className="group flex items-center gap-3.5 rounded-xl border border-gray-100 hover:border-purple-200 bg-slate-50/60 hover:bg-purple-50/40 p-4 transition-all cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-white border border-purple-100 text-purple-500 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all">
+                      <doc.icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-slate-700 group-hover:text-purple-800 transition-colors leading-snug">
+                        {doc.title}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">{doc.meta}</div>
+                    </div>
+                    <DocumentArrowDownIcon className="w-5 h-5 text-slate-300 group-hover:text-purple-600 shrink-0 transition-colors" />
+                  </div>
+                ))}
+              </div>
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>เริ่มปฏิบัติงานจริง</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem' }}>นักศึกษาออกฝึกประสบการณ์วิชาชีพ ณ สถานประกอบการ พร้อมบันทึกเวลาเข้า-ออกงาน</p>
+
+            {/* Right: FAQ & Contact */}
+            <div className="flex flex-col gap-6">
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 sm:p-7 flex-1">
+                <h3 className="text-lg font-bold text-gray-900 m-0">มีข้อสงสัยเกี่ยวกับการฝึกงาน?</h3>
+                <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-5" />
+                <div className="flex flex-col gap-3">
+                  {[
+                    'หากต้องการเปลี่ยนสถานที่ฝึกงานต้องทำอย่างไร? — ติดต่ออาจารย์ที่ปรึกษาเพื่อยื่นคำร้องฉบับใหม่ผ่านระบบ',
+                    'ช่องทางการส่งเล่มรายงานฝึกงาน — ส่งผ่านระบบเมนู "รายงานการฝึกงานประจำวัน" หลังสิ้นสุดการฝึก',
+                  ].map((faq, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-xl bg-slate-50/60 border border-gray-100 p-4">
+                      <QuestionMarkCircleIcon className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                      <p className="m-0 text-xs text-slate-600 leading-relaxed">{faq}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-gradient-to-br from-purple-700 via-indigo-700 to-purple-800 text-white shadow-md p-6 sm:p-7">
+                <h3 className="text-base font-bold text-white m-0 mb-4">ติดต่อฝ่ายฝึกประสบการณ์วิชาชีพ</h3>
+                <div className="flex flex-col gap-2.5 text-sm">
+                  <span className="inline-flex items-center gap-2.5 text-purple-100">
+                    <PhoneIcon className="w-4 h-4 text-amber-300 shrink-0" />
+                    {contactInfo.phone || '02-XXX-XXXX'}
+                  </span>
+                  <span className="inline-flex items-center gap-2.5 text-purple-100">
+                    <EnvelopeIcon className="w-4 h-4 text-amber-300 shrink-0" />
+                    {contactInfo.email || 'coop@sskru.ac.th'}
+                  </span>
+                  <span className="inline-flex items-center gap-2.5 text-purple-100">
+                    <ClockIcon className="w-4 h-4 text-amber-300 shrink-0" />
+                    จันทร์ - ศุกร์ 08:30 - 16:30 น.
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

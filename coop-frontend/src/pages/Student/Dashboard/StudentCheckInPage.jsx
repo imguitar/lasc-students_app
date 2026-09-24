@@ -2,18 +2,18 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Box, Typography } from '@mui/material';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Typography } from '@mui/material';
 import SignatureCanvas from 'react-signature-canvas';
 import {
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Menu as MenuIcon,
-  Plus,
   X,
   PenTool,
   CheckCircle2,
-  Check,
+  Clock,
+  XCircle,
+  FileText,
+  CalendarCheck,
 } from 'lucide-react';
 import api from '../../../api/axios';
 import './DashboardPage.css';
@@ -24,13 +24,7 @@ import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatusBadge from '../../../components/StatusBadge';
 import ModernButton from '../../../components/ModernButton';
-
-const THAI_MONTHS = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-];
-
-const WEEKDAY_LABELS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+import AttendanceCalendar from '../../../components/AttendanceCalendar';
 
 const STATUS_OPTIONS = [
   { value: 'present', label: 'มา' },
@@ -57,14 +51,10 @@ const STATUS_CHIP_CLASS = {
   holiday: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
-const toDateStr = (year, month, day) =>
-  `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
 const StudentCheckInPage = () => {
   const navigate = useNavigate();
   const todayDate = new Date().toISOString().slice(0, 10);
   const sigCanvas = useRef(null);
-  const batchSigCanvas = useRef(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [entries, setEntries] = useState([]);
@@ -73,20 +63,8 @@ const StudentCheckInPage = () => {
   const [currentRequestStatus, setCurrentRequestStatus] = useState('ไม่มีคำร้อง');
   const [internshipStartDate, setInternshipStartDate] = useState(null);
   const [showSignature, setShowSignature] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
   const [dayModal, setDayModal] = useState({ open: false, date: '' });
   const [submitting, setSubmitting] = useState(false);
-  // Batch supervisor signature (เซ็นรับรองย้อนหลังหลายวัน)
-  const [isBatchMode, setIsBatchMode] = useState(false);
-  const [selectedDates, setSelectedDates] = useState([]);
-  const [signModalOpen, setSignModalOpen] = useState(false);
-  const [mentorName, setMentorName] = useState('');
-  const [mentorComment, setMentorComment] = useState('');
-  const [signSubmitting, setSignSubmitting] = useState(false);
-  const [signError, setSignError] = useState('');
   const [form, setForm] = useState({
     date: todayDate,
     status: 'present',
@@ -195,16 +173,18 @@ const StudentCheckInPage = () => {
     return map;
   }, [entries]);
 
-  const calendarCells = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstWeekday = new Date(year, month, 1).getDay();
-    const cells = [];
-    for (let i = 0; i < firstWeekday; i++) cells.push(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(toDateStr(year, month, d));
-    return cells;
-  }, [calendarMonth]);
+  // Summary stats for the dashboard side rail
+  const stats = useMemo(() => {
+    const s = { total: entries.length, present: 0, late: 0, absent: 0, leave: 0, signed: 0 };
+    entries.forEach((e) => {
+      if (e.status === 'present') s.present += 1;
+      else if (e.status === 'late') s.late += 1;
+      else if (e.status === 'absent') s.absent += 1;
+      else if (['sick', 'personal', 'holiday'].includes(e.status)) s.leave += 1;
+      if (e.supervisor_signature || e.supervisorSignature) s.signed += 1;
+    });
+    return s;
+  }, [entries]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -236,6 +216,23 @@ const StudentCheckInPage = () => {
   const closeDayModal = () => {
     setDayModal({ open: false, date: '' });
     setShowSignature(false);
+  };
+
+  // Find the next unsubmitted day after a given date (within internship range, up to today)
+  const findNextPendingDate = (afterDateStr) => {
+    const d = new Date(`${afterDateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() + 1);
+    // hard cap to avoid infinite loops
+    for (let i = 0; i < 370; i += 1) {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (key > todayDate) return null;
+      if ((!internshipStartDate || key >= internshipStartDate) && !entriesByDate[key]) {
+        return key;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return null;
   };
 
   const handleSubmit = async (event) => {
@@ -275,7 +272,16 @@ const StudentCheckInPage = () => {
       setForm((prev) => ({ ...prev, workExperience: '', note: '' }));
       if (sigCanvas.current) sigCanvas.current.clear();
       setShowSignature(false);
-      closeDayModal();
+
+      // Auto-advance to the next unsubmitted day so back-filling stays in flow
+      // (compute before setEntries — selectedEntry resolves from the updated map)
+      const nextDate = findNextPendingDate(form.date);
+      if (nextDate) {
+        setDayModal({ open: true, date: nextDate });
+        setForm((prev) => ({ ...prev, date: nextDate }));
+      } else {
+        closeDayModal();
+      }
 
       // Reload checkins from API
       const checkinRes = await api.get(`/checkins?studentId=${studentId}`);
@@ -296,82 +302,13 @@ const StudentCheckInPage = () => {
 
   const selectedEntry = dayModal.date ? entriesByDate[dayModal.date] : null;
 
-  // --- Batch supervisor signature (เซ็นรับรองย้อนหลังหลายวัน) ---
-  const isSelectableForSign = (dateStr) => {
-    if (!dateStr) return false;
-    const d = new Date(`${dateStr}T00:00:00`);
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    return !isWeekend && dateStr <= todayDate && (!internshipStartDate || dateStr >= internshipStartDate);
-  };
-
-  const toggleDateSelection = (dateStr) => {
-    if (!isSelectableForSign(dateStr)) return;
-    setSelectedDates((prev) =>
-      prev.includes(dateStr) ? prev.filter((d) => d !== dateStr) : [...prev, dateStr]
-    );
-  };
-
-  const selectableDaysInMonth = useMemo(
-    () => calendarCells.filter((dateStr) => dateStr && isSelectableForSign(dateStr)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [calendarCells, internshipStartDate, todayDate]
-  );
-
-  const unsignedDaysInMonth = useMemo(
-    () => selectableDaysInMonth.filter((dateStr) => {
-      const entry = entriesByDate[dateStr];
-      return entry && !(entry.supervisor_signature || entry.supervisorSignature);
-    }),
-    [selectableDaysInMonth, entriesByDate]
-  );
-
-  const handleSubmitBatchSign = async () => {
-    if (!batchSigCanvas.current || batchSigCanvas.current.isEmpty()) {
-      setSignError('กรุณาวาดลายเซ็นพี่เลี้ยงก่อนกดยืนยัน');
-      return;
+  // Called by AttendanceCalendar after a successful mentor batch-sign
+  const handleBatchSigned = (updated) => {
+    if (Array.isArray(updated)) {
+      const sorted = [...updated].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      setEntries(sorted);
     }
-    if (selectedDates.length === 0) {
-      setSignError('กรุณาเลือกวันที่ต้องการเซ็นรับรอง');
-      return;
-    }
-
-    setSignSubmitting(true);
-    setSignError('');
-    try {
-      const signatureDataUrl = batchSigCanvas.current.getCanvas().toDataURL('image/png');
-      const studentId = user.student_code || user.studentId || user.username || user.email;
-      const studentName = user.full_name || user.name || user.username || 'นักศึกษา';
-      const res = await api.patch('/checkins/batch-sign', {
-        studentId,
-        studentName,
-        dates: selectedDates,
-        supervisorSignature: signatureDataUrl,
-        supervisorName: mentorName.trim() || null,
-        supervisorComment: mentorComment.trim() || null,
-      });
-
-      const updated = res.data?.data;
-      if (Array.isArray(updated)) {
-        updated.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-        setEntries(updated);
-      } else {
-        const checkinRes = await api.get(`/checkins?studentId=${studentId}`);
-        const ownEntries = checkinRes.data.data || [];
-        ownEntries.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-        setEntries(ownEntries);
-      }
-
-      setMessage(`บันทึกลายเซ็นพี่เลี้ยงรับรองเรียบร้อยแล้ว (${selectedDates.length} วัน)`);
-      setSignModalOpen(false);
-      setIsBatchMode(false);
-      setSelectedDates([]);
-      setMentorName('');
-      setMentorComment('');
-    } catch (err) {
-      setSignError(err.response?.data?.message || err.message || 'บันทึกลายเซ็นล้มเหลว');
-    } finally {
-      setSignSubmitting(false);
-    }
+    setMessage('บันทึกลายเซ็นพี่เลี้ยงรับรองเรียบร้อยแล้ว');
   };
 
   if (!user) return null;
@@ -384,6 +321,9 @@ const StudentCheckInPage = () => {
           <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
+            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+              ระบบฝึกประสบการณ์วิชาชีพ
+            </span>
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -414,17 +354,29 @@ const StudentCheckInPage = () => {
           minWidth: 0,
         }}
       >
-        <Box component="header" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#111111', fontSize: { xs: '1.5rem', sm: '2rem' } }}>รายงานประจำวัน</Typography>
-            <Typography variant="body1" sx={{ color: '#333333', mt: 0.5 }}>รายงานตัวและบันทึกประสบการณ์การทำงานในแต่ละวัน</Typography>
+        <Box component="header" sx={{ maxWidth: '1024px', mx: 'auto', width: '100%', mb: 3 }}>
+          {/* Breadcrumb */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1, fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>
+            <Link to="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none' }}>แดชบอร์ด</Link>
+            <span>/</span>
+            <span style={{ color: '#475569' }}>รายงานประจำวัน</span>
           </Box>
-          <Box className="user-info">
-            <span>{user.full_name || user.name || user.username}</span>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e1b4b', fontSize: { xs: '1.4rem', sm: '1.9rem' }, lineHeight: 1.25 }}>
+                บันทึกรายงานประจำวัน
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน
+              </Typography>
+            </Box>
+            <Box className="user-info">
+              <span>{user.full_name || user.name || user.username}</span>
+            </Box>
           </Box>
         </Box>
 
-        <div className="content-wrapper max-w-full overflow-x-hidden">
+        <div className="content-wrapper max-w-5xl mx-auto w-full overflow-x-hidden">
           {!canCheckIn ? (
             ['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'].includes(currentRequestStatus) ? (
               <div className="checkin-card">
@@ -460,21 +412,22 @@ const StudentCheckInPage = () => {
           ) : (
             <>
               {/* Notice Banner */}
-              <Box sx={{ mb: 2.5, p: 2, borderRadius: 3, bgcolor: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                <InformationCircleIcon style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, color: '#0284c7' }} />
+              <Box sx={{ mb: 2.5, p: 2, borderRadius: 3, bgcolor: '#f5f3ff', border: '1px solid #ddd6fe', color: '#5b21b6', display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                <InformationCircleIcon style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, color: '#7c3aed' }} />
                 <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0369a1' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#5b21b6' }}>
                     ข้อแนะนำการเช็คชื่อรายงานประจำวัน
                   </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.875rem', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontSize: '0.85rem', mt: 0.5, color: '#6d28d9' }}>
                     คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา <strong>07:00 น.</strong>
                   </Typography>
                 </Box>
               </Box>
 
-              {/* Calendar Dashboard */}
-              <div className="bg-white rounded-[24px] border border-slate-100 shadow-xs overflow-hidden">
-                {/* Calendar Header */}
+              {/* Dashboard grid: calendar (main) + summary stats (rail) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
+              {/* Calendar Dashboard — same calendar component the advisor views */}
+              <div className="lg:col-span-2 bg-white rounded-[24px] border border-slate-100 shadow-xs overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
@@ -491,188 +444,71 @@ const StudentCheckInPage = () => {
                       <p className="text-[11px] text-slate-400 mt-0.5 m-0">สถานะคำร้องปัจจุบัน: {currentRequestStatus}</p>
                     </div>
                   </div>
-
-                  {/* Month Navigator */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsBatchMode(!isBatchMode);
-                        setSelectedDates([]);
-                      }}
-                      className={`h-9 px-3 rounded-xl text-xs font-semibold transition cursor-pointer border flex items-center gap-1.5 ${
-                        isBatchMode
-                          ? 'bg-rose-600 text-white border-rose-600 hover:bg-rose-700'
-                          : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
-                      }`}
-                    >
-                      <PenTool className="w-3.5 h-3.5" />
-                      {isBatchMode ? 'ยกเลิกโหมดเซ็น' : 'พี่เลี้ยงเซ็นรับรอง'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                      className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-violet-50 hover:border-violet-200 hover:text-violet-600 text-slate-500 flex items-center justify-center transition cursor-pointer"
-                      aria-label="เดือนก่อนหน้า"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <div className="min-w-[130px] text-center text-sm font-bold text-slate-800 select-none">
-                      {THAI_MONTHS[calendarMonth.getMonth()]} {calendarMonth.getFullYear() + 543}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                      className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-violet-50 hover:border-violet-200 hover:text-violet-600 text-slate-500 flex items-center justify-center transition cursor-pointer"
-                      aria-label="เดือนถัดไป"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { const d = new Date(); setCalendarMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}
-                      className="ml-1 h-9 px-3 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold transition cursor-pointer border-none"
-                    >
-                      วันนี้
-                    </button>
-                  </div>
                 </div>
 
-                {/* Batch Sign Toolbar */}
-                {isBatchMode && (
-                  <div className="mx-3 sm:mx-4 mb-3 rounded-2xl bg-rose-50/60 border border-rose-100 px-3.5 py-3 flex flex-wrap items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-rose-700">เลือกวันที่ให้พี่เลี้ยงเซ็นรับรอง:</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDates(selectableDaysInMonth)}
-                        className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 text-rose-600 text-[11px] font-semibold hover:bg-rose-50 transition cursor-pointer"
-                      >
-                        เลือกทั้งเดือน ({selectableDaysInMonth.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDates(unsignedDaysInMonth)}
-                        className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 text-rose-600 text-[11px] font-semibold hover:bg-rose-50 transition cursor-pointer"
-                      >
-                        เฉพาะวันที่ยังไม่เซ็น ({unsignedDaysInMonth.length})
-                      </button>
-                      {selectedDates.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDates([])}
-                          className="px-2.5 py-1 rounded-lg text-slate-500 text-[11px] font-semibold hover:bg-slate-100 transition cursor-pointer border-none bg-transparent"
-                        >
-                          ล้างที่เลือก
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setSignError(''); setSignModalOpen(true); }}
-                      disabled={selectedDates.length === 0}
-                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(225,29,72,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    >
-                      <PenTool className="w-3.5 h-3.5" />
-                      เซ็นรับรองที่เลือก ({selectedDates.length} วัน)
-                    </button>
+                <div className="px-1.5 sm:px-4 pb-4">
+                  <AttendanceCalendar
+                    entries={entries}
+                    studentId={user.student_code || user.studentId || user.username || user.email}
+                    studentName={user.full_name || user.name || user.username || 'นักศึกษา'}
+                    internshipStartDate={internshipStartDate}
+                    accentTheme="violet"
+                    onDayClick={(item) => openDayModal(item.dateKey)}
+                    onBatchSign={handleBatchSigned}
+                  />
+                </div>
+              </div>
+
+              {/* Summary Stats Rail */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 m-0">สรุปการเช็คชื่อ</h3>
+                <p className="text-[11px] text-slate-400 m-0 mt-0.5">สถิติรายงานประจำวันทั้งหมดของคุณ</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2.5 mt-3.5">
+                  <div className="rounded-xl bg-violet-50/70 border border-violet-100 p-3">
+                    <div className="flex items-center gap-1.5 text-violet-600 mb-1"><FileText className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ส่งรายงานแล้ว</span></div>
+                    <div className="text-xl font-extrabold text-violet-700 leading-none">{stats.total}<span className="text-[11px] font-semibold text-violet-400 ml-1">วัน</span></div>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 p-3">
+                    <div className="flex items-center gap-1.5 text-emerald-600 mb-1"><CheckCircle2 className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">มา</span></div>
+                    <div className="text-xl font-extrabold text-emerald-700 leading-none">{stats.present}<span className="text-[11px] font-semibold text-emerald-400 ml-1">วัน</span></div>
+                  </div>
+                  <div className="rounded-xl bg-amber-50/70 border border-amber-100 p-3">
+                    <div className="flex items-center gap-1.5 text-amber-600 mb-1"><Clock className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">สาย</span></div>
+                    <div className="text-xl font-extrabold text-amber-700 leading-none">{stats.late}<span className="text-[11px] font-semibold text-amber-400 ml-1">วัน</span></div>
+                  </div>
+                  <div className="rounded-xl bg-rose-50/70 border border-rose-100 p-3">
+                    <div className="flex items-center gap-1.5 text-rose-500 mb-1"><XCircle className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ขาด</span></div>
+                    <div className="text-xl font-extrabold text-rose-600 leading-none">{stats.absent}<span className="text-[11px] font-semibold text-rose-300 ml-1">วัน</span></div>
+                  </div>
+                  <div className="rounded-xl bg-sky-50/70 border border-sky-100 p-3">
+                    <div className="flex items-center gap-1.5 text-sky-600 mb-1"><CalendarDays className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ลา / หยุด</span></div>
+                    <div className="text-xl font-extrabold text-sky-700 leading-none">{stats.leave}<span className="text-[11px] font-semibold text-sky-400 ml-1">วัน</span></div>
+                  </div>
+                  <div className="rounded-xl bg-indigo-50/70 border border-indigo-100 p-3">
+                    <div className="flex items-center gap-1.5 text-indigo-600 mb-1"><PenTool className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">เซ็นรับรองแล้ว</span></div>
+                    <div className="text-xl font-extrabold text-indigo-700 leading-none">{stats.signed}<span className="text-[11px] font-semibold text-indigo-400 ml-1">วัน</span></div>
+                  </div>
+                </div>
+                {internshipStartDate && (
+                  <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                    <CalendarCheck className="w-3.5 h-3.5 text-violet-500" />
+                    เริ่มฝึกงาน: <span className="text-violet-700">{formatDateDisplay(internshipStartDate)}</span>
                   </div>
                 )}
-
-                {/* Weekday Header */}
-                <div className="grid grid-cols-7 px-3 sm:px-4 pt-3">
-                  {WEEKDAY_LABELS.map((label, idx) => (
-                    <div key={idx} className={`text-center text-[11px] font-semibold py-1 ${idx === 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                      {label}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Day Grid */}
-                <div className="grid grid-cols-7 gap-1.5 sm:gap-2 px-3 sm:px-4 pb-4">
-                  {calendarCells.map((dateStr, idx) => {
-                    if (!dateStr) return <div key={`empty-${idx}`} className="min-h-[64px] sm:min-h-[88px]" />;
-                    const entry = entriesByDate[dateStr];
-                    const isToday = dateStr === todayDate;
-                    const isFuture = dateStr > todayDate;
-                    const beforeStart = internshipStartDate && dateStr < internshipStartDate;
-                    const isSigned = Boolean(entry && (entry.supervisor_signature || entry.supervisorSignature));
-                    const selectableForSign = isSelectableForSign(dateStr);
-                    const isSelectedForSign = selectedDates.includes(dateStr);
-                    const clickable = isBatchMode
-                      ? selectableForSign
-                      : (Boolean(entry) || (!isFuture && !beforeStart));
-                    const dayNum = Number(dateStr.split('-')[2]);
-
-                    return (
-                      <button
-                        key={dateStr}
-                        type="button"
-                        onClick={() => (isBatchMode ? toggleDateSelection(dateStr) : clickable && openDayModal(dateStr))}
-                        disabled={!clickable}
-                        className={`min-h-[64px] sm:min-h-[88px] rounded-[22px] border p-1.5 sm:p-2 text-left flex flex-col transition-colors ${
-                          isBatchMode && isSelectedForSign
-                            ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-200'
-                            : isToday
-                              ? 'border-violet-500 bg-violet-50/20 shadow-[0_0_0_1px_rgba(139,92,246,0.25)]'
-                              : entry
-                                ? 'border-slate-100 bg-white hover:border-violet-200 hover:bg-violet-50/40'
-                                : isFuture || beforeStart
-                                  ? 'border-slate-50 bg-slate-50/40 cursor-default'
-                                  : 'border-slate-100 bg-white hover:border-violet-300 hover:bg-violet-50/40 cursor-pointer'
-                        } ${!clickable ? 'cursor-default' : 'cursor-pointer'}`}
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <span className={`text-xs sm:text-sm font-bold ${isToday ? 'text-violet-700' : isFuture || beforeStart ? 'text-slate-300' : 'text-slate-700'}`}>
-                            {dayNum}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            {isBatchMode && selectableForSign && (
-                              <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center ${isSelectedForSign ? 'bg-rose-500 border-rose-500' : 'bg-white border-slate-300'}`}>
-                                {isSelectedForSign && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
-                              </span>
-                            )}
-                            {!isBatchMode && isSigned && (
-                              <PenTool className="w-3 h-3 text-rose-400" />
-                            )}
-                            {isToday && (
-                              <span className="text-[9px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-md">วันนี้</span>
-                            )}
-                          </span>
-                        </div>
-
-                        <div className="mt-auto min-w-0">
-                          {entry ? (
-                            <>
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[9px] sm:text-[10px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                {STATUS_LABEL[entry.status] || entry.status}
-                              </span>
-                              {(entry.work_experience || entry.workExperience) && (
-                                <p className="hidden sm:block m-0 mt-1 text-[10px] text-slate-400 leading-snug line-clamp-2 break-words">
-                                  {entry.work_experience || entry.workExperience}
-                                </p>
-                              )}
-                            </>
-                          ) : !isBatchMode && clickable ? (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-semibold text-violet-400">
-                              <Plus className="w-3 h-3" /> ลงบันทึก
-                            </span>
-                          ) : null}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              </div>
               </div>
 
               {message && <div className="checkin-message" style={{ marginTop: '1rem' }}>{message}</div>}
 
-              {/* Attendance History Table */}
-              <Box className="checkin-table-wrapper" sx={{ marginTop: '2rem', padding: { xs: '1rem', sm: '1.75rem' }, background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', fontSize: { xs: '1rem', sm: '1.15rem' }, mb: 2 }}>
+              {/* Attendance History */}
+              <Box className="checkin-table-wrapper" sx={{ marginTop: '1.5rem', padding: { xs: '1rem', sm: '1.75rem' }, background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', fontSize: { xs: '1rem', sm: '1.15rem' }, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FileText style={{ width: 18, height: 18, color: '#7c3aed' }} />
                   ประวัติรายงานประจำวัน
                 </Typography>
 
+                {/* Desktop / tablet: table */}
+                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
                 <TableContainer className="checkin-table-container">
                   <Table size="small" className="checkin-table" stickyHeader>
                     <TableHead>
@@ -696,11 +532,9 @@ const StudentCheckInPage = () => {
                               {formatDateDisplay(entry.date)}
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                label={STATUS_LABEL[entry.status] || entry.status}
-                                size="small"
-                                sx={{ fontWeight: 700, height: 22, bgcolor: '#f5f3ff', color: '#6d28d9' }}
-                              />
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                {STATUS_LABEL[entry.status] || entry.status}
+                              </span>
                             </TableCell>
                             <TableCell>{entry.work_experience || entry.workExperience || entry.note || '-'}</TableCell>
                             <TableCell>
@@ -709,7 +543,7 @@ const StudentCheckInPage = () => {
                                   <img
                                     src={entry.supervisor_signature || entry.supervisorSignature}
                                     alt="Supervisor Signature"
-                                    style={{ maxHeight: 36, maxWidth: 110, objectFit: 'contain', border: '1px solid #fecdd3', borderRadius: 4, padding: 2, bgcolor: '#fff' }}
+                                    style={{ maxHeight: 36, maxWidth: 110, objectFit: 'contain', border: '1px solid #ddd6fe', borderRadius: 4, padding: 2, bgcolor: '#fff' }}
                                   />
                                 </Box>
                               ) : (
@@ -727,6 +561,47 @@ const StudentCheckInPage = () => {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                </Box>
+
+                {/* Mobile: compact cards — no horizontal scroll */}
+                <div className="sm:hidden space-y-3">
+                  {entries.length === 0 ? (
+                    <div className="text-center py-6 text-sm text-slate-400">ยังไม่มีประวัติรายงานประจำวัน</div>
+                  ) : (
+                    entries.map((entry) => (
+                      <div key={entry.id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-700">{formatDateDisplay(entry.date)}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                            {STATUS_LABEL[entry.status] || entry.status}
+                          </span>
+                        </div>
+                        {(entry.work_experience || entry.workExperience || entry.note) && (
+                          <p className="m-0 mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2 break-words">
+                            {entry.work_experience || entry.workExperience || entry.note}
+                          </p>
+                        )}
+                        <div className="mt-2.5 pt-2.5 border-t border-slate-200/70 flex items-center justify-between gap-2">
+                          {entry.supervisor_signature || entry.supervisorSignature ? (
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={entry.supervisor_signature || entry.supervisorSignature}
+                                alt="ลายเซ็นพี่เลี้ยง"
+                                className="h-8 max-w-[96px] object-contain bg-white border border-violet-100 rounded-md p-0.5"
+                              />
+                              <span className="text-[10px] font-semibold text-violet-600">รับรองแล้ว</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-medium text-slate-400">ยังไม่มีลายเซ็นพี่เลี้ยง</span>
+                          )}
+                          {entry.supervisor_name && (
+                            <span className="text-[10px] text-slate-500 truncate">พี่เลี้ยง: {entry.supervisor_name}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </Box>
             </>
           )}
@@ -918,100 +793,6 @@ const StudentCheckInPage = () => {
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
-      {/* Batch Supervisor Sign Modal */}
-      {signModalOpen && (
-        <div
-          className="fixed inset-0 z-[1200] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => !signSubmitting && setSignModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-[28px] p-6 sm:p-7 max-w-md w-full max-h-[90vh] overflow-y-auto border border-rose-100 shadow-[0_20px_60px_rgba(225,29,72,0.12)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
-                <PenTool className="w-5 h-5 text-rose-600" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-slate-800 m-0">ลายเซ็นรับรองจากพี่เลี้ยง</h3>
-                <p className="text-[11px] text-slate-400 mt-1 m-0 leading-relaxed">
-                  เซ็นรับรองรายงานประจำวันย้อนหลัง {selectedDates.length} วันที่เลือกไว้
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">ชื่อพี่เลี้ยง / ผู้รับรอง</label>
-                <input
-                  type="text"
-                  value={mentorName}
-                  onChange={(e) => setMentorName(e.target.value)}
-                  placeholder="เช่น คุณสมชาย ใจดี"
-                  className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/15 focus:border-rose-400 transition placeholder:text-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">ความเห็นเพิ่มเติม (ถ้ามี)</label>
-                <textarea
-                  value={mentorComment}
-                  onChange={(e) => setMentorComment(e.target.value)}
-                  placeholder="ความเห็นหรือข้อเสนอแนะจากพี่เลี้ยง..."
-                  className="w-full box-border rounded-2xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/15 focus:border-rose-400 resize-none h-16 text-slate-800 bg-slate-50/50 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">
-                  ลายเซ็นพี่เลี้ยง <span className="text-rose-500">*</span>
-                </label>
-                <div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/20 p-2">
-                  <div className="rounded-lg border border-slate-200 bg-white h-36 overflow-hidden">
-                    <SignatureCanvas
-                      ref={batchSigCanvas}
-                      penColor="#312e81"
-                      canvasProps={{ className: 'sigCanvas', style: { width: '100%', height: '100%' } }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => batchSigCanvas.current?.clear()}
-                    className="mt-2 text-[11px] font-semibold text-rose-500 hover:text-rose-600 transition cursor-pointer border-none bg-transparent p-0"
-                  >
-                    ล้างลายเซ็น
-                  </button>
-                </div>
-              </div>
-
-              {signError && (
-                <div className="rounded-xl bg-rose-50 border border-rose-100 px-3.5 py-2.5 text-xs text-rose-600 font-medium">
-                  {signError}
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSignModalOpen(false)}
-                  disabled={signSubmitting}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-transparent disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitBatchSign}
-                  disabled={signSubmitting}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(225,29,72,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {signSubmitting ? 'กำลังบันทึก...' : `ยืนยันเซ็นรับรอง (${selectedDates.length} วัน)`}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

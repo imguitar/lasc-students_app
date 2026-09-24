@@ -35,6 +35,7 @@ const MENU_CONFIG = {
       { path: '/advisor-dashboard/students', label: 'รายชื่อนักศึกษาฝึกงาน', icon: AcademicCapIcon },
       { path: '/advisor-dashboard/supervision', label: 'ตารางนิเทศงาน', icon: CalendarDaysIcon },
       { path: '/advisor-dashboard/progress', label: 'เช็ค Progress', icon: CheckCircleIcon },
+      { path: '/advisor-dashboard/profile', label: 'โปรไฟล์', icon: IdentificationIcon },
     ],
   },
   admin: {

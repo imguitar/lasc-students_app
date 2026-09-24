@@ -10,3 +10,18 @@ db/lascstudent.sql
 
 # Separate development repositories maintained by other teams
 *_dev/
+
+# Environment variables (all variants)
+.env
+.env*.local
+.env.development
+.env.production
+
+# Build outputs & logs
+dist/
+build/
+*.log
+
+# Editor files
+.vscode/
+.idea/

@@ -35,7 +35,15 @@ const AttendanceCalendar = ({
   studentId,
   studentName,
   internshipStartDate = null,
+  readOnly = false,
+  accentTheme,
+  onDayClick,
 }) => {
+  // Accent palette: violet (advisor view / default theme) or rose
+  const theme = accentTheme || (readOnly ? 'violet' : 'rose');
+  const accent = theme === 'violet'
+    ? { main: '#7c3aed', dark: '#6d28d9', bg: '#ede9fe', bgSoft: '#f5f3ff', border: '#ddd6fe', borderMid: '#a78bfa', text: '#5b21b6' }
+    : { main: '#be185d', dark: '#9d174d', bg: '#ffe4e6', bgSoft: '#fff1f2', border: '#fecdd3', borderMid: '#f43f5e', text: '#881337' };
   const sigCanvas = useRef(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
@@ -127,7 +135,7 @@ const AttendanceCalendar = ({
         status = 'un-checked'; // missed check-in during active internship
       }
 
-      const isSelectable = !isBeforeStart && isPastOrToday && !isWeekend;
+      const isSelectable = !isBeforeStart && isPastOrToday;
 
       days.push({
         type: 'day',
@@ -205,6 +213,7 @@ const AttendanceCalendar = ({
   };
 
   const handleOpenSignModal = (dateKeyOrKeys) => {
+    if (readOnly) return;
     setModalError('');
     if (Array.isArray(dateKeyOrKeys)) {
       if (dateKeyOrKeys.length === 0) return;
@@ -287,11 +296,6 @@ const AttendanceCalendar = ({
       <Paper
         elevation={0}
         sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 1.5,
           p: { xs: 1.25, sm: 1.75 },
           mb: 2,
           borderRadius: 3,
@@ -299,53 +303,27 @@ const AttendanceCalendar = ({
           border: '1px solid #e2e8f0',
         }}
       >
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: '#ffe4e6', color: '#be185d', display: 'flex' }}>
-              <CalendarIcon style={{ width: 18, height: 18 }} />
+        {/* Row 1: month title + navigation */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ minWidth: 0, flex: '1 1 auto' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: accent.bg, color: accent.main, display: 'flex', flexShrink: 0 }}>
+                <CalendarIcon style={{ width: 18, height: 18 }} />
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1.15rem' }, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                {monthNamesThai[month]} {year + 543}
+              </Typography>
             </Box>
-            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '0.95rem', sm: '1.15rem' }, color: '#0f172a' }}>
-              {monthNamesThai[month]} {year + 543}
-            </Typography>
+            {effectiveStartDate && (
+              <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, color: '#64748b', mt: 0.5, fontWeight: 600, pl: 0.5, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+                <FlagIcon style={{ width: 13, height: 13, color: accent.main, flexShrink: 0 }} />
+                เริ่มฝึกงานเมื่อ: <strong style={{ color: accent.main }}>{formatDateThai(effectiveStartDate)}</strong>
+              </Typography>
+            )}
           </Box>
-          {effectiveStartDate && (
-            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: '#64748b', mt: 0.5, fontWeight: 600, pl: 0.5 }}>
-              <FlagIcon style={{ width: 13, height: 13, color: '#be185d' }} />
-              เริ่มฝึกงานเมื่อ: <strong style={{ color: '#be185d' }}>{formatDateThai(effectiveStartDate)}</strong>
-            </Typography>
-          )}
-        </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-          <Button
-            size="small"
-            variant={isBatchMode ? 'contained' : 'outlined'}
-            startIcon={isBatchMode ? <XMarkIcon style={{ width: 16, height: 16 }} /> : <PencilSquareIcon style={{ width: 16, height: 16 }} />}
-            onClick={() => {
-              setIsBatchMode(!isBatchMode);
-              if (isBatchMode) {
-                setSelectedDates([]);
-              }
-            }}
-            sx={{
-              borderRadius: 2,
-              fontWeight: 700,
-              fontSize: '0.8rem',
-              textTransform: 'none',
-              bgcolor: isBatchMode ? '#be185d' : '#fff',
-              borderColor: '#be185d',
-              color: isBatchMode ? '#fff' : '#be185d',
-              '&:hover': {
-                bgcolor: isBatchMode ? '#9d174d' : '#fff1f2',
-                borderColor: '#9d174d',
-              },
-              boxShadow: isBatchMode ? '0 2px 8px rgba(190, 24, 93, 0.25)' : 'none'
-            }}
-          >
-            {isBatchMode ? 'ยกเลิกการเลือกหลายวัน' : 'ให้พี่เลี้ยงเซ็นรับรอง (เลือกหลายวัน)'}
-          </Button>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {/* Month navigation — always one row */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
             <IconButton
               size="small"
               onClick={handlePrevMonth}
@@ -367,6 +345,7 @@ const AttendanceCalendar = ({
                 color: '#334155',
                 bgcolor: '#fff',
                 minWidth: 0,
+                whiteSpace: 'nowrap',
                 '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' }
               }}
             >
@@ -382,18 +361,52 @@ const AttendanceCalendar = ({
             </IconButton>
           </Box>
         </Box>
+
+        {/* Row 2: batch sign action — full width on mobile */}
+        {!readOnly && (
+          <Box sx={{ mt: 1.25, display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
+            <Button
+              size="small"
+              variant={isBatchMode ? 'contained' : 'outlined'}
+              startIcon={isBatchMode ? <XMarkIcon style={{ width: 16, height: 16 }} /> : <PencilSquareIcon style={{ width: 16, height: 16 }} />}
+              onClick={() => {
+                setIsBatchMode(!isBatchMode);
+                if (isBatchMode) {
+                  setSelectedDates([]);
+                }
+              }}
+              sx={{
+                width: { xs: '100%', sm: 'auto' },
+                borderRadius: 2,
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                textTransform: 'none',
+                bgcolor: isBatchMode ? accent.main : '#fff',
+                borderColor: accent.main,
+                color: isBatchMode ? '#fff' : accent.main,
+                '&:hover': {
+                  bgcolor: isBatchMode ? accent.dark : accent.bgSoft,
+                  borderColor: accent.dark,
+                },
+                boxShadow: isBatchMode ? `0 2px 8px ${accent.main}40` : 'none'
+              }}
+            >
+              {isBatchMode ? 'ยกเลิกการเลือกหลายวัน' : 'ให้พี่เลี้ยงเซ็นรับรอง (เลือกหลายวัน)'}
+            </Button>
+          </Box>
+        )}
       </Paper>
 
       {/* Batch Mode Selection Toolbar */}
-      {isBatchMode && (
+      {isBatchMode && !readOnly && (
         <Paper
           elevation={0}
           sx={{
             p: 1.5,
             mb: 2,
             borderRadius: 3,
-            bgcolor: '#fff1f2',
-            border: '1.5px solid #fecdd3',
+            bgcolor: accent.bgSoft,
+            border: `1.5px solid ${accent.border}`,
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -402,14 +415,14 @@ const AttendanceCalendar = ({
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: '#881337', fontSize: '0.85rem' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: accent.text, fontSize: '0.85rem' }}>
               คลิกเลือกวันที่ในปฏิทิน (นับจากวันเริ่มฝึกงาน):
             </Typography>
             <Button
               size="small"
               variant="outlined"
               onClick={selectAllInMonth}
-              sx={{ py: 0.25, px: 1, fontSize: '0.75rem', fontWeight: 700, borderRadius: 1.5, color: '#be185d', borderColor: '#f43f5e', bgcolor: '#fff' }}
+              sx={{ py: 0.25, px: 1, fontSize: '0.75rem', fontWeight: 700, borderRadius: 1.5, color: accent.main, borderColor: accent.borderMid, bgcolor: '#fff' }}
             >
               เลือกทั้งหมดในเดือนนี้ ({selectableDaysInMonth.length} วัน)
             </Button>
@@ -417,7 +430,7 @@ const AttendanceCalendar = ({
               size="small"
               variant="outlined"
               onClick={selectAllUnsigned}
-              sx={{ py: 0.25, px: 1, fontSize: '0.75rem', fontWeight: 700, borderRadius: 1.5, color: '#be185d', borderColor: '#f43f5e', bgcolor: '#fff' }}
+              sx={{ py: 0.25, px: 1, fontSize: '0.75rem', fontWeight: 700, borderRadius: 1.5, color: accent.main, borderColor: accent.borderMid, bgcolor: '#fff' }}
             >
               เลือกวันที่ยังไม่มีลายเซ็น ({unsignedDaysInMonth.length} วัน)
             </Button>
@@ -433,7 +446,7 @@ const AttendanceCalendar = ({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, color: '#be185d', fontSize: '0.85rem' }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: accent.main, fontSize: '0.85rem' }}>
               เลือกไว้ <strong>{selectedDates.length}</strong> วัน
             </Typography>
             <Button
@@ -443,14 +456,14 @@ const AttendanceCalendar = ({
               startIcon={<PencilSquareIcon style={{ width: 16, height: 16 }} />}
               onClick={() => handleOpenSignModal(selectedDates)}
               sx={{
-                bgcolor: '#be185d',
-                '&:hover': { bgcolor: '#9d174d' },
+                bgcolor: accent.main,
+                '&:hover': { bgcolor: accent.dark },
                 fontWeight: 800,
                 borderRadius: 2,
                 textTransform: 'none',
                 px: 2,
                 py: 0.6,
-                boxShadow: '0 2px 8px rgba(190, 24, 93, 0.25)'
+                boxShadow: `0 2px 8px ${accent.main}40`
               }}
             >
               เซ็นรับรองที่เลือก ({selectedDates.length} วัน)
@@ -468,6 +481,7 @@ const AttendanceCalendar = ({
           gap: { xs: 1, sm: 2 }, 
           mb: 2, 
           px: 0.5,
+          justifyContent: { xs: 'center', sm: 'flex-start' },
           fontSize: { xs: '0.75rem', sm: '0.825rem' },
           color: '#475569',
           fontWeight: 600
@@ -490,12 +504,12 @@ const AttendanceCalendar = ({
           <span>ไม่ได้เช็คชื่อ</span>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <PencilSquareIcon style={{ width: 14, height: 14, color: '#be185d' }} />
-          <span style={{ color: '#be185d' }}>มีลายเซ็นพี่เลี้ยง</span>
+          <PencilSquareIcon style={{ width: 14, height: 14, color: accent.main }} />
+          <span style={{ color: accent.main }}>มีลายเซ็นพี่เลี้ยง</span>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: { xs: '100%', sm: 'auto' }, ml: { sm: 'auto' } }}>
           <Box sx={{ width: 10, height: 10, borderRadius: '3px', border: '1.5px dashed #cbd5e1' }} />
-          <span>ก่อนเริ่มฝึก / เสาร์-อาทิตย์ / อนาคต</span>
+          <span>ก่อนเริ่มฝึก / อนาคต</span>
         </Box>
       </Box>
 
@@ -504,7 +518,7 @@ const AttendanceCalendar = ({
         sx={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(7, 1fr)', 
-          gap: { xs: 0.5, sm: 1.25 }, 
+          gap: { xs: 1, sm: 1.5 }, 
           textAlign: 'center',
           fontWeight: 800,
           fontSize: { xs: '0.75rem', sm: '0.85rem' },
@@ -526,7 +540,7 @@ const AttendanceCalendar = ({
         sx={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(7, 1fr)', 
-          gap: { xs: 0.5, sm: 1.25 }
+          gap: { xs: 1, sm: 1.5 }
         }}
       >
         {calendarDays.map((item) => {
@@ -535,7 +549,8 @@ const AttendanceCalendar = ({
               <Box 
                 key={item.key} 
                 sx={{ 
-                  minHeight: { xs: 54, sm: 68 }, 
+                  aspectRatio: { xs: '1 / 1', sm: 'auto' },
+                  minHeight: { sm: 68 }, 
                   bgcolor: '#f8fafc', 
                   borderRadius: { xs: 1.5, sm: 2.5 }, 
                   border: '1px border-dashed #f1f5f9',
@@ -616,22 +631,27 @@ const AttendanceCalendar = ({
                 onClick={() => {
                   if (isBatchMode) {
                     if (item.isSelectable) toggleDateSelection(item);
+                  } else if (onDayClick) {
+                    if (item.isSelectable || item.entry) onDayClick(item);
                   } else {
                     setSelectedDay(item);
                   }
                 }}
                 sx={{
-                  minHeight: { xs: 56, sm: 70 },
+                  aspectRatio: { xs: '1 / 1', sm: 'auto' },
+                  minHeight: { sm: 70 },
                   p: { xs: 0.4, sm: 0.75 },
                   borderRadius: { xs: 1.75, sm: 2.5 },
-                  bgcolor: isSelectedInBatch ? '#ffe4e6' : bgColor,
-                  color: isSelectedInBatch ? '#881337' : textColor,
+                  bgcolor: isSelectedInBatch ? accent.bg : bgColor,
+                  color: isSelectedInBatch ? accent.text : textColor,
                   border: `2px solid ${
                     isSelectedInBatch 
-                      ? '#be185d' 
-                      : (item.isStartDate ? '#be185d' : (isSelected ? '#2563eb' : (item.isToday ? '#2563eb' : borderColor)))
+                      ? accent.main 
+                      : (item.isStartDate ? accent.main : (isSelected ? '#2563eb' : (item.isToday ? '#2563eb' : borderColor)))
                   }`,
-                  cursor: (isBatchMode && !item.isSelectable) ? 'not-allowed' : 'pointer',
+                  cursor: (isBatchMode && !item.isSelectable)
+                    ? 'not-allowed'
+                    : (onDayClick && !item.isSelectable && !item.entry ? 'default' : 'pointer'),
                   opacity: (isBatchMode && !item.isSelectable) ? 0.4 : 1,
                   display: 'flex',
                   flexDirection: 'column',
@@ -639,10 +659,10 @@ const AttendanceCalendar = ({
                   alignItems: 'center',
                   transition: 'all 0.15s ease-in-out',
                   position: 'relative',
-                  overflow: 'hidden',
+                  overflow: 'visible',
                   '&:hover': {
-                    transform: (isBatchMode && !item.isSelectable) ? 'none' : 'translateY(-2px)',
-                    boxShadow: (isBatchMode && !item.isSelectable) ? 'none' : '0 4px 14px rgba(0,0,0,0.07)'
+                    transform: (isBatchMode && !item.isSelectable) || (onDayClick && !item.isSelectable && !item.entry) ? 'none' : 'translateY(-2px)',
+                    boxShadow: (isBatchMode && !item.isSelectable) || (onDayClick && !item.isSelectable && !item.entry) ? 'none' : '0 4px 14px rgba(0,0,0,0.07)'
                   }
                 }}
               >
@@ -656,8 +676,8 @@ const AttendanceCalendar = ({
                       width: 16,
                       height: 16,
                       borderRadius: '4px',
-                      bgcolor: isSelectedInBatch ? '#be185d' : '#ffffff',
-                      border: `1.5px solid ${isSelectedInBatch ? '#be185d' : '#cbd5e1'}`,
+                      bgcolor: isSelectedInBatch ? accent.main : '#ffffff',
+                      border: `1.5px solid ${isSelectedInBatch ? accent.main : '#cbd5e1'}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -669,18 +689,27 @@ const AttendanceCalendar = ({
                   </Box>
                 )}
 
-                {/* Start Date Flag Icon */}
+                {/* Start Date Flag Badge — pinned on the top-left corner edge */}
                 {!isBatchMode && item.isStartDate && (
                   <Box
                     sx={{
                       position: 'absolute',
-                      top: 3,
-                      left: 3,
-                      color: '#be185d',
-                      zIndex: 2,
+                      top: -5,
+                      left: -5,
+                      width: 15,
+                      height: 15,
+                      borderRadius: '50%',
+                      bgcolor: accent.main,
+                      border: '2px solid #ffffff',
+                      boxShadow: `0 1px 4px ${accent.main}55`,
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 3,
                     }}
                   >
-                    <FlagIcon style={{ width: 12, height: 12 }} />
+                    <FlagIcon style={{ width: 8, height: 8 }} />
                   </Box>
                 )}
 
@@ -694,23 +723,24 @@ const AttendanceCalendar = ({
                       width: 7,
                       height: 7,
                       borderRadius: '50%',
-                      bgcolor: '#be185d',
+                      bgcolor: accent.main,
                       zIndex: 2,
                     }}
                   />
                 )}
 
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', pt: 0.2 }}>
+                {/* Day number — vertically centered */}
+                <Box sx={{ display: 'flex', flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
                   <Typography
                     variant="body2"
                     sx={{
-                      fontWeight: item.isToday || item.isStartDate ? 900 : 700,
-                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                      width: item.isToday ? { xs: 20, sm: 24 } : 'auto',
-                      height: item.isToday ? { xs: 20, sm: 24 } : 'auto',
+                      fontWeight: item.isToday || item.isStartDate ? 800 : 600,
+                      fontSize: { xs: '0.875rem', sm: '0.875rem' },
+                      width: item.isToday ? { xs: 22, sm: 24 } : 'auto',
+                      height: item.isToday ? { xs: 22, sm: 24 } : 'auto',
                       borderRadius: item.isToday ? '50%' : 0,
                       bgcolor: item.isToday ? '#2563eb' : 'transparent',
-                      color: item.isToday ? '#ffffff' : (item.isStartDate ? '#be185d' : 'inherit'),
+                      color: item.isToday ? '#ffffff' : (item.isStartDate ? accent.main : 'inherit'),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -721,57 +751,46 @@ const AttendanceCalendar = ({
                   </Typography>
                 </Box>
 
-                <Box sx={{ width: '100%', mt: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                  {item.isStartDate && (
-                    <Box
-                      sx={{
-                        fontSize: { xs: '0.525rem', sm: '0.625rem' },
-                        fontWeight: 800,
-                        textAlign: 'center',
-                        py: 0.2,
-                        px: 0.2,
-                        borderRadius: 1,
-                        bgcolor: '#ffe4e6',
-                        color: '#be185d',
-                        lineHeight: 1,
-                        width: '100%',
-                        whiteSpace: 'nowrap',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 0.25
-                      }}
-                    >
-                      <FlagIcon style={{ width: 10, height: 10, flexShrink: 0 }} />
-                      <span>เริ่มฝึกงาน</span>
-                    </Box>
-                  )}
+                {/* Status indicators — below the day number */}
+                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.25, minHeight: { xs: 10, sm: 'auto' } }}>
 
+                  {/* Status: dot indicator on mobile, text badge on sm+ */}
                   {badgeText && (
-                    <Box
-                      sx={{
-                        fontSize: { xs: '0.525rem', sm: '0.675rem' },
-                        fontWeight: 800,
-                        textAlign: 'center',
-                        py: 0.25,
-                        px: 0.2,
-                        borderRadius: 1,
-                        bgcolor: isSelectedInBatch ? '#fecdd3' : chipBg,
-                        color: isSelectedInBatch ? '#881337' : chipColor,
-                        lineHeight: 1,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 0.35,
-                      }}
-                    >
-                      {hasSignature && <PencilSquareIcon style={{ width: 10, height: 10, color: '#be185d', flexShrink: 0 }} />}
-                      {badgeText}
-                    </Box>
+                    <>
+                      <Box
+                        sx={{
+                          display: { xs: 'flex', sm: 'none' },
+                          justifyContent: 'center',
+                          py: 0.25,
+                        }}
+                      >
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: chipColor }} />
+                      </Box>
+                      <Box
+                        sx={{
+                          display: { xs: 'none', sm: 'flex' },
+                          fontSize: { sm: '0.675rem' },
+                          fontWeight: 800,
+                          textAlign: 'center',
+                          py: 0.25,
+                          px: 0.2,
+                          borderRadius: 1,
+                          bgcolor: isSelectedInBatch ? accent.border : chipBg,
+                          color: isSelectedInBatch ? accent.text : chipColor,
+                          lineHeight: 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          width: '100%',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 0.35,
+                        }}
+                      >
+                        {hasSignature && <PencilSquareIcon style={{ width: 10, height: 10, color: accent.main, flexShrink: 0 }} />}
+                        {badgeText}
+                      </Box>
+                    </>
                   )}
                 </Box>
               </Paper>
@@ -797,7 +816,7 @@ const AttendanceCalendar = ({
               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>
                 รายละเอียดวันที่ {formatDateThai(selectedDay.dateKey)}
               </Typography>
-              {selectedDay.isStartDate && <Chip label="วันเริ่มต้นฝึกงาน" size="small" sx={{ bgcolor: '#ffe4e6', color: '#be185d', fontWeight: 800 }} />}
+              {selectedDay.isStartDate && <Chip label="วันเริ่มต้นฝึกงาน" size="small" sx={{ bgcolor: accent.bg, color: accent.main, fontWeight: 800 }} />}
               {selectedDay.status === 'present' && <Chip label="มา" color="success" size="small" sx={{ fontWeight: 700 }} />}
               {selectedDay.status === 'late' && <Chip label="สาย" color="warning" size="small" sx={{ fontWeight: 700 }} />}
               {selectedDay.status === 'absent' && <Chip label="ขาด" color="error" size="small" sx={{ fontWeight: 700 }} />}
@@ -805,15 +824,15 @@ const AttendanceCalendar = ({
               {selectedDay.isBeforeStart && <Chip label="ก่อนเริ่มฝึกงาน" size="small" sx={{ bgcolor: '#f1f5f9', color: '#64748b' }} />}
             </Box>
 
-            {selectedDay.isSelectable && (
+            {!readOnly && selectedDay.isSelectable && (
               <Button
                 size="small"
                 variant="contained"
                 startIcon={<PencilSquareIcon style={{ width: 16, height: 16 }} />}
                 onClick={() => handleOpenSignModal(selectedDay.dateKey)}
                 sx={{
-                  bgcolor: '#be185d',
-                  '&:hover': { bgcolor: '#9d174d' },
+                  bgcolor: accent.main,
+                  '&:hover': { bgcolor: accent.dark },
                   fontWeight: 700,
                   fontSize: '0.8rem',
                   borderRadius: 2,
@@ -844,18 +863,6 @@ const AttendanceCalendar = ({
                   <strong>ความคิดเห็นจากพี่เลี้ยง:</strong> {selectedEntryInfo.supervisor_comment}
                 </div>
               )}
-              {(selectedEntryInfo.supervisor_signature || selectedEntryInfo.supervisorSignature) && (
-                <Box sx={{ mt: 1, p: 1.5, borderRadius: 2, bgcolor: '#ffffff', border: '1px solid #fecdd3', display: 'inline-block', maxWidth: 260 }}>
-                  <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 800, color: '#be185d', mb: 0.5 }}>
-                    <CheckBadgeIcon style={{ width: 16, height: 16 }} /> ลายเซ็นรับรองโดยพี่เลี้ยง / ผู้ดูแลสถานประกอบการ:
-                  </Typography>
-                  <img
-                    src={selectedEntryInfo.supervisor_signature || selectedEntryInfo.supervisorSignature}
-                    alt="Supervisor Signature"
-                    style={{ maxHeight: 55, maxWidth: '100%', objectFit: 'contain' }}
-                  />
-                </Box>
-              )}
               {selectedEntryInfo.createdAt && (
                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
                   เวลาเช็คชื่อ: {new Date(selectedEntryInfo.createdAt).toLocaleString('th-TH')}
@@ -868,11 +875,72 @@ const AttendanceCalendar = ({
                 {selectedDay.isBeforeStart 
                   ? 'ยังไม่ถึงกำหนดเริ่มฝึกงาน (เริ่มฝึกงานอย่างเป็นทางการเมื่อวันที่ ' + formatDateThai(effectiveStartDate) + ')' 
                   : (selectedDay.isStartDate 
-                    ? '🚩 วันนี้คือวันเริ่มต้นฝึกงานอย่างเป็นทางการ (ยังไม่ได้กดบันทึกรายงานประจำวัน)' 
+                    ? 'วันนี้คือวันเริ่มต้นฝึกงานอย่างเป็นทางการ (ยังไม่ได้กดบันทึกรายงานประจำวัน)' 
                     : (selectedDay.status === 'un-checked' ? 'ไม่มีบันทึกการเช็คชื่อในวันนี้ (ยังไม่ได้เข้าเช็คชื่อ)' : 'ไม่มีข้อมูลการเช็คชื่อ'))}
               </Typography>
             </Box>
           )}
+
+          {/* Supervisor Signature Section */}
+          {selectedDay.isSelectable && (() => {
+            const signature = selectedEntryInfo?.supervisor_signature || selectedEntryInfo?.supervisorSignature;
+            return (
+              <Box
+                sx={{
+                  mt: 2,
+                  pt: 1.5,
+                  borderTop: '1px dashed #e2e8f0',
+                }}
+              >
+                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 800, color: signature ? accent.main : '#94a3b8', mb: 1 }}>
+                  <CheckBadgeIcon style={{ width: 16, height: 16 }} />
+                  ลายเซ็นรับรองโดยพี่เลี้ยง / ผู้ดูแลสถานประกอบการ
+                </Typography>
+                {signature ? (
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      bgcolor: '#ffffff',
+                      border: `1px solid ${accent.border}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      maxWidth: 420,
+                    }}
+                  >
+                    <img
+                      src={signature}
+                      alt="Supervisor Signature"
+                      style={{ maxHeight: 90, maxWidth: 260, objectFit: 'contain' }}
+                    />
+                    {selectedEntryInfo?.supervisor_name && (
+                      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                        {selectedEntryInfo.supervisor_name}
+                      </Typography>
+                    )}
+                  </Box>
+                ) : (
+                  <Box
+                    sx={{
+                      py: 1.5,
+                      px: 2,
+                      borderRadius: 2,
+                      border: '1.5px dashed #cbd5e1',
+                      bgcolor: '#ffffff',
+                      color: '#94a3b8',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      maxWidth: 420,
+                    }}
+                  >
+                    ยังไม่มีลายเซ็นรับรองจากพี่เลี้ยง
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
         </Paper>
       )}
 
@@ -892,8 +960,8 @@ const AttendanceCalendar = ({
                 width: 34,
                 height: 34,
                 borderRadius: '8px',
-                bgcolor: '#ffe4e6',
-                color: '#be185d',
+                bgcolor: accent.bg,
+                color: accent.main,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -920,7 +988,7 @@ const AttendanceCalendar = ({
           {/* Selected Dates Summary */}
           <Box sx={{ mb: 2.5, p: 1.75, borderRadius: 2, bgcolor: '#ffffff', border: '1px solid #e2e8f0' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e293b', mb: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <CalendarIcon style={{ width: 18, height: 18, color: '#be185d' }} />
+              <CalendarIcon style={{ width: 18, height: 18, color: accent.main }} />
               วันที่เลือกเซ็นรับรอง ({selectedDates.length} วัน):
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, maxHeight: 110, overflowY: 'auto' }}>
@@ -929,7 +997,7 @@ const AttendanceCalendar = ({
                   key={dateKey}
                   label={formatDateThai(dateKey)}
                   size="small"
-                  sx={{ bgcolor: '#ffe4e6', color: '#be185d', fontWeight: 700, fontSize: '0.75rem' }}
+                  sx={{ bgcolor: accent.bg, color: accent.main, fontWeight: 700, fontSize: '0.75rem' }}
                 />
               ))}
             </Box>
@@ -960,10 +1028,10 @@ const AttendanceCalendar = ({
           </Stack>
 
           {/* Signature Canvas Box */}
-          <Box sx={{ p: 2, border: '1.5px dashed #be185d', borderRadius: 2.5, bgcolor: '#ffffff' }}>
+          <Box sx={{ p: 2, border: `1.5px dashed ${accent.main}`, borderRadius: 2.5, bgcolor: '#ffffff' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#881337', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <PencilSquareIcon style={{ width: 18, height: 18, color: '#be185d' }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: accent.text, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <PencilSquareIcon style={{ width: 18, height: 18, color: accent.main }} />
                 ลายเซ็นพี่เลี้ยง (ใช้นิ้วมือหรือเมาส์วาดลายเซ็น)
               </Typography>
               <Button
@@ -1007,13 +1075,13 @@ const AttendanceCalendar = ({
             disabled={submitting || selectedDates.length === 0}
             startIcon={<CheckBadgeIcon style={{ width: 18, height: 18 }} />}
             sx={{
-              bgcolor: '#be185d',
-              '&:hover': { bgcolor: '#9d174d' },
+              bgcolor: accent.main,
+              '&:hover': { bgcolor: accent.dark },
               fontWeight: 800,
               borderRadius: 2,
               textTransform: 'none',
               px: 3,
-              boxShadow: '0 2px 8px rgba(190, 24, 93, 0.25)'
+              boxShadow: `0 2px 8px ${accent.main}40`
             }}
           >
             {submitting ? 'กำลังบันทึก...' : `ยืนยันเซ็นรับรอง (${selectedDates.length} วัน)`}
