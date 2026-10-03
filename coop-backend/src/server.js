@@ -109,7 +109,7 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
+  console.error('Error:', err.message);
   res.status(err.statusCode || 500).json({ success: false, message: err.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
 });
 
@@ -122,8 +122,8 @@ initCronJobs();
 // Start Server
 // =============================================
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
+  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`API Health: http://localhost:${PORT}/api/health`);
 });
 
 module.exports = app;

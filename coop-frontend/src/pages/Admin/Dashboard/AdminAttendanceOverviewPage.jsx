@@ -287,7 +287,7 @@ const AdminAttendanceOverviewPage = () => {
     <div className="admin-dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
             <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
@@ -418,9 +418,9 @@ const AdminAttendanceOverviewPage = () => {
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600, color: statFilter === 'warning' ? '#991b1b' : '#166534' }}>
-                {statFilter === 'warning' 
-                  ? `🚨 แสดงเฉพาะกลุ่มนักศึกษาสุ่มเสี่ยง / ต้องติดตาม (ขาด หรือ ไม่ส่งรายงาน) จำนวน ${filteredStudents.length} คน` 
-                  : `✅ แสดงเฉพาะนักศึกษาที่ส่งรายงานแล้ว จำนวน ${filteredStudents.length} คน`}
+                {statFilter === 'warning'
+                  ? `แสดงเฉพาะกลุ่มนักศึกษาสุ่มเสี่ยง / ต้องติดตาม (ขาด หรือ ไม่ส่งรายงาน) จำนวน ${filteredStudents.length} คน`
+                  : `แสดงเฉพาะนักศึกษาที่ส่งรายงานแล้ว จำนวน ${filteredStudents.length} คน`}
               </Typography>
               <Button size="small" variant="outlined" color={statFilter === 'warning' ? 'error' : 'success'} onClick={() => setStatFilter('all')}>
                 แสดงทั้งหมด
@@ -524,9 +524,19 @@ const AdminAttendanceOverviewPage = () => {
         maxWidth="md"
         disableScrollLock={true}
         ModalProps={{ disableScrollLock: true }}
-        PaperProps={{ sx: { borderRadius: { xs: 2.5, sm: 3 }, p: { xs: 0.5, sm: 1 }, m: { xs: 1, sm: 2 }, width: { xs: 'calc(100% - 16px)', sm: 'auto' } } }}
+        PaperProps={{ sx: {
+          borderRadius: { xs: 2.5, sm: 3 },
+          p: { xs: 0.5, sm: 1 },
+          m: { xs: 1, sm: 2 },
+          width: { xs: 'calc(100% - 16px)', sm: 720 },
+          height: { xs: 'auto', sm: 780 },
+          maxHeight: 'calc(100% - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        } }}
       >
-        <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #f3f4f6', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1.5, pb: 1.5 }}>
+        <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #f3f4f6', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1.5, pb: 1.5, flexShrink: 0 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '0.95rem', sm: '1.15rem' }, color: '#0f172a', lineHeight: 1.3 }}>
             ประวัติรายงานประจำวัน - {detailsModal.student?.studentName}
           </Typography>
@@ -545,7 +555,7 @@ const AdminAttendanceOverviewPage = () => {
             </ToggleButton>
           </ToggleButtonGroup>
         </DialogTitle>
-        <DialogContent sx={{ p: { xs: 1, sm: 2 } }}>
+        <DialogContent sx={{ p: { xs: 1, sm: 2 }, flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}>
           {modalViewMode === 'calendar' ? (
             <AttendanceCalendar
               entries={detailsModal.student?.entries || []}
@@ -595,7 +605,7 @@ const AdminAttendanceOverviewPage = () => {
                             '-'
                           )}
                         </TableCell>
-                        <TableCell>{new Date(entry.createdAt).toLocaleString('th-TH')}</TableCell>
+                        <TableCell>{entry.createdAt ? new Date(entry.createdAt).toLocaleString('th-TH') : '-'}</TableCell>
                       </TableRow>
                     ))
                   ) : (
@@ -610,7 +620,7 @@ const AdminAttendanceOverviewPage = () => {
             </TableContainer>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, flexShrink: 0 }}>
           <Button onClick={() => setDetailsModal({ open: false, student: null })} variant="contained" sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' } }}>
             ปิดหน้าต่าง
           </Button>

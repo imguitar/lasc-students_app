@@ -430,43 +430,44 @@ const AllRequestsOverviewPage = () => {
               </div>
             ) : (
               <>
-                <div className="hidden md:block overflow-hidden rounded-xl border border-slate-100">
-                  <table className="w-full text-left border-collapse table-auto">
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full min-w-[860px] text-left border-collapse table-auto">
                   <thead>
                     <tr className="bg-slate-50/80">
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100 whitespace-nowrap">วันที่ยื่น</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100 whitespace-nowrap">รหัสนักศึกษา</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100">ชื่อ-นามสกุล</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100">สาขา</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100">บริษัท</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100">สถานะ</th>
-                      <th className="text-slate-400 text-[0.75rem] font-semibold uppercase tracking-wider py-3 px-4 border-b border-slate-100 text-center">จัดการ</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100 whitespace-nowrap">วันที่ยื่น</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100">นักศึกษา</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100">สาขา</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100">บริษัท</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100 sticky right-[68px] bg-slate-50 shadow-[-6px_0_8px_-4px_rgba(0,0,0,0.08)]">สถานะ</th>
+                      <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100 text-center sticky right-0 w-[68px] bg-slate-50">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredRequests.map((request) => (
-                      <tr key={request.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="text-[0.8125rem] text-slate-600 py-3 px-4 border-b border-slate-100 whitespace-nowrap">
+                      <tr key={request.id} className="group hover:bg-slate-50/60 transition-colors">
+                        <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 whitespace-nowrap">
                           {formatDateThai(request.submittedDate)}
                         </td>
-                        <td className="text-[0.8125rem] text-slate-700 font-medium py-3 px-4 border-b border-slate-100 whitespace-nowrap">{request.studentId}</td>
-                        <td className="text-[0.8125rem] text-slate-700 font-medium py-3 px-4 border-b border-slate-100 break-words min-w-[120px]">{request.studentName}</td>
-                        <td className="text-[0.8125rem] text-slate-600 py-3 px-4 border-b border-slate-100 break-words">{request.department || '-'}</td>
-                        <td className="text-[0.8125rem] text-slate-600 py-3 px-4 border-b border-slate-100 min-w-[140px]">
-                          <div className="font-medium text-slate-800">{request.company || '-'}</div>
+                        <td className="px-3 py-2.5 border-b border-slate-100 min-w-[150px]">
+                          <div className="text-xs sm:text-sm font-medium text-slate-800 break-words">{request.studentName}</div>
+                          <div className="text-xs text-slate-500 font-mono mt-0.5">{request.studentId}</div>
+                        </td>
+                        <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 max-w-[160px] truncate" title={request.department || ''}>{request.department || '-'}</td>
+                        <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 min-w-[140px]">
+                          <div className="font-medium text-slate-800 break-words">{request.company || '-'}</div>
                           {(request.internship_start_date || request.details?.startDate) ? (
                             <div className="text-[0.72rem] text-violet-700 font-medium mt-1 flex items-center gap-1">
-                              <CalendarDays className="w-3.5 h-3.5" />
-                              <span>{formatDateThai(request.internship_start_date || request.details?.startDate)} - {formatDateThai(request.internship_end_date || request.details?.endDate)}</span>
+                              <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                              <span className="whitespace-nowrap">{formatDateThai(request.internship_start_date || request.details?.startDate)} - {formatDateThai(request.internship_end_date || request.details?.endDate)}</span>
                             </div>
                           ) : (
                             <div className="text-[0.72rem] text-slate-400 mt-1">ยังไม่กำหนดวันฝึก</div>
                           )}
                         </td>
-                        <td className="py-3 px-4 border-b border-slate-100">
+                        <td className="px-3 py-2.5 border-b border-slate-100 sticky right-[68px] bg-white group-hover:bg-slate-50 shadow-[-6px_0_8px_-4px_rgba(0,0,0,0.08)]">
                           <StatusBadge status={getEffectiveInternshipStatus(request)} />
                         </td>
-                        <td className="py-3 px-4 border-b border-slate-100 text-center">
+                        <td className="px-3 py-2.5 border-b border-slate-100 text-center sticky right-0 w-[68px] bg-white group-hover:bg-slate-50">
                           <button
                             type="button"
                             className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent"
@@ -480,7 +481,7 @@ const AllRequestsOverviewPage = () => {
                     ))}
                     {filteredRequests.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="text-center py-10 text-slate-400 text-sm">ไม่พบข้อมูลคำร้อง</td>
+                        <td colSpan={6} className="text-center py-10 text-slate-400 text-sm">ไม่พบข้อมูลคำร้อง</td>
                       </tr>
                     )}
                   </tbody>

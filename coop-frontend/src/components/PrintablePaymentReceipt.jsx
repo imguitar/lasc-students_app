@@ -189,7 +189,7 @@ const SingleReceipt = ({ student, index, total }) => {
       <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '1px dashed #666', fontSize: '13pt', color: '#333' }}>
         <div><strong>สำหรับฝ่ายการเงิน/บัญชี:</strong></div>
         <div style={{ marginTop: '4px' }}>
-          จ่ายผ่าน: เงินโอนเข้าบัญชี เมื่อวันที่ {receiptDate} &nbsp;|&nbsp; สถานะการตรวจสอบ: <span style={{ color: '#166534', fontWeight: 'bold' }}>✓ ตรวจสอบแล้ว</span>
+          จ่ายผ่าน: เงินโอนเข้าบัญชี เมื่อวันที่ {receiptDate} &nbsp;|&nbsp; สถานะการตรวจสอบ: <span style={{ color: '#166534', fontWeight: 'bold' }}>ตรวจสอบแล้ว</span>
         </div>
       </div>
 

@@ -97,7 +97,7 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
 
   if (!isGmailConfigured()) {
     console.log('================================================================');
-    console.log('📧 [Mailer] ยังไม่ได้ตั้งค่า Gmail OAuth2 — ไม่ได้ส่งอีเมลจริง');
+    console.log('[Mailer] ยังไม่ได้ตั้งค่า Gmail OAuth2 — ไม่ได้ส่งอีเมลจริง');
     console.log(`ผู้รับ: ${to}`);
     console.log(`หัวข้อ: ${subject}`);
     console.log('================================================================');
@@ -151,10 +151,10 @@ const escapeHtml = (value) =>
     .replace(/'/g, '&#39;');
 
 const STATUS_THEME = {
-  approved: { accent: '#059669', soft: '#ecfdf5', icon: '✅', label: 'อนุมัติแล้ว' },
-  rejected: { accent: '#e11d48', soft: '#fff1f2', icon: '❌', label: 'ไม่อนุมัติ' },
-  revision: { accent: '#d97706', soft: '#fffbeb', icon: '📝', label: 'ส่งกลับแก้ไข' },
-  pending: { accent: '#7c3aed', soft: '#f5f3ff', icon: '📄', label: 'อยู่ระหว่างดำเนินการ' },
+  approved: { accent: '#059669', soft: '#ecfdf5', label: 'อนุมัติแล้ว' },
+  rejected: { accent: '#e11d48', soft: '#fff1f2', label: 'ไม่อนุมัติ' },
+  revision: { accent: '#d97706', soft: '#fffbeb', label: 'ส่งกลับแก้ไข' },
+  pending: { accent: '#7c3aed', soft: '#f5f3ff', label: 'อยู่ระหว่างดำเนินการ' },
 };
 
 const getStatusTheme = (status = '') => {
@@ -218,7 +218,7 @@ const buildStatusEmailHtml = ({
           ระบบขอแจ้งให้ทราบว่า คำร้องขอฝึกงานของท่านมีการอัปเดตสถานะดังต่อไปนี้
         </p>
         <div style="background-color: ${theme.soft}; border: 1px solid ${theme.accent}22; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 15px; font-weight: 700; color: ${theme.accent};">${theme.icon} ${safeStatus}</span>
+          <span style="font-size: 15px; font-weight: 700; color: ${theme.accent};">${safeStatus}</span>
         </div>
         <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border-radius: 12px;">
           ${rows}
@@ -404,7 +404,7 @@ const buildStudentEvaluationNoticeHtml = ({ studentName, companyName, detailUrl 
           เรียน <strong>${escapeHtml(studentName || 'นักศึกษา')}</strong>
         </p>
         <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 15px; font-weight: 700; color: #059669;">✅ สถานประกอบการบันทึกผลการประเมินเรียบร้อยแล้ว</span>
+          <span style="font-size: 15px; font-weight: 700; color: #059669;">สถานประกอบการบันทึกผลการประเมินเรียบร้อยแล้ว</span>
         </div>
         <p style="font-size: 14px; color: #475569; line-height: 1.8; margin: 0 0 20px 0;">
           สถานประกอบการ (<strong>${escapeHtml(companyName || '-')}</strong>) ได้ทำการบันทึกและส่งแบบประเมินผลการปฏิบัติงานของท่านเข้าสู่ระบบเรียบร้อยแล้ว ขณะนี้อยู่ระหว่างการตรวจสอบและสรุปผลร่วมกับอาจารย์นิเทศ ท่านสามารถติดตามความคืบหน้าของคำร้องได้ทางระบบสารสนเทศ

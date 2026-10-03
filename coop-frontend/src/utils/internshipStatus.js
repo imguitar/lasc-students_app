@@ -24,6 +24,7 @@ export const getEffectiveInternshipStatus = (request, currentDate = new Date()) 
 
   // If request is still in early waiting or rejected phases, preserve raw status
   const unapprovedStatuses = [
+    'ยื่นคำร้องแล้ว',
     'รอตรวจสอบ',
     'รอผู้ดูแลระบบตรวจสอบ',
     'รอผู้ดูแลระบบอนุมัติ',
@@ -33,6 +34,7 @@ export const getEffectiveInternshipStatus = (request, currentDate = new Date()) 
     'รอแอดมินออกใบส่งตัว',
     'รอออกใบส่งตัว',
     'ตอบรับแล้ว',
+    'สถานประกอบการตอบรับแล้ว',
     'สถานประกอบการตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)',
     'ไม่อนุมัติ (อาจารย์)',
     'ไม่อนุมัติ (Admin)',

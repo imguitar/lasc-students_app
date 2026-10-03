@@ -37,7 +37,7 @@ import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, 
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
-import { STAT_EMOJI } from '../../../utils/statEmojis';
+import { STAT_ICON } from '../../../utils/statIcons';
 import './AdminDashboardPage.css';
 import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EllipsisVerticalIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import AdminSidebar from '../../../components/AdminSidebar';
@@ -347,11 +347,11 @@ const AdminDashboardPage = () => {
   }, [allRequests]);
 
   const summaryCards = useMemo(() => ([
-    { key: 'total', label: 'ทั้งหมด', value: statusCounts.total, color: '#6366f1', icon: STAT_EMOJI.TOTAL },
-    { key: 'pendingAdmin', label: 'รอตรวจสอบ', value: statusCounts.pendingAdmin, color: '#8b5cf6', icon: STAT_EMOJI.PENDING },
-    { key: 'waitingCompany', label: 'รอสถานประกอบการ', value: statusCounts.waitingCompany, color: '#6366f1', icon: STAT_EMOJI.PENDING },
-    { key: 'approved', label: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#10b981', icon: STAT_EMOJI.APPROVED },
-    { key: 'rejected', label: 'ไม่อนุมัติ', value: statusCounts.rejected, color: '#f43f5e', icon: STAT_EMOJI.REJECTED },
+    { key: 'total', label: 'ทั้งหมด', value: statusCounts.total, color: '#6366f1', icon: STAT_ICON.TOTAL },
+    { key: 'pendingAdmin', label: 'รอตรวจสอบ', value: statusCounts.pendingAdmin, color: '#8b5cf6', icon: STAT_ICON.PENDING },
+    { key: 'waitingCompany', label: 'รอสถานประกอบการ', value: statusCounts.waitingCompany, color: '#6366f1', icon: STAT_ICON.PENDING },
+    { key: 'approved', label: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#10b981', icon: STAT_ICON.APPROVED },
+    { key: 'rejected', label: 'ไม่อนุมัติ', value: statusCounts.rejected, color: '#f43f5e', icon: STAT_ICON.REJECTED },
   ]), [statusCounts]);
 
   const statusChartData = useMemo(() => ([
@@ -801,7 +801,8 @@ const AdminDashboardPage = () => {
       const requestId = dispatchModal.requestId;
       const targetRequest = allRequests.find(r => String(r.id) === String(requestId));
       const isStartInternship = dispatchModal.targetStatus === 'ออกฝึกงาน' || ['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(targetRequest?.status);
-      const newStatus = isStartInternship ? 'ออกฝึกงาน' : 'รอสถานประกอบการตอบรับ';
+      // ตั้ง 'อนุมัติแล้ว (รอออกฝึกงาน)' เสมอ — ให้ auto-update ตัดสินเปลี่ยนเป็น 'ออกฝึกงาน' ตามวันจริง (กันเด้งข้ามขั้น)
+      const newStatus = isStartInternship ? 'อนุมัติแล้ว (รอออกฝึกงาน)' : 'รอสถานประกอบการตอบรับ';
 
       const payload = {
         status: newStatus,
@@ -810,6 +811,7 @@ const AdminDashboardPage = () => {
           fileName: dispatchModal.file.name,
           mimeType: dispatchModal.file.type,
           dataUrl,
+          uploadedAt: new Date().toISOString(),
         },
       };
 
@@ -822,7 +824,7 @@ const AdminDashboardPage = () => {
             ...r,
             status: newStatus,
             admin_comment: dispatchModal.comment?.trim() || null,
-            dispatchLetter: { fileName: dispatchModal.file.name, dataUrl },
+            dispatchLetter: payload.dispatchLetter,
             internship_start_date: dispatchModal.startDate || r.internship_start_date,
             internship_end_date: dispatchModal.endDate || r.internship_end_date,
             details: {
@@ -1449,7 +1451,7 @@ const AdminDashboardPage = () => {
                       <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem', fontWeight: 500 }}>{request.studentName}</TableCell>
                       <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem' }}>{request.company}</TableCell>
                       <TableCell sx={{ borderBottom: '1px solid #f1f5f9', py: 1.5 }}>
-                        <StatusBadge status={request.status} />
+                        <StatusBadge status={getEffectiveInternshipStatus(request)} />
                       </TableCell>
                     </TableRow>
                   );

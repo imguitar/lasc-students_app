@@ -48,16 +48,26 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const dataUrlToBlob = (dataUrl) => {
   if (!dataUrl) return null;
-  const arr = dataUrl.split(',');
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUrl.slice(0, commaIdx);
+    const payload = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = header.match(/:(.*?)(;|$)/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = /;base64/i.test(header)
+      ? atob(payload.replace(/\s/g, ''))
+      : decodeURIComponent(payload);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.error('Failed to convert dataUrl to blob:', err);
+    return null;
   }
-  return new Blob([u8arr], { type: mime });
 };
 
 const StudentListPage = () => {
@@ -432,7 +442,7 @@ const StudentListPage = () => {
       a.href = url;
       a.download = fileName;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
       setToast({ open: true, message: `ดาวน์โหลดสลิปของ ${student.full_name || studentCode} เรียบร้อยแล้ว`, severity: 'success' });
     }
   };
@@ -473,7 +483,7 @@ const StudentListPage = () => {
       a.href = url;
       a.download = zipName;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
 
       setToast({ open: true, message: `Export สลีปเรียบร้อยแล้ว (${listWithSlips.length} ไฟล์)`, severity: 'success' });
     } catch (err) {
@@ -498,7 +508,7 @@ const StudentListPage = () => {
       anchor.href = url;
       anchor.download = fileName;
       anchor.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
   };
 
@@ -533,7 +543,7 @@ const StudentListPage = () => {
     <div className="admin-dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
             <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>

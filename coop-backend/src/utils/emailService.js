@@ -195,7 +195,7 @@ const sendCompanyEvaluationEmail = async ({ to, studentName, studentId, companyN
 
   // 3) ยังไม่ได้ตั้งค่าช่องทางส่ง — log ลิงก์ไว้ให้ใช้งานระหว่างพัฒนา แต่ต้องไม่รายงานว่าส่งแล้ว
   console.log('================================================================');
-  console.log('📧 [EmailService] ยังไม่ได้ตั้งค่า Gmail/SMTP — ไม่ได้ส่งอีเมลจริง');
+  console.log('[EmailService] ยังไม่ได้ตั้งค่า Gmail/SMTP — ไม่ได้ส่งอีเมลจริง');
   console.log(`ผู้รับ: ${to}`);
   console.log(`หัวข้อ: ${subject}`);
   console.log(`ลิงก์แบบประเมิน: ${url}`);

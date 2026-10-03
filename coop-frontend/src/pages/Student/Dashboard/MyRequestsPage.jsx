@@ -4,9 +4,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, MenuItem } from '@mui/material';
 import api from '../../../api/axios';
+import { openDocumentInNewTab, downloadDocument } from '../../../utils/documentViewer';
 import './DashboardPage.css'; // Reusing layout styles
 import './MyRequestsPage.css';
-import { ClockIcon } from '@heroicons/react/24/outline'; // Specific styles for this page
+import { ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'; // Specific styles for this page
 import { MoreVertical, Eye, Download, Pencil } from 'lucide-react';
 import StudentSidebar from '../../../components/StudentSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
@@ -38,45 +39,8 @@ export const isStudentEditableStatus = (status) => {
   return editableStatuses.includes(s);
 };
 
-const dataUrlToBlobUrl = (dataUrl) => {
-  if (!dataUrl) return '';
-  try {
-    const arr = dataUrl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    const blob = new Blob([u8arr], { type: mime });
-    return URL.createObjectURL(blob);
-  } catch (err) {
-    console.error('Failed to convert dataUrl to blob:', err);
-    return dataUrl;
-  }
-};
-
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  if (!dataUrl) return;
-  try {
-    const blobUrl = dataUrlToBlobUrl(dataUrl);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (err) {
-    console.error('Download error:', err);
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+  downloadDocument(dataUrl, fileName);
 };
 
 const MyRequestsPage = () => {
@@ -136,13 +100,8 @@ const MyRequestsPage = () => {
 
   const handleDocumentAction = (dataUrl, fileName) => {
     if (!dataUrl) return;
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) {
-      handleDownloadFile(dataUrl, fileName);
-    } else {
-      const fileUrl = dataUrlToBlobUrl(dataUrl);
-      window.open(fileUrl, '_blank', 'noopener,noreferrer');
-    }
+    // มือถือเปิดผ่าน blob URL ในแท็บใหม่ (browser render PDF เอง) — data: URL ถูกบล็อกบน iOS/Android
+    openDocumentInNewTab(dataUrl);
   };
 
   useEffect(() => {
@@ -222,7 +181,7 @@ const MyRequestsPage = () => {
     <div className="dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
             <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
@@ -312,14 +271,14 @@ const MyRequestsPage = () => {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={req.status} />
+                          <StatusBadge status={getEffectiveInternshipStatus(req)} />
                           {(req.status === 'ออกฝึกงาน' || req.status === 'กำลังออกฝึกงาน' || req.status === 'สิ้นสุดการฝึกงาน (รอประเมิน)' || req.status === 'ประเมินเสร็จแล้ว' || req.status === 'ฝึกงานเสร็จแล้ว') && (
                             <div style={{ marginTop: '8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px', fontWeight: 500 }}>
-                              {req.hasCompanyEval ? 
-                                <span style={{ color: '#10b981' }}>✓ บริษัทประเมินแล้ว</span> : 
+                              {req.hasCompanyEval ?
+                                <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircleIcon style={{width: 16, height: 16}}/> บริษัทประเมินแล้ว</span> :
                                 <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> บริษัทกำลังประเมิน</span>}
-                              {req.hasAdvisorEval ? 
-                                <span style={{ color: '#10b981' }}>✓ อาจารย์ประเมินแล้ว</span> : 
+                              {req.hasAdvisorEval ?
+                                <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircleIcon style={{width: 16, height: 16}}/> อาจารย์ประเมินแล้ว</span> :
                                 <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> อาจารย์กำลังประเมิน</span>}
                             </div>
                           )}

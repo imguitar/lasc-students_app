@@ -230,7 +230,11 @@ router.post('/', authenticate, async (req, res) => {
       detailsObj.companyEmail = initialCompanyEmail;
     }
     const detailsStr = detailsObj ? JSON.stringify(detailsObj) : (typeof details === 'string' ? details : null);
-    const initialStatus = status || 'รออาจารย์ที่ปรึกษาอนุมัติ';
+    // สถานะเริ่มต้น Hardcode — นักศึกษาไม่สามารถกำหนดสถานะเองได้ (กันคำร้องเด้งข้าม flow)
+    // internship_start_date / dispatchLetter เริ่มต้น NULL ตาม schema — เขียนได้เฉพาะแอดมินรอบที่ 2
+    const initialStatus = req.user?.role === 'admin'
+      ? (status || 'รอผู้ดูแลระบบตรวจสอบ')
+      : 'รออาจารย์ที่ปรึกษาอนุมัติ';
 
     const [result] = await pool.query(
       `INSERT INTO requests (studentId, studentName, department, company, position, submittedDate, details, status, company_email)
@@ -513,6 +517,29 @@ const updateStatusHandler = async (req, res) => {
           }
         } catch (notifyErr) {
           console.error('[Notification] แจ้งเตือนผลตอบรับสถานประกอบการล้มเหลว:', notifyErr.message);
+        }
+      }
+
+      // แจ้งเตือนในแอปเมื่ออนุมัติพร้อมแนบหนังสือส่งตัว — ให้นักศึกษาไปดาวน์โหลดเอกสาร
+      // (ใช้ startsWith กัน 'ไม่อนุมัติ' ที่มี substring 'อนุมัติ' เหมือนกัน)
+      const isApprovedWithLetter =
+        updated[0] && dispatchLetter && status &&
+        (String(status).startsWith('อนุมัติแล้ว') || status === 'รอออกฝึกงาน' || status === 'ออกฝึกงาน');
+      if (isApprovedWithLetter) {
+        try {
+          const studentUserId = await findUserIdByUsername(updated[0].studentId);
+          if (studentUserId) {
+            await createNotification({
+              userId: studentUserId,
+              type: 'request_status',
+              title: 'คำร้องได้รับการอนุมัติแล้ว',
+              message: `คำร้อง #${updated[0].id} ได้รับการอนุมัติแล้ว กรุณาดาวน์โหลดหนังสือส่งตัวเพื่อนำไปยื่น ณ สถานประกอบการ`,
+              link: '/dashboard',
+              requestId: updated[0].id,
+            });
+          }
+        } catch (notifyErr) {
+          console.error('[Notification] แจ้งเตือนอนุมัติ+หนังสือส่งตัวล้มเหลว:', notifyErr.message);
         }
       }
 

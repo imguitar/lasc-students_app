@@ -18,6 +18,30 @@ const DEPARTMENT_NAME_TO_ID = Object.entries(DEPARTMENT_MAP).reduce((acc, [id, n
   return acc;
 }, {});
 
+// รหัสย่อสาขาวิชา (ภาษาอังกฤษ) — ใช้แสดงบน Badge โปรไฟล์ผู้ใช้
+const DEPARTMENT_SHORT_MAP = {
+  1: 'CS',   // วิทยาการคอมพิวเตอร์
+  2: 'CT',   // เทคโนโลยีคอมพิวเตอร์และดิจิทัล
+  3: 'PH',   // สาธารณสุขชุมชน
+  4: 'SS',   // วิทยาศาสตร์การกีฬา
+  5: 'AG',   // เทคโนโลยีการเกษตร
+  6: 'FT',   // เทคโนโลยีและนวัตกรรมอาหาร
+  7: 'OSH',  // อาชีวอนามัยและความปลอดภัย
+  8: 'SE',   // วิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์
+  9: 'LE',   // วิศวกรรมโลจิสติกส์
+  10: 'IE',  // วิศวกรรมการจัดการอุตสาหกรรมและสิ่งแวดล้อม
+  11: 'PD',  // การออกแบบผลิตภัณฑ์และนวัตกรรมวัสดุ
+  12: 'CA',  // เทคโนโลยีโยธาและสถาปัตยกรรม
+};
+
+const normalizeDeptName = (name = '') =>
+  String(name || '').replace(/สาขาวิชา/g, '').replace(/\s+/g, '');
+
+const DEPARTMENT_NAME_TO_SHORT = Object.entries(DEPARTMENT_MAP).reduce((acc, [id, name]) => {
+  acc[normalizeDeptName(name)] = DEPARTMENT_SHORT_MAP[Number(id)] || '';
+  return acc;
+}, {});
+
 const toFrontendUser = (row) => {
   if (!row) return null;
   const fullName = (row.firstname && row.lastname)
@@ -31,6 +55,13 @@ const toFrontendUser = (row) => {
   const deptName = row.department
     ? row.department
     : (deptId && DEPARTMENT_MAP[deptId] ? DEPARTMENT_MAP[deptId] : '');
+
+  const deptIdFromCode = /^DEPT-(\d+)$/i.exec(String(row.department_id || ''));
+  const deptShort =
+    (deptId && DEPARTMENT_SHORT_MAP[deptId]) ||
+    DEPARTMENT_NAME_TO_SHORT[normalizeDeptName(deptName)] ||
+    (deptIdFromCode ? DEPARTMENT_SHORT_MAP[Number(deptIdFromCode[1])] : '') ||
+    '';
 
   return {
     id:            String(row.id),
@@ -47,6 +78,7 @@ const toFrontendUser = (row) => {
     department_id: deptId,
     department:    deptName,
     major:         deptName,
+    major_short:   deptShort,
     address:       row.address || row.profile_address || '',
     phone:         row.phone || '',
     avatar:        row.avatar || null,
@@ -114,17 +146,14 @@ const parseRequestRow = (row) => {
     } catch (_) {}
   }
   if (parsed.details && typeof parsed.details === 'object') {
+    // Sync ทางเดียว: คอลัมน์ทางการ → details (เพื่อแสดงผล)
+    // ห้าม sync กลับ details→คอลัมน์ — details.startDate คือวันที่นักศึกษาเสนอ
+    // ถ้าดันเข้า internship_start_date ใน response จะทำให้ frontend เข้าใจผิดว่าเป็นวันทางการ
     if (parsed.internship_start_date && !parsed.details.startDate) {
       parsed.details.startDate = parsed.internship_start_date;
     }
     if (parsed.internship_end_date && !parsed.details.endDate) {
       parsed.details.endDate = parsed.internship_end_date;
-    }
-    if (!parsed.internship_start_date && parsed.details.startDate) {
-      parsed.internship_start_date = parsed.details.startDate;
-    }
-    if (!parsed.internship_end_date && parsed.details.endDate) {
-      parsed.internship_end_date = parsed.details.endDate;
     }
     // อีเมลผู้ประเมิน: sync ระหว่างคอลัมน์จริงกับค่าเดิมที่เคยฝังอยู่ใน details JSON
     if (parsed.evaluator_email && !parsed.details.evaluatorEmail) {
@@ -247,6 +276,8 @@ const addCompanyEntry = (map, entry) => {
 module.exports = {
   DEPARTMENT_MAP,
   DEPARTMENT_NAME_TO_ID,
+  DEPARTMENT_SHORT_MAP,
+  DEPARTMENT_NAME_TO_SHORT,
   DEPARTMENT_KEYWORDS,
   inferDepartments,
   toFrontendUser,

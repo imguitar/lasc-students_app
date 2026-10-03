@@ -135,7 +135,7 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>📅 จัดการรอบการประเมินนักศึกษา (Evaluation Rounds)</span>
+        <span>จัดการรอบการประเมินนักศึกษา (Evaluation Rounds)</span>
         {!formOpen && (
           <Button
             variant="contained"
@@ -156,7 +156,7 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
         {formOpen ? (
           <Box component="form" onSubmit={handleSaveRound} sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1e293b' }}>
-              {editingRound ? '✏️ แก้ไขรอบการประเมิน' : '➕ สร้างรอบการประเมินใหม่'}
+              {editingRound ? 'แก้ไขรอบการประเมิน' : 'สร้างรอบการประเมินใหม่'}
             </Typography>
             <Stack spacing={2}>
               <TextField

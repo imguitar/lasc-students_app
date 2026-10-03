@@ -77,6 +77,7 @@ const AppSidebar = ({
   const onLogout = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsMenuOpen(false);
     window.dispatchEvent(new CustomEvent('request-logout-confirm'));
   };
 
@@ -157,6 +158,7 @@ const AppSidebar = ({
         <div className="sidebar-footer" style={{ padding: '1rem 0.75rem', borderTop: '1px solid #f1f5f9' }}>
           <button
             onClick={onLogout}
+            data-skip-logout-confirm="1"
             className="logout-btn flex items-center gap-2 justify-center w-full py-2.5 px-4 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors text-sm font-medium border border-transparent hover:border-rose-100 cursor-pointer"
             style={{
               width: '100%',

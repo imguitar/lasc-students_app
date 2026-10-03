@@ -12,6 +12,22 @@ import {
 } from 'lucide-react';
 import { logout } from '../utils/sso';
 
+// รหัสย่อสาขาวิชา — ตรงกับ DEPARTMENT_SHORT_MAP ฝั่ง backend (helpers.js)
+const DEPARTMENT_SHORT_CODES = [
+  ['สาขาวิชาวิทยาการคอมพิวเตอร์', 'CS'],
+  ['สาขาวิชาเทคโนโลยีคอมพิวเตอร์และดิจิทัล', 'CT'],
+  ['สาขาวิชาสาธารณสุขชุมชน', 'PH'],
+  ['สาขาวิชาวิทยาศาสตร์การกีฬา', 'SS'],
+  ['สาขาวิชาเทคโนโลยีการเกษตร', 'AG'],
+  ['สาขาวิชาเทคโนโลยีและนวัตกรรมอาหาร', 'FT'],
+  ['สาขาวิชาอาชีวอนามัยและความปลอดภัย', 'OSH'],
+  ['สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์', 'SE'],
+  ['สาขาวิชาวิศวกรรมโลจิสติกส์', 'LE'],
+  ['สาขาวิชาวิศวกรรมการจัดการอุตสาหกรรมและสิ่งแวดล้อม', 'IE'],
+  ['สาขาวิชาการออกแบบผลิตภัณฑ์และนวัตกรรมวัสดุ', 'PD'],
+  ['สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม', 'CA'],
+];
+
 const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
   const navigate = useNavigate();
   const containerRef = useRef(null);
@@ -107,10 +123,18 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
 
   const getMajorLabel = (u) => {
     if (u?.major_short) return u.major_short;
-    if (u?.major?.toLowerCase().includes('software') || u?.major?.includes('ซอฟต์แวร์')) return 'SE';
-    if (u?.major?.toLowerCase().includes('computer') || u?.major?.includes('คอมพิวเตอร์')) return 'CS';
-    if (u?.department_code) return u.department_code;
-    return 'SE';
+    const raw = String(u?.major || u?.department || u?.department_name || '').trim();
+    if (raw) {
+      const normalized = raw.replace(/สาขาวิชา/g, '').replace(/\s+/g, '');
+      const matched = DEPARTMENT_SHORT_CODES.find(([full]) =>
+        full.replace(/สาขาวิชา/g, '').replace(/\s+/g, '') === normalized);
+      if (matched) return matched[1];
+      if (raw.toLowerCase().includes('software') || raw.includes('ซอฟต์แวร์')) return 'SE';
+      if (raw.includes('โลจิสติกส์')) return 'LE';
+      if (raw.toLowerCase().includes('computer') || raw.includes('คอมพิวเตอร์')) return 'CS';
+    }
+    if (u?.department_code && !/^dept-/i.test(u.department_code)) return u.department_code;
+    return '';
   };
 
   const getProfileLink = () => {
@@ -237,9 +261,11 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
                 <span className="bg-violet-50 text-violet-600 border border-violet-200 rounded-lg text-[10px] font-bold px-2 py-0.5">
                   {getRoleLabel(user?.role)}
                 </span>
-                <span className="bg-white text-slate-600 border border-slate-200 rounded-lg text-[10px] font-bold px-2 py-0.5">
-                  {getMajorLabel(user)}
-                </span>
+                {getMajorLabel(user) && (
+                  <span className="bg-white text-slate-600 border border-slate-200 rounded-lg text-[10px] font-bold px-2 py-0.5">
+                    {getMajorLabel(user)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -313,7 +339,7 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
       {/* Logout Confirmation Dialog (ธีมโมเดิร์นคลีน ม่วง-ขาว / Rose) — portal ไป body เพื่อไม่ให้ fixed ถูกยึดกับ header ที่มี backdrop-blur */}
       {isLogoutModalOpen && createPortal(
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[2000] flex items-center justify-center p-4"
           onClick={handleCancelLogout}
         >
           <div

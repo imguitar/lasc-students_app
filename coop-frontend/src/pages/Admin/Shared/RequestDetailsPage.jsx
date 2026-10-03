@@ -9,46 +9,11 @@ import PrintableEvaluationForm from '../../../components/PrintableEvaluationForm
 import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
 import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud } from 'lucide-react';
 import { formatAddress } from '../../../utils/formatters';
+import { isMobileDevice, dataUrlToBlobUrl, downloadDocument } from '../../../utils/documentViewer';
 import { isStudentEditableStatus } from '../../Student/Dashboard/MyRequestsPage';
 
-const dataUrlToBlobUrl = (dataUrl) => {
-  if (!dataUrl) return '';
-  try {
-    const arr = dataUrl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    const blob = new Blob([u8arr], { type: mime });
-    return URL.createObjectURL(blob);
-  } catch (err) {
-    console.error('Failed to convert dataUrl to blob:', err);
-    return dataUrl;
-  }
-};
-
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  if (!dataUrl) return;
-  try {
-    const blobUrl = dataUrlToBlobUrl(dataUrl);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+  downloadDocument(dataUrl, fileName);
 };
 
 const RequestDetailsPage = () => {
@@ -274,7 +239,8 @@ const RequestDetailsPage = () => {
     try {
       const dataUrl = await fileToDataUrl(dispatchModal.file);
       const isStartInternshipWaiting = ['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status);
-      const newStatus = isStartInternshipWaiting ? 'ออกฝึกงาน' : 'รอสถานประกอบการตอบรับ';
+      // ตั้ง 'อนุมัติแล้ว (รอออกฝึกงาน)' เสมอ — ให้ auto-update ตัดสินเปลี่ยนเป็น 'ออกฝึกงาน' ตามวันจริง (กันเด้งข้ามขั้น)
+      const newStatus = isStartInternshipWaiting ? 'อนุมัติแล้ว (รอออกฝึกงาน)' : 'รอสถานประกอบการตอบรับ';
 
       const payload = {
         status: newStatus,
@@ -283,6 +249,7 @@ const RequestDetailsPage = () => {
           fileName: dispatchModal.file.name,
           mimeType: dispatchModal.file.type,
           dataUrl,
+          uploadedAt: new Date().toISOString(),
         },
       };
 
@@ -294,7 +261,7 @@ const RequestDetailsPage = () => {
         ...request,
         status: newStatus,
         admin_comment: dispatchModal.comment?.trim() || null,
-        dispatchLetter: { fileName: dispatchModal.file.name, dataUrl },
+        dispatchLetter: payload.dispatchLetter,
         internship_start_date: dispatchModal.startDate || request.internship_start_date,
         internship_end_date: dispatchModal.endDate || request.internship_end_date,
         details: {
@@ -1461,6 +1428,24 @@ const RequestDetailsPage = () => {
                 alt={docModal.fileName}
                 style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
               />
+            ) : isMobileDevice() ? (
+              // iframe PDF ไม่แสดงผลบนเบราว์เซอร์มือถือ — แสดงปุ่มเปิดแท็บใหม่/ดาวน์โหลดแทน
+              <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
+                <DocumentTextIcon style={{ width: 48, height: 48, color: '#94a3b8', margin: '0 auto 16px' }} />
+                <Typography sx={{ color: '#475569', mb: 3, fontSize: '0.9rem' }}>
+                  เบราว์เซอร์มือถือไม่รองรับการแสดงตัวอย่าง PDF ในหน้านี้
+                </Typography>
+                <Button
+                  variant="contained"
+                  component="a"
+                  href={docModal.blobUrl || docModal.dataUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 3 }}
+                >
+                  เปิดดูเอกสารในแท็บใหม่
+                </Button>
+              </Box>
             ) : (
               <iframe
                 src={docModal.blobUrl || docModal.dataUrl}

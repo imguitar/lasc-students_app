@@ -5,6 +5,7 @@ import api from '../../api/axios';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { CheckCircle2, RotateCcw, PenTool, FileText, Mail, X, XCircle } from 'lucide-react';
 import { formatAddress } from '../../utils/formatters';
+import { openDocumentInNewTab, downloadDocument } from '../../utils/documentViewer';
 
 const PublicRequestPage = () => {
   const { id } = useParams();
@@ -105,40 +106,8 @@ const PublicRequestPage = () => {
 
   const handleViewFile = (fileDataUrl, customFileName) => {
     if (!fileDataUrl) return;
-
-    const defaultName = customFileName || `หนังสือขอความอนุเคราะห์_${request?.studentId || 'document'}.pdf`;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-
-    if (isMobile) {
-      // บนโทรศัพท์มือถือ: ดาวน์โหลดไฟล์ลงเครื่องทันที
-      const link = document.createElement('a');
-      link.href = fileDataUrl;
-      link.download = defaultName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      // บนคอมพิวเตอร์ (Desktop): เปิด URL ในแท็บใหม่ทันทีผ่าน Native PDF Viewer
-      if (fileDataUrl.startsWith('data:')) {
-        try {
-          const [header, base64] = fileDataUrl.split(',');
-          const mimeMatch = header.match(/:(.*?);/);
-          const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-          const byteCharacters = atob(base64);
-          const byteNumbers = new Uint8Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const blob = new Blob([byteNumbers], { type: mime });
-          const blobUrl = URL.createObjectURL(blob);
-          window.open(blobUrl, '_blank');
-        } catch {
-          window.open(fileDataUrl, '_blank');
-        }
-      } else {
-        window.open(fileDataUrl, '_blank');
-      }
-    }
+    // เปิดผ่าน Blob URL ในแท็บใหม่ทั้ง Desktop/Mobile — data: URL ถูกบล็อกบนเบราว์เซอร์มือถือ
+    openDocumentInNewTab(fileDataUrl);
   };
 
   const getCoordinates = (e, canvas) => {
@@ -449,15 +418,10 @@ const PublicRequestPage = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const fileName = `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`;
-                    const link = document.createElement('a');
-                    link.href = dispatchLetter.dataUrl;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
+                  onClick={() => downloadDocument(
+                    dispatchLetter.dataUrl,
+                    `หนังสือขอความอนุเคราะห์_${request.studentId || ''}${dispatchLetter.fileName && dispatchLetter.fileName.includes('.') ? '.' + dispatchLetter.fileName.split('.').pop() : '.pdf'}`
+                  )}
                   className="text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer border-none flex items-center gap-1.5"
                   style={{ backgroundColor: '#f5f3ff', color: '#6d28d9' }}
                 >

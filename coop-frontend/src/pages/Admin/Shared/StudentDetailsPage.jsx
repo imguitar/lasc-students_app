@@ -5,45 +5,10 @@ import { ChartBarIcon, DocumentTextIcon, EyeIcon, ArrowDownTrayIcon } from '@her
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
 import { formatAddress } from '../../../utils/formatters';
-
-const dataUrlToBlobUrl = (dataUrl) => {
-  if (!dataUrl) return '';
-  try {
-    const arr = dataUrl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    const blob = new Blob([u8arr], { type: mime });
-    return URL.createObjectURL(blob);
-  } catch (err) {
-    console.error('Failed to convert dataUrl to blob:', err);
-    return dataUrl;
-  }
-};
+import { isMobileDevice, dataUrlToBlobUrl, downloadDocument } from '../../../utils/documentViewer';
 
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  if (!dataUrl) return;
-  try {
-    const blobUrl = dataUrlToBlobUrl(dataUrl);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (err) {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+  downloadDocument(dataUrl, fileName);
 };
 
 const StudentDetailsPage = () => {
@@ -650,6 +615,24 @@ const StudentDetailsPage = () => {
                   alt={docModal.fileName}
                   style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
                 />
+              ) : isMobileDevice() ? (
+                // iframe PDF ไม่แสดงผลบนเบราว์เซอร์มือถือ — แสดงปุ่มเปิดแท็บใหม่แทน
+                <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
+                  <DocumentTextIcon style={{ width: 48, height: 48, color: '#94a3b8', margin: '0 auto 16px' }} />
+                  <Typography sx={{ color: '#475569', mb: 3, fontSize: '0.9rem' }}>
+                    เบราว์เซอร์มือถือไม่รองรับการแสดงตัวอย่าง PDF ในหน้านี้
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    component="a"
+                    href={docModal.blobUrl || docModal.dataUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 3 }}
+                  >
+                    เปิดดูเอกสารในแท็บใหม่
+                  </Button>
+                </Box>
               ) : (
                 <iframe
                   src={docModal.blobUrl || docModal.dataUrl}

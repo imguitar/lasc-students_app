@@ -32,7 +32,7 @@ import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatCard from '../../../components/StatCard';
-import { STAT_EMOJI } from '../../../utils/statEmojis';
+import { STAT_ICON } from '../../../utils/statIcons';
 
 // Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
 const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
@@ -407,7 +407,7 @@ const AdminReportsPage = () => {
     <div className="admin-dashboard-container">
       <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">☰</button>
+          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
           <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
             <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
@@ -508,10 +508,10 @@ const AdminReportsPage = () => {
           }}
         >
           {[
-            { label: 'คำร้องทั้งหมด', value: summary.total, color: '#6366f1', icon: STAT_EMOJI.TOTAL },
-            { label: 'รอตรวจสอบ', value: summary.pending, color: '#8b5cf6', icon: STAT_EMOJI.PENDING },
-            { label: 'อนุมัติแล้ว', value: summary.approved, color: '#10b981', icon: STAT_EMOJI.APPROVED },
-            { label: 'ไม่อนุมัติ', value: summary.rejected, color: '#f43f5e', icon: STAT_EMOJI.REJECTED },
+            { label: 'คำร้องทั้งหมด', value: summary.total, color: '#6366f1', icon: STAT_ICON.TOTAL },
+            { label: 'รอตรวจสอบ', value: summary.pending, color: '#8b5cf6', icon: STAT_ICON.PENDING },
+            { label: 'อนุมัติแล้ว', value: summary.approved, color: '#10b981', icon: STAT_ICON.APPROVED },
+            { label: 'ไม่อนุมัติ', value: summary.rejected, color: '#f43f5e', icon: STAT_ICON.REJECTED },
           ].map((card) => (
             <StatCard
               key={card.label}

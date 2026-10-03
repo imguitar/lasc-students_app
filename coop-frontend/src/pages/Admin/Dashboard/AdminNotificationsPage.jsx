@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
+import { openDocumentInNewTab, downloadDocument } from '../../../utils/documentViewer';
 import {
   ArrowLeft,
   Bell,
@@ -72,44 +73,12 @@ const getAuthToken = () => {
 
 const openDataUrlInNewTab = (dataUrl, fileName = 'evidence.pdf') => {
   if (!dataUrl) return;
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-  if (isMobile) {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    return;
-  }
-  if (dataUrl.startsWith('data:')) {
-    try {
-      const [header, base64] = dataUrl.split(',');
-      const mimeMatch = header.match(/:(.*?);/);
-      const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Uint8Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const blobUrl = URL.createObjectURL(new Blob([byteNumbers], { type: mime }));
-      window.open(blobUrl, '_blank');
-    } catch {
-      window.open(dataUrl, '_blank');
-    }
-  } else {
-    window.open(dataUrl, '_blank');
-  }
+  openDocumentInNewTab(dataUrl);
 };
 
 const downloadDataUrl = (dataUrl, fileName = 'evidence.pdf') => {
   if (!dataUrl) return;
-  const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadDocument(dataUrl, fileName);
 };
 
 const parseDispatchLetter = (raw) => {

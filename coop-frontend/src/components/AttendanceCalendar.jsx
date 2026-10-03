@@ -621,10 +621,13 @@ const AttendanceCalendar = ({
           }
 
           return (
-            <Tooltip 
-              key={item.key} 
-              title={tooltipTitle} 
+            <Tooltip
+              key={item.key}
+              title={tooltipTitle}
               arrow
+              placement="top"
+              disableInteractive
+              enterDelay={200}
             >
               <Paper
                 elevation={isSelectedInBatch ? 3 : (isSelected ? 2 : 0)}
@@ -799,19 +802,32 @@ const AttendanceCalendar = ({
         })}
       </Box>
 
-      {/* Selected Day Detail Box (Normal Mode) */}
-      {!isBatchMode && selectedDay && (
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            mt: 2.5, 
-            p: 2.5, 
-            borderRadius: 3, 
+      {/* Selected Day Detail Box (Normal Mode) — fixed height + scroll ภายใน กัน layout shift */}
+      {!isBatchMode && (
+        <Paper
+          elevation={0}
+          sx={{
+            mt: 2.5,
+            p: 2.5,
+            borderRadius: 3,
             bgcolor: '#f8fafc',
-            border: '1px solid #e2e8f0' 
+            border: '1px solid #e2e8f0',
+            height: { xs: 'auto', sm: 220 },
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: { xs: 'visible', sm: 'auto' },
+            flexShrink: 0,
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+          {!selectedDay ? (
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: { xs: 64, sm: 'auto' } }}>
+              <Typography variant="body2" sx={{ color: '#94a3b8', fontWeight: 600 }}>
+                คลิกเลือกวันที่ในปฏิทินเพื่อดูรายละเอียด
+              </Typography>
+            </Box>
+          ) : (
+          <>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1, mb: 1.5, minHeight: { sm: 40 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>
                 รายละเอียดวันที่ {formatDateThai(selectedDay.dateKey)}
@@ -845,7 +861,7 @@ const AttendanceCalendar = ({
           </Box>
 
           {selectedEntryInfo ? (
-            <Box sx={{ fontSize: '0.875rem', color: '#334155', display: 'grid', gap: 1 }}>
+            <Box sx={{ fontSize: '0.875rem', color: '#334155', display: 'grid', gap: 1, flex: 1, alignContent: 'start' }}>
               <div>
                 <strong>ประสบการณ์ / กิจกรรมที่ทำ:</strong>{' '}
                 {selectedEntryInfo.work_experience || selectedEntryInfo.workExperience || '-'}
@@ -870,7 +886,7 @@ const AttendanceCalendar = ({
               )}
             </Box>
           ) : (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, flex: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 {selectedDay.isBeforeStart 
                   ? 'ยังไม่ถึงกำหนดเริ่มฝึกงาน (เริ่มฝึกงานอย่างเป็นทางการเมื่อวันที่ ' + formatDateThai(effectiveStartDate) + ')' 
@@ -941,6 +957,8 @@ const AttendanceCalendar = ({
               </Box>
             );
           })()}
+          </>
+          )}
         </Paper>
       )}
 
