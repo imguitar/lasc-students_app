@@ -6,6 +6,7 @@ const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow, USER_SELECT_SQL, DEPARTMENT_NAME_TO_ID } = require('../utils/helpers');
 const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
 const { sendStatusNotifyEmail, findStudentEmail } = require('../utils/mailer');
+const { autoUpdateInternshipStatuses } = require('../utils/internshipAutoUpdate');
 
 const getCompanyResponseToken = (details) => {
   if (!details) return '';
@@ -97,12 +98,8 @@ router.get('/', authenticate, async (req, res) => {
         WHERE r.status = 'ประเมินเสร็จแล้ว'
           AND e.createdAt <= NOW() - INTERVAL 3 DAY
       `);
-      await pool.query(`
-        UPDATE requests
-        SET status = 'ออกฝึกงาน'
-        WHERE status IN ('อนุมัติแล้ว', 'รออาจารย์อนุมัติเริ่มฝึกงาน')
-          AND submittedDate <= NOW() - INTERVAL 3 DAY
-      `);
+      // เปลี่ยนสถานะเป็น 'ออกฝึกงาน' ตามวันเริ่มฝึกงานที่กำหนด (เวลาไทย)
+      await autoUpdateInternshipStatuses();
       // กู้คำร้องที่ประเมินครบทั้งบริษัท+อาจารย์แล้ว แต่สถานะยังค้าง (bug เดิมที่ advisor eval ไม่อัปเดต status)
       await pool.query(`
         UPDATE requests r

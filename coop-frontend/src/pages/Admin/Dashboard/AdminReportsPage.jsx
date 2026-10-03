@@ -34,6 +34,9 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatCard from '../../../components/StatCard';
 import { STAT_EMOJI } from '../../../utils/statEmojis';
 
+// Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
+const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
+
 const AdminReportsPage = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
@@ -122,18 +125,10 @@ const AdminReportsPage = () => {
       const key = req.status || 'ไม่ระบุ';
       map[key] = (map[key] || 0) + 1;
     });
-    const statusColor = (status) => {
-      if (!status || status === 'ไม่ระบุ') return '#e2e8f0';
-      if (status.includes('ไม่อนุมัติ') || status.includes('ปฏิเสธ') || status.includes('แก้ไข')) return '#f43f5e';
-      if (status.includes('อนุมัติแล้ว') || status.includes('ออกฝึกงาน') || status.includes('ฝึกงานเสร็จแล้ว')) return '#10b981';
-      if (status.includes('รอสถานประกอบการ')) return '#6366f1';
-      if (status.includes('รอ')) return '#8b5cf6';
-      return '#7c3aed';
-    };
-
     return Object.entries(map)
-      .map(([status, total]) => ({ status, total, color: statusColor(status) }))
-      .sort((a, b) => b.total - a.total);
+      .map(([status, total]) => ({ status, total }))
+      .sort((a, b) => b.total - a.total)
+      .map((item, i) => ({ ...item, color: PIE_PALETTE[i % PIE_PALETTE.length] }));
   }, [filteredRequests]);
 
   const monthlyStats = useMemo(() => {
@@ -255,7 +250,6 @@ const AdminReportsPage = () => {
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
         layout: root.verticalLayout,
-        innerRadius: am5.percent(72),
       }),
     );
 
@@ -286,8 +280,19 @@ const AdminReportsPage = () => {
       tooltipText: '{category}: {value} คำร้อง ({valuePercentTotal.formatNumber(\'0.0\')}%)',
       cornerRadius: 4,
     });
-    series.labels.template.set('forceHidden', true);
-    series.ticks.template.set('forceHidden', true);
+    series.labels.template.setAll({
+      text: '{category}: {valuePercentTotal.formatNumber(\'0.0\')}%',
+      textType: 'adjusted',
+      inside: false,
+      radius: 12,
+      fontSize: 11,
+      fill: am5.color('#374151'),
+    });
+    series.ticks.template.setAll({
+      visible: true,
+      stroke: am5.color('#d1d5db'),
+      strokeWidth: 1,
+    });
 
     const pieTooltip = series.get('tooltip');
     if (pieTooltip) {
@@ -534,26 +539,8 @@ const AdminReportsPage = () => {
             <Typography variant="caption" sx={{ color: '#9ca3af', display: 'block', mb: 1 }}>สัดส่วนสถานะตามตัวกรองที่เลือก</Typography>
             {statusDistribution.length > 0 ? (
               <>
-                <Box sx={{ position: 'relative', height: { xs: 220, sm: 260 }, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ position: 'relative', height: { xs: 300, sm: 360 }, width: '100%' }}>
                   <Box ref={statusPieRef} sx={{ position: 'absolute', inset: 0 }} />
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <Typography sx={{ fontSize: '1.875rem', fontWeight: 800, color: '#111827', lineHeight: 1.2 }}>
-                      {summary.total}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#9ca3af' }}>
-                      คำร้องทั้งหมด
-                    </Typography>
-                  </Box>
                 </Box>
                 <Box
                   sx={{
@@ -561,7 +548,7 @@ const AdminReportsPage = () => {
                     pt: 2,
                     borderTop: '1px solid #f3f4f6',
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
                     gap: 1,
                   }}
                 >
@@ -581,7 +568,7 @@ const AdminReportsPage = () => {
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                        <Box component="span" sx={{ width: 10, height: 10, borderRadius: '9999px', flexShrink: 0, bgcolor: item.color }} />
+                        <Box component="span" sx={{ width: 14, height: 14, borderRadius: '4px', flexShrink: 0, bgcolor: item.color }} />
                         <Typography
                           component="span"
                           sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

@@ -46,6 +46,9 @@ import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
 import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
 
+// Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
+const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
+
 export const isCompanyAcceptedStatus = (status) => {
   const s = String(status || '').trim();
   return (
@@ -352,13 +355,15 @@ const AdminDashboardPage = () => {
   ]), [statusCounts]);
 
   const statusChartData = useMemo(() => ([
-    { category: 'รอผู้ดูแลตรวจสอบ', value: statusCounts.pendingAdmin, color: '#8b5cf6' },
-    { category: 'รออาจารย์อนุมัติ', value: statusCounts.waitingAdvisor, color: '#f59e0b' },
-    { category: 'รอสถานประกอบการตอบรับ', value: statusCounts.waitingCompany, color: '#6366f1' },
-    { category: 'อนุมัติ / กำลังฝึกงาน', value: statusCounts.approved, color: '#10b981' },
-    { category: 'ไม่อนุมัติ / ส่งกลับแก้ไข', value: statusCounts.rejected, color: '#f43f5e' },
-    { category: 'อื่นๆ', value: statusCounts.other, color: '#94a3b8' },
-  ].filter((item) => item.value > 0)), [statusCounts]);
+    { category: 'รอผู้ดูแลตรวจสอบ', value: statusCounts.pendingAdmin },
+    { category: 'รออาจารย์อนุมัติ', value: statusCounts.waitingAdvisor },
+    { category: 'รอสถานประกอบการตอบรับ', value: statusCounts.waitingCompany },
+    { category: 'อนุมัติ / กำลังฝึกงาน', value: statusCounts.approved },
+    { category: 'ไม่อนุมัติ / ส่งกลับแก้ไข', value: statusCounts.rejected },
+    { category: 'อื่นๆ', value: statusCounts.other },
+  ]
+    .filter((item) => item.value > 0)
+    .map((item, i) => ({ ...item, color: PIE_PALETTE[i % PIE_PALETTE.length] }))), [statusCounts]);
 
   // มีคำร้องอย่างน้อย 1 รายการ → กราฟต้องวาดเสมอ (catch-all bucket 'อื่นๆ' กันกราฟว่าง)
   const hasChartData = useMemo(() => statusCounts.total > 0 && statusChartData.length > 0, [statusCounts, statusChartData]);
@@ -380,7 +385,6 @@ const AdminDashboardPage = () => {
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
         layout: root.verticalLayout,
-        innerRadius: am5.percent(72),
       }),
     );
 
@@ -410,8 +414,19 @@ const AdminDashboardPage = () => {
       tooltipText: '{category}: {value} คำร้อง',
       cornerRadius: 4,
     });
-    series.labels.template.set('forceHidden', true);
-    series.ticks.template.set('forceHidden', true);
+    series.labels.template.setAll({
+      text: '{category}: {valuePercentTotal.formatNumber(\'0.0\')}%',
+      textType: 'adjusted',
+      inside: false,
+      radius: 12,
+      fontSize: 11,
+      fill: am5.color('#374151'),
+    });
+    series.ticks.template.setAll({
+      visible: true,
+      stroke: am5.color('#d1d5db'),
+      strokeWidth: 1,
+    });
 
     const tooltip = series.get('tooltip');
     if (tooltip) {
@@ -1330,26 +1345,8 @@ const AdminDashboardPage = () => {
               <Box>
                 {hasChartData ? (
                   <>
-                    <Box sx={{ position: 'relative', height: { xs: 220, sm: 260 }, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ position: 'relative', height: { xs: 300, sm: 360 }, width: '100%' }}>
                       <Box ref={pieChartRef} sx={{ position: 'absolute', inset: 0 }} />
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          inset: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <Typography sx={{ fontSize: '1.875rem', fontWeight: 800, color: '#111827', lineHeight: 1.2 }}>
-                          {statusCounts.total}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#9ca3af' }}>
-                          คำร้องทั้งหมด
-                        </Typography>
-                      </Box>
                     </Box>
                     <Box
                       sx={{
@@ -1357,7 +1354,7 @@ const AdminDashboardPage = () => {
                         pt: 2,
                         borderTop: '1px solid #f3f4f6',
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
                         gap: 1,
                       }}
                     >
@@ -1377,7 +1374,7 @@ const AdminDashboardPage = () => {
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                            <Box component="span" sx={{ width: 10, height: 10, borderRadius: '9999px', flexShrink: 0, bgcolor: item.color }} />
+                            <Box component="span" sx={{ width: 14, height: 14, borderRadius: '4px', flexShrink: 0, bgcolor: item.color }} />
                             <Typography
                               component="span"
                               sx={{ fontSize: '0.75rem', fontWeight: 500, color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

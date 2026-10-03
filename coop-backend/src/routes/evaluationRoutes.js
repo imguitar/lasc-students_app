@@ -222,8 +222,19 @@ router.post('/public/evaluate/:requestId', async (req, res) => {
   }
 });
 
+// คะแนนประเมินดิบเข้าถึงได้เฉพาะ admin/advisor — นักศึกษาเห็นเฉพาะ flag ความคืบหน้า (hasCompanyEval/hasAdvisorEval)
+const restrictEvaluationScores = (req, res, next) => {
+  if (req.user?.role === 'student') {
+    return res.status(403).json({ success: false, message: 'ไม่อนุญาตให้นักศึกษาเข้าถึงคะแนนประเมินโดยตรง' });
+  }
+  if (!['admin', 'advisor', 'teacher'].includes(req.user?.role)) {
+    return res.status(403).json({ success: false, message: 'คุณไม่มีสิทธิ์เข้าถึง' });
+  }
+  next();
+};
+
 // GET /api/evaluations/request/:requestId
-router.get('/evaluations/request/:requestId', authenticate, async (req, res) => {
+router.get('/evaluations/request/:requestId', authenticate, restrictEvaluationScores, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM evaluations WHERE requestId = ?', [req.params.requestId]);
     if (!rows[0]) return res.json({ success: true, data: null });
@@ -322,7 +333,7 @@ router.get('/evaluations/analytics', authenticate, async (req, res) => {
 // =============================================
 
 // GET /api/advisor-evaluations/request/:requestId
-router.get('/advisor-evaluations/request/:requestId', authenticate, async (req, res) => {
+router.get('/advisor-evaluations/request/:requestId', authenticate, restrictEvaluationScores, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM advisor_evaluations WHERE requestId = ?', [req.params.requestId]);
     if (!rows[0]) return res.json({ success: true, data: null });

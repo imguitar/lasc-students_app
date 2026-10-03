@@ -53,10 +53,12 @@ router.get('/companies', async (req, res) => {
       });
     });
 
-    // 2. ดึงข้อมูลสถานประกอบการเพิ่มเติมจากรุ่นพี่ที่ฝึกงานจนจบโฟลว์เสร็จสิ้นสมบูรณ์แล้ว
+    // 2. ดึงข้อมูลสถานประกอบการเพิ่มเติมจากคำร้องนักศึกษา (รุ่นพี่/ปัจจุบัน) ที่ไม่ถูกปฏิเสธหรือยกเลิก
+    const completedStatuses = ['ฝึกงานเสร็จแล้ว', 'เสร็จสิ้นสมบูรณ์', 'ผ่านการฝึกงาน', 'ประเมินเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว'];
     const [requestRows] = await pool.query(`
       SELECT * FROM requests 
-      WHERE status IN ('ฝึกงานเสร็จแล้ว', 'เสร็จสิ้นสมบูรณ์', 'ผ่านการฝึกงาน', 'ประเมินเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว')
+      WHERE status NOT LIKE '%ไม่อนุมัติ%'
+        AND status NOT IN ('ปฏิเสธ', 'ยกเลิก', 'ร่าง')
       ORDER BY updated_at DESC
     `).catch(() => [[]]);
 
@@ -146,7 +148,9 @@ router.get('/companies', async (req, res) => {
         imageUrl: rawDetails.imageUrl || null,
         department: deptStr,
         departments: deptStr ? [deptStr] : [],
-        source: 'จากรุ่นพี่ที่ฝึกงานเสร็จแล้ว',
+        source: completedStatuses.includes(request.status)
+          ? 'จากรุ่นพี่ที่ฝึกงานเสร็จแล้ว'
+          : 'จากคำร้องนักศึกษา',
         isOfficial: false,
       });
     });
