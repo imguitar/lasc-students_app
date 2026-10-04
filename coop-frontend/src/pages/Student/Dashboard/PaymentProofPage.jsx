@@ -92,7 +92,7 @@ const PaymentProofPage = () => {
         fetchPaymentStatus(studentId, mounted);
       }
     } else {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
     return () => { mounted = false; };
   }, [navigate]);

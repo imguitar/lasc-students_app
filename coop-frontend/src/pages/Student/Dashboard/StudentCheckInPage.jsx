@@ -104,7 +104,7 @@ const StudentCheckInPage = () => {
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
 
@@ -118,7 +118,7 @@ const StudentCheckInPage = () => {
       return;
     }
     if (parsed.role !== 'student') {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
 

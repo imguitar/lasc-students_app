@@ -38,6 +38,7 @@ const RequestDetailsPage = () => {
     submitting: false,
     error: ''
   });
+  const [internshipRounds, setInternshipRounds] = useState([]);
   const [imageModal, setImageModal] = useState(false);
   const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
   const dispatchFileInputRef = useRef(null);
@@ -53,7 +54,7 @@ const RequestDetailsPage = () => {
     // 1. Get User Role
     const userStr = localStorage.getItem('user');
     if (!userStr) {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
     const user = JSON.parse(userStr);
@@ -64,8 +65,10 @@ const RequestDetailsPage = () => {
     Promise.all([
       api.get(`/requests/${id}`),
       api.get(`/evaluations/request/${id}`).catch(() => ({ data: { data: null } })),
-      api.get(`/advisor-evaluations/request/${id}`).catch(() => ({ data: { data: null } }))
-    ]).then(([reqRes, evalRes, advisorEvalRes]) => {
+      api.get(`/advisor-evaluations/request/${id}`).catch(() => ({ data: { data: null } })),
+      api.get('/internship-rounds').catch(() => ({ data: { data: [] } }))
+    ]).then(([reqRes, evalRes, advisorEvalRes, roundsRes]) => {
+      setInternshipRounds(roundsRes.data?.data || []);
       if (reqRes.data.data) {
         setRequest(reqRes.data.data);
         setEvaluation(evalRes.data.data);
@@ -97,6 +100,20 @@ const RequestDetailsPage = () => {
       document.removeEventListener('keydown', handleEsc);
     };
   }, [imageModal]);
+
+  // หา "รอบปฏิทินฝึกงาน" (admin ประกาศจากแดชบอร์ด) ที่ตรงเทอมของคำร้องนี้ — ใช้เติมวันอัตโนมัติใน modal
+  const matchingRound = (() => {
+    const term = String(request?.details?.internshipTerm || '');
+    if (!term || !internshipRounds.length) return null;
+    const sem = (term === 'term1' || term === 'ภาคการศึกษาที่ 1' || term === '1') ? '1'
+      : (term === 'term2' || term === 'ภาคการศึกษาที่ 2' || term === '2') ? '2'
+        : (term === 'summer' || term === 'ภาคฤดูร้อน') ? 'summer'
+          : null;
+    if (!sem) return null;
+    return internshipRounds.find((r) => r.isActive && String(r.semester) === sem) || null;
+  })();
+  const roundDateStart = matchingRound?.startDate ? String(matchingRound.startDate).slice(0, 10) : '';
+  const roundDateEnd = matchingRound?.endDate ? String(matchingRound.endDate).slice(0, 10) : '';
 
   const fileToDataUrl = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -135,8 +152,9 @@ const RequestDetailsPage = () => {
 
     setScheduleModal({
       open: true,
-      startDate: currentStart ? String(currentStart).slice(0, 10) : '',
-      endDate: currentEnd ? String(currentEnd).slice(0, 10) : '',
+      // ยังไม่มีวันทางการ → เติมจากรอบปฏิทินที่ตรงเทอม (แก้ไขได้)
+      startDate: currentStart ? String(currentStart).slice(0, 10) : roundDateStart,
+      endDate: currentEnd ? String(currentEnd).slice(0, 10) : roundDateEnd,
       internshipTerm: currentTerm,
       note: currentNote,
       submitting: false,
@@ -199,8 +217,9 @@ const RequestDetailsPage = () => {
       open: true,
       file: null,
       comment: '',
-      startDate: currentStart ? String(currentStart).slice(0, 10) : '',
-      endDate: currentEnd ? String(currentEnd).slice(0, 10) : '',
+      // ยังไม่มีวันทางการ → เติมจากรอบปฏิทินที่ตรงเทอม (แก้ไขได้)
+      startDate: currentStart ? String(currentStart).slice(0, 10) : roundDateStart,
+      endDate: currentEnd ? String(currentEnd).slice(0, 10) : roundDateEnd,
       submitting: false,
       error: ''
     });
@@ -238,9 +257,18 @@ const RequestDetailsPage = () => {
     setDispatchModal((prev) => ({ ...prev, submitting: true, error: '' }));
     try {
       const dataUrl = await fileToDataUrl(dispatchModal.file);
-      const isStartInternshipWaiting = ['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status);
-      // ตั้ง 'อนุมัติแล้ว (รอออกฝึกงาน)' เสมอ — ให้ auto-update ตัดสินเปลี่ยนเป็น 'ออกฝึกงาน' ตามวันจริง (กันเด้งข้ามขั้น)
-      const newStatus = isStartInternshipWaiting ? 'อนุมัติแล้ว (รอออกฝึกงาน)' : 'รอสถานประกอบการตอบรับ';
+      const currentStatus = String(request?.status || '');
+      // บริษัทตอบรับแล้ว = ขั้นออกใบส่งตัว (ห้ามย้อนไป 'รอสถานประกอบการตอบรับ')
+      const isPostCompanyAccepted = currentStatus.includes('ตอบรับแล้ว') || currentStatus.includes('ส่งตัว');
+      const isStartInternshipWaiting = isPostCompanyAccepted
+        || ['รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'อนุมัติแล้ว'].includes(request?.status);
+      // วันเริ่มผ่านมาแล้ว → 'ออกฝึกงาน' ทันที (เช็คชื่อ/เซ็นย้อนหลังได้เลย) ไม่เช่นนั้นรอ auto-update ตามวันจริง
+      const effectiveStart = dispatchModal.startDate || request?.internship_start_date || request?.details?.startDate || '';
+      const alreadyStarted = isStartInternshipWaiting
+        && effectiveStart && String(effectiveStart).slice(0, 10) <= new Date().toLocaleDateString('en-CA');
+      const newStatus = !isStartInternshipWaiting
+        ? 'รอสถานประกอบการตอบรับ'
+        : alreadyStarted ? 'ออกฝึกงาน' : 'อนุมัติแล้ว (รอออกฝึกงาน)';
 
       const payload = {
         status: newStatus,
@@ -273,7 +301,11 @@ const RequestDetailsPage = () => {
       setRequest(updated);
       setToast({
         open: true,
-        message: isStartInternshipWaiting ? 'อนุมัติการออกฝึกงานและแนบหนังสือส่งตัวเรียบร้อยแล้ว' : 'ตรวจสอบและส่งคำขอไปยังสถานประกอบการเรียบร้อยแล้ว',
+        message: !isStartInternshipWaiting
+          ? 'ตรวจสอบและส่งคำขอไปยังสถานประกอบการเรียบร้อยแล้ว'
+          : alreadyStarted
+            ? 'ออกหนังสือส่งตัวและเปลี่ยนสถานะเป็น "ออกฝึกงาน" แล้ว — เช็คชื่อย้อนหลังได้ทันที'
+            : 'อนุมัติการออกฝึกงานและแนบหนังสือส่งตัวเรียบร้อยแล้ว',
         severity: 'success'
       });
       handleDispatchModalClose();
@@ -555,7 +587,7 @@ const RequestDetailsPage = () => {
                 <span className="detail-value" style={{ fontWeight: 600, color: (request.evaluator_email || details.evaluatorEmail) ? '#1e293b' : '#94a3b8' }}>
                   {request.evaluator_email || details.evaluatorEmail || '(ยังไม่ระบุโดยสถานประกอบการ)'}
                 </span>
-                {(userRole === 'admin' || userRole === 'advisor') && (
+                {userRole === 'admin' && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1047,6 +1079,11 @@ const RequestDetailsPage = () => {
               <div className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1.5">
                 <CalendarDays size={14} /> ตรวจสอบ / กำหนดวันฝึกงานจริง
               </div>
+              {matchingRound && !request?.internship_start_date && (
+                <p className="text-[10px] text-emerald-600 m-0 mb-2">
+                  เติมอัตโนมัติจากรอบ "{matchingRound.title}" — แก้ไขได้
+                </p>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] font-medium text-slate-600 mb-1 block">วันเริ่มต้นฝึกงาน</label>

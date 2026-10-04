@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
@@ -397,13 +399,14 @@ const updateStatusHandler = async (req, res) => {
         }
       }
 
-      // อีเมลผู้ประเมิน — เฉพาะเจ้าหน้าที่/อาจารย์เท่านั้น นักศึกษาแก้ไม่ได้
+      // อีเมลผู้ประเมิน — เฉพาะ admin (สำนักงานคณบดี) หรือบริษัทผ่าน public response token เท่านั้น
+      // (นักศึกษา/อาจารย์แก้ไม่ได้ — บริษัทเป็นผู้ประเมินอยู่แล้วจึงระบุอีเมลผู้ประเมินของตัวเองได้)
       // ตรวจการมีคีย์แยกจากค่า เพื่อให้ส่งค่าว่างมาเพื่อล้างอีเมลได้
       const hasEvalEmail = evaluatorEmail !== undefined || evaluator_email !== undefined;
       const targetEvalEmail = evaluatorEmail !== undefined ? evaluatorEmail : evaluator_email;
       if (hasEvalEmail) {
-        if (req.user?.role === 'student') {
-          return res.status(403).json({ success: false, message: 'นักศึกษาไม่สามารถแก้ไขข้อมูลอีเมลของผู้ประเมินได้' });
+        if (req.user?.role !== 'admin' && !isPublic) {
+          return res.status(403).json({ success: false, message: 'เฉพาะเจ้าหน้าที่สำนักงานคณบดี (Admin) เท่านั้นที่แก้ไขอีเมลผู้ประเมินได้' });
         }
         updates.push('evaluator_email = ?');
         params.push(targetEvalEmail || null);
@@ -641,6 +644,32 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
     const body = req.body || {};
     const appointmentObj = body.supervisionAppointment || body;
     const appointmentData = (appointmentObj && typeof appointmentObj === 'object') ? { ...appointmentObj } : {};
+
+    // วันนิเทศบังคับกรอก และต้องตรงช่วงเวลาฝึกงาน (วันทางการก่อน → fallback วันที่นักศึกษากรอก)
+    if (!appointmentData.date) {
+      return res.status(400).json({ success: false, message: 'โปรดระบุวันที่นิเทศให้ตรงกับวันที่ในเอกสารราชการ/หนังสือนิเทศ' });
+    }
+    const apptDate = new Date(appointmentData.date);
+    if (Number.isNaN(apptDate.getTime())) {
+      return res.status(400).json({ success: false, message: 'รูปแบบวันที่นิเทศไม่ถูกต้อง' });
+    }
+    const [targetRows] = await pool.query('SELECT internship_start_date, internship_end_date, details FROM requests WHERE id = ?', [req.params.id]);
+    const targetRow = targetRows[0];
+    if (targetRow) {
+      let det = {};
+      try { det = typeof targetRow.details === 'string' ? JSON.parse(targetRow.details) : (targetRow.details || {}); } catch (_) {}
+      const toYMD = (v) => { const t = new Date(v); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+      const rangeStart = targetRow.internship_start_date || det.startDate;
+      const rangeEnd = targetRow.internship_end_date || det.endDate;
+      const apptYmd = toYMD(apptDate);
+      if (rangeStart && apptYmd < toYMD(rangeStart)) {
+        return res.status(400).json({ success: false, message: `วันนิเทศต้องไม่ก่อนวันเริ่มฝึกงาน (${toYMD(rangeStart)}) ตามเอกสารราชการ` });
+      }
+      if (rangeEnd && apptYmd > toYMD(rangeEnd)) {
+        return res.status(400).json({ success: false, message: `วันนิเทศต้องไม่เกินวันสิ้นสุดการฝึกงาน (${toYMD(rangeEnd)}) ตามเอกสารราชการ` });
+      }
+    }
+
     // บันทึกไว้ว่าใครเป็นคนกำหนดและกำหนดเมื่อไร
     appointmentData.assignedBy = currentUser.username;
     appointmentData.assignedAt = new Date().toISOString();
@@ -700,6 +729,102 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
   }
 });
 
+// ============ เอกสารการนิเทศ (Supervision Documents) ============
+const SUPERVISION_DOC_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
+const SUPERVISION_DOC_DIR = path.join(__dirname, '..', '..', 'uploads', 'supervision');
+const MAX_SUPERVISION_DOC_BYTES = 10 * 1024 * 1024; // 10MB
+
+const parseDataUrl = (dataUrl) => {
+  const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl || '');
+  if (!match) return null;
+  return { mime: match[1].toLowerCase(), buffer: Buffer.from(match[2], 'base64') };
+};
+
+const loadAppointment = async (requestId) => {
+  const [rows] = await pool.query('SELECT supervisionAppointment FROM requests WHERE id = ?', [requestId]);
+  if (!rows[0]) return null;
+  let appt = {};
+  try {
+    const raw = rows[0].supervisionAppointment;
+    appt = typeof raw === 'string' ? (JSON.parse(raw || '{}')) : (raw || {});
+  } catch (_) { appt = {}; }
+  if (!Array.isArray(appt.documents)) appt.documents = [];
+  return appt;
+};
+
+// POST /api/requests/:id/supervision-documents - แนบเอกสารนิเทศ (PDF/PNG/JPG ≤10MB)
+router.post('/:id/supervision-documents', authenticate, async (req, res) => {
+  try {
+    if (!['admin', 'advisor'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'เฉพาะอาจารย์หรือผู้ดูแลระบบเท่านั้น' });
+    }
+    const { document_name, document_type, data_url } = req.body || {};
+    if (!data_url || !document_name) {
+      return res.status(400).json({ success: false, message: 'กรุณาแนบไฟล์เอกสารนิเทศ' });
+    }
+    const parsed = parseDataUrl(data_url);
+    const ext = parsed ? SUPERVISION_DOC_MIME[parsed.mime] : null;
+    if (!parsed || !ext) {
+      return res.status(400).json({ success: false, message: 'รองรับเฉพาะไฟล์ PDF, PNG, JPG เท่านั้น' });
+    }
+    if (parsed.buffer.length > MAX_SUPERVISION_DOC_BYTES) {
+      return res.status(400).json({ success: false, message: 'ไฟล์ต้องมีขนาดไม่เกิน 10MB' });
+    }
+
+    const appt = await loadAppointment(req.params.id);
+    if (!appt) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+
+    await fs.promises.mkdir(SUPERVISION_DOC_DIR, { recursive: true });
+    const filename = `req${req.params.id}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+    await fs.promises.writeFile(path.join(SUPERVISION_DOC_DIR, filename), parsed.buffer);
+
+    const doc = {
+      id: crypto.randomBytes(8).toString('hex'),
+      name: String(document_name).slice(0, 255),
+      type: String(document_type || 'เอกสารนิเทศ').slice(0, 50),
+      url: `/uploads/supervision/${filename}`,
+      size: parsed.buffer.length,
+      mime: parsed.mime,
+      uploadedBy: req.user.username,
+      uploadedAt: new Date().toISOString()
+    };
+    appt.documents.push(doc);
+    await pool.query('UPDATE requests SET supervisionAppointment = ? WHERE id = ?', [JSON.stringify(appt), req.params.id]);
+
+    res.status(201).json({ success: true, data: doc });
+  } catch (error) {
+    console.error('Supervision doc upload error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// DELETE /api/requests/:id/supervision-documents/:docId - ลบเอกสารนิเทศ
+router.delete('/:id/supervision-documents/:docId', authenticate, async (req, res) => {
+  try {
+    if (!['admin', 'advisor'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'เฉพาะอาจารย์หรือผู้ดูแลระบบเท่านั้น' });
+    }
+    const appt = await loadAppointment(req.params.id);
+    if (!appt) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+
+    const doc = appt.documents.find((d) => d.id === req.params.docId);
+    if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
+
+    // ลบไฟล์เฉพาะที่อยู่ใต้ /uploads/supervision/ เท่านั้น (กัน path traversal)
+    if (doc.url && doc.url.startsWith('/uploads/supervision/')) {
+      const filePath = path.join(SUPERVISION_DOC_DIR, path.basename(doc.url));
+      await fs.promises.unlink(filePath).catch(() => {});
+    }
+    appt.documents = appt.documents.filter((d) => d.id !== doc.id);
+    await pool.query('UPDATE requests SET supervisionAppointment = ? WHERE id = ?', [JSON.stringify(appt), req.params.id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Supervision doc delete error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // PUT /api/requests/:id
 router.put('/:id', authenticate, async (req, res) => {
   try {
@@ -731,12 +856,14 @@ router.put('/:id', authenticate, async (req, res) => {
       params.push(cleanCompEmail);
     }
 
-    // อีเมลผู้ประเมิน — เฉพาะ admin/advisor เท่านั้นที่เขียนได้
+    // อีเมลผู้ประเมิน — เฉพาะ admin (สำนักงานคณบดี) เท่านั้นที่เขียนได้
     // ตรวจการมีคีย์แยกจากค่า เพื่อให้ส่งค่าว่างมาเพื่อล้างอีเมลได้
     const hasEvalEmail = evaluator_email !== undefined || evaluatorEmail !== undefined;
     const targetEmail = evaluator_email !== undefined ? evaluator_email : evaluatorEmail;
-    const canEditEvalEmail = req.user?.role === 'admin' || req.user?.role === 'advisor';
-    if (hasEvalEmail && canEditEvalEmail) {
+    if (hasEvalEmail && req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'เฉพาะเจ้าหน้าที่สำนักงานคณบดี (Admin) เท่านั้นที่แก้ไขอีเมลผู้ประเมินได้' });
+    }
+    if (hasEvalEmail) {
       updates.push('evaluator_email = ?');
       params.push(targetEmail || null);
     }

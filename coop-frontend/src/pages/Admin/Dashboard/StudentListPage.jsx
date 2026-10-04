@@ -266,7 +266,7 @@ const StudentListPage = () => {
         return;
       }
     } else {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
 

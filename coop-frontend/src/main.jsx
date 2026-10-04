@@ -11,7 +11,7 @@ import GlobalAlertModalProvider from './components/GlobalAlertModalProvider.jsx'
 
 const theme = createTheme({
   typography: {
-    fontFamily: '"Kanit", "Sarabun", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Prompt", "Noto Sans Thai", "Kanit", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
   },
   shape: {
     borderRadius: 8,

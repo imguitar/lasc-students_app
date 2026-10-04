@@ -39,14 +39,14 @@ router.get('/announcements', authenticate, authorize('admin'), async (req, res) 
 // POST /api/announcements (admin — create)
 router.post('/announcements', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const { title, content, category, coverImage, is_pinned } = req.body;
+    const { title, content, category, coverImage, is_pinned, is_active, link_url } = req.body;
     if (!title || !content) {
       return res.status(400).json({ success: false, message: 'กรุณาระบุหัวข้อและเนื้อหา' });
     }
     const author = req.user?.name || req.user?.username || 'Admin';
     const [result] = await pool.query(
-      'INSERT INTO announcements (title, content, category, coverImage, is_pinned, author) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, content, category || 'ทั่วไป', coverImage || null, is_pinned ? 1 : 0, author]
+      'INSERT INTO announcements (title, content, category, coverImage, link_url, is_pinned, is_active, author) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, content, category || 'ทั่วไป', coverImage || null, (link_url && String(link_url).trim()) || null, is_pinned ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, author]
     );
     const [created] = await pool.query('SELECT * FROM announcements WHERE id = ?', [result.insertId]);
     res.status(201).json({ success: true, message: 'สร้างข่าวประชาสัมพันธ์สำเร็จ', data: created[0] });
@@ -58,14 +58,27 @@ router.post('/announcements', authenticate, authorize('admin'), async (req, res)
 // PUT /api/announcements/:id (admin — update)
 router.put('/announcements/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const { title, content, category, coverImage, is_pinned } = req.body;
+    const { title, content, category, coverImage, is_pinned, is_active, link_url } = req.body;
     await pool.query(
-      'UPDATE announcements SET title = ?, content = ?, category = ?, coverImage = ?, is_pinned = ? WHERE id = ?',
-      [title, content, category || 'ทั่วไป', coverImage || null, is_pinned ? 1 : 0, req.params.id]
+      'UPDATE announcements SET title = ?, content = ?, category = ?, coverImage = ?, link_url = ?, is_pinned = ?, is_active = ? WHERE id = ?',
+      [title, content, category || 'ทั่วไป', coverImage || null, link_url !== undefined ? ((link_url && String(link_url).trim()) || null) : null, is_pinned ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, req.params.id]
     );
     const [updated] = await pool.query('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
     if (!updated[0]) return res.status(404).json({ success: false, message: 'ไม่พบข่าว' });
     res.json({ success: true, message: 'อัปเดตข่าวสำเร็จ', data: updated[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH /api/announcements/:id/pin (admin — toggle pin)
+router.patch('/announcements/:id/pin', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT is_pinned FROM announcements WHERE id = ?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข่าว' });
+    const newStatus = rows[0].is_pinned ? 0 : 1;
+    await pool.query('UPDATE announcements SET is_pinned = ? WHERE id = ?', [newStatus, req.params.id]);
+    res.json({ success: true, message: newStatus ? 'ปักหมุดข่าวแล้ว' : 'เลิกปักหมุดแล้ว', is_pinned: newStatus });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

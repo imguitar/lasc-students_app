@@ -14,11 +14,13 @@ import AdminNotificationsPage from './pages/Admin/Dashboard/AdminNotificationsPa
 import StudentListPage from './pages/Admin/Dashboard/StudentListPage';
 import PaymentProofPage from './pages/Student/Dashboard/PaymentProofPage';
 import AdminReportsPage from './pages/Admin/Dashboard/AdminReportsPage';
-import AdminAnnouncementsPage from './pages/Admin/Dashboard/AdminAnnouncementsPage';
+import AdminHomeEditorPage from './pages/Admin/Dashboard/AdminHomeEditorPage';
 import AdminProfilePage from './pages/Admin/Dashboard/AdminProfilePage';
 import AdminCompanyManagementPage from './pages/Admin/Dashboard/AdminCompanyManagementPage';
 import AdvisorStudentListPage from './pages/Advisor/AdvisorStudentListPage';
 import AdvisorSupervisionPage from './pages/Advisor/AdvisorSupervisionPage';
+import AdvisorRelocationsPage from './pages/Advisor/AdvisorRelocationsPage';
+import AdminRelocationsPage from './pages/Admin/Dashboard/AdminRelocationsPage';
 import AdvisorProgressCheckPage from './pages/Advisor/AdvisorProgressCheckPage';
 import AdvisorEvaluationPage from './pages/Advisor/AdvisorEvaluationPage';
 import RequestDetailsPage from './pages/Admin/Shared/RequestDetailsPage';
@@ -29,6 +31,8 @@ import AdminCheckInPage from './pages/Admin/Dashboard/AdminCheckInPage';
 import AdminAttendanceOverviewPage from './pages/Admin/Dashboard/AdminAttendanceOverviewPage';
 import PublicRequestPage from './pages/Public/PublicRequestPage';
 import PublicEvaluationPage from './pages/Public/PublicEvaluationPage';
+import PublicRelocationApprovalPage from './pages/Public/PublicRelocationApprovalPage';
+import RelocationRequestPage from './pages/Student/RelocationRequestPage';
 import AnnouncementDetailPage from './pages/Public/AnnouncementDetailPage';
 import NewsListPage from './pages/Public/NewsListPage';
 import PublicCompaniesPage from './pages/Public/PublicCompaniesPage';
@@ -48,6 +52,7 @@ function App() {
         <Route path="/dashboard/new-request" element={<NewRequestPage />} />
         <Route path="/dashboard/edit-request/:id" element={<NewRequestPage />} />
         <Route path="/dashboard/my-requests" element={<MyRequestsPage />} />
+        <Route path="/dashboard/relocation-request" element={<RelocationRequestPage />} />
         <Route path="/dashboard/request/:id" element={<RequestDetailsPage />} />
         <Route path="/dashboard/student/:id" element={<StudentDetailsPage />} />
         <Route path="/dashboard/payment-proof" element={<PaymentProofPage />} />
@@ -63,16 +68,22 @@ function App() {
         <Route path="/admin-dashboard/checkins" element={<AdminCheckInPage />} />
         <Route path="/admin-dashboard/attendance-overview" element={<AdminAttendanceOverviewPage />} />
         <Route path="/admin-dashboard/reports" element={<AdminReportsPage />} />
-        <Route path="/admin-dashboard/announcements" element={<AdminAnnouncementsPage />} />
+        <Route path="/admin-dashboard/relocations" element={<AdminRelocationsPage />} />
+        {/* เมนูข่าวสาร/แบนเนอร์รวมศูนย์ที่ Home Editor — ลิงก์เก่า redirect มาที่เดียวกัน */}
+        <Route path="/admin-dashboard/announcements" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
+        <Route path="/admin-dashboard/banners" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
+        <Route path="/admin-dashboard/home-editor" element={<AdminHomeEditorPage />} />
         <Route path="/admin-dashboard/profile" element={<AdminProfilePage />} />
         <Route path="/advisor-dashboard" element={<AdvisorDashboardPage />} />
         <Route path="/advisor-dashboard/students" element={<AdvisorStudentListPage />} />
         <Route path="/advisor-dashboard/supervision" element={<AdvisorSupervisionPage />} />
+        <Route path="/advisor-dashboard/relocations" element={<AdvisorRelocationsPage />} />
         <Route path="/advisor-dashboard/supervision/evaluate/:id" element={<AdvisorEvaluationPage />} />
         <Route path="/advisor-dashboard/progress" element={<AdvisorProgressCheckPage />} />
         <Route path="/advisor-dashboard/profile" element={<AdvisorProfilePage />} />
         <Route path="/public/request/:id" element={<PublicRequestPage />} />
         <Route path="/public/evaluate/:id" element={<PublicEvaluationPage />} />
+        <Route path="/public/relocation-approval/:token" element={<PublicRelocationApprovalPage />} />
         <Route path="/news" element={<NewsListPage />} />
         <Route path="/news/:id" element={<AnnouncementDetailPage />} />
         <Route path="/companies" element={<PublicCompaniesPage />} />

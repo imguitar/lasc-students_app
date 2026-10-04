@@ -200,6 +200,11 @@ const PublicRequestPage = () => {
       return;
     }
 
+    if (!hasSignature) {
+      setAcceptDialog(prev => ({ ...prev, error: 'กรุณาเซ็นลายมือชื่อในกรอบลายเซ็นก่อนยืนยันการตอบรับ' }));
+      return;
+    }
+
     setUpdating(true);
     try {
       let signatureDataUrl = null;
@@ -595,7 +600,7 @@ const PublicRequestPage = () => {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-slate-700">
-                ลงนามลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน
+                ลงนามลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน <span className="text-rose-500">*</span>
               </label>
               <button
                 type="button"

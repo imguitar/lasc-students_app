@@ -13,10 +13,14 @@ const checkinRoutes = require('./routes/checkinRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const evaluationRoutes = require('./routes/evaluationRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
+const bannerRoutes = require('./routes/bannerRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 const companyRoutes = require('./routes/companyRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const internshipRoutes = require('./routes/internshipRoutes');
+const relocationRoutes = require('./routes/relocationRoutes');
+const internshipRoundRoutes = require('./routes/internshipRoundRoutes');
 
 // Import Cron
 const initCronJobs = require('./cron/internshipCron');
@@ -60,6 +64,16 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Static files — รูปแบนเนอร์และไฟล์อัปโหลดอื่น ๆ (เช่น /uploads/banners/xxx.png)
+// mount หลาย path เพื่อรองรับ nginx proxy_pass ทุกรูปแบบ:
+//   /coop/api/ → backend /          → request มาที่ /uploads/...
+//   /coop/api/ → backend /api/      → request มาที่ /api/uploads/...
+//   proxy ส่ง URI เต็ม              → request มาที่ /coop/api/uploads/...
+const uploadsDir = require('path').join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(uploadsDir));
+app.use('/api/uploads', express.static(uploadsDir));
+app.use('/coop/api/uploads', express.static(uploadsDir));
+
 // =============================================
 // Health Check
 // =============================================
@@ -98,8 +112,13 @@ app.use('/api/public', companyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/internship', internshipRoutes);
+app.use('/api/relocations', authenticate, relocationRoutes);
+app.use('/api/public/relocations', relocationRoutes.publicRouter); // one-time link บริษัทเดิมลงนาม ไม่ต้อง login
 app.use('/api', evaluationRoutes);
+app.use('/api', internshipRoundRoutes);
 app.use('/api', announcementRoutes);
+app.use('/api', bannerRoutes);
+app.use('/api', settingsRoutes);
 
 // =============================================
 // 404 & Error Handlers

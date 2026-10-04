@@ -356,8 +356,30 @@ router.delete('/companies/:id', async (req, res) => {
 });
 
 // GET /api/public/contact — ข้อมูลติดต่อแอดมินสำหรับแถบติดต่อด้านบน
+// อ่านจาก site_settings.contact_info ก่อน (แก้ไขได้ในหน้า Home Editor) แล้ว fallback เป็น user admin
 router.get('/contact', async (req, res) => {
   try {
+    const [settingRows] = await pool.query(
+      "SELECT setting_value FROM site_settings WHERE setting_key = 'contact_info'"
+    );
+    if (settingRows[0]?.setting_value) {
+      try {
+        const info = JSON.parse(settingRows[0].setting_value);
+        if (info.phone || info.email || info.facebook_url) {
+          return res.json({
+            success: true,
+            data: {
+              name: info.name || 'ผู้ดูแลระบบ',
+              email: info.email || '',
+              phone: info.phone || '',
+              facebook_url: info.facebook_url || '',
+              facebook_name: info.facebook_name || ''
+            }
+          });
+        }
+      } catch (_) { /* ไม่ใช่ JSON — ข้ามไป fallback */ }
+    }
+
     const [rows] = await pool.query(`
       SELECT u.id, u.username, u.email, u.phone, 
              p.firstname, p.lastname, p.phone as profile_phone

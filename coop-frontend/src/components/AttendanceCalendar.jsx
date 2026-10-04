@@ -131,8 +131,8 @@ const AttendanceCalendar = ({
         status = 'pre-internship'; // strictly before official approval
       } else if (entry) {
         status = entry.status; // present, late, absent
-      } else if (isPastOrToday && !isWeekend) {
-        status = 'un-checked'; // missed check-in during active internship
+      } else if (isPastOrToday) {
+        status = 'un-checked'; // missed check-in during active internship (รวมเสาร์-อาทิตย์ — บางคนฝึกวันหยุด)
       }
 
       const isSelectable = !isBeforeStart && isPastOrToday;
@@ -597,10 +597,6 @@ const AttendanceCalendar = ({
             badgeText = 'ไม่ได้เช็ค';
           } else if (item.status === 'pre-internship' || item.isBeforeStart) {
             bgColor = '#f8fafc';
-            textColor = '#94a3b8';
-            borderColor = '#f1f5f9';
-          } else if (item.isWeekend) {
-            bgColor = '#fafafa';
             textColor = '#94a3b8';
             borderColor = '#f1f5f9';
           }

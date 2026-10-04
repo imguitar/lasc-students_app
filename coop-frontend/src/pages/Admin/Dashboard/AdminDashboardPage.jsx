@@ -45,6 +45,7 @@ import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
 import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
+import AdminInternshipRoundsModal from './AdminInternshipRoundsModal';
 
 // Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
 const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
@@ -169,6 +170,7 @@ const RequestActionsMenu = ({ request, onView, onEdit, onApprove, onReject, onSc
 
 const AdminDashboardPage = () => {
   const [evalRoundsModalOpen, setEvalRoundsModalOpen] = useState(false);
+  const [internshipRoundsModalOpen, setInternshipRoundsModalOpen] = useState(false);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [adminName, setAdminName] = useState('');
@@ -283,7 +285,7 @@ const AdminDashboardPage = () => {
         setAllRequests(requests.filter(req => req.status !== 'ฝึกงานเสร็จแล้ว'));
       }).catch(err => console.error('Failed to load requests:', err));
     } else {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
   }, [navigate]);
 
@@ -372,7 +374,7 @@ const AdminDashboardPage = () => {
     return allRequests
       .slice()
       .sort((a, b) => new Date(b.submittedDate) - new Date(a.submittedDate))
-      .slice(0, 5);
+      .slice(0, 10);
   }, [allRequests]);
 
   useLayoutEffect(() => {
@@ -1288,15 +1290,26 @@ const AdminDashboardPage = () => {
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ภาพรวมระบบฝึกประสบการณ์วิชาชีพ</h1>
             <p className="text-sm text-gray-500 mt-1">ติดตาม ตรวจสอบ และจัดการกระบวนการฝึกงานของนักศึกษาแบบเรียลไทม์</p>
           </div>
-          <Button
-            variant="contained"
-            onClick={() => setEvalRoundsModalOpen(true)}
-            className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl inline-flex items-center gap-1.5 shadow-sm"
-            sx={{ fontWeight: 600, px: 2.5, py: 1, boxShadow: 'none', textTransform: 'none' }}
-          >
-            <Calendar className="w-4 h-4 mr-1" />
-            กำหนดรอบการประเมิน นศ.
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              onClick={() => setInternshipRoundsModalOpen(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl inline-flex items-center gap-1.5 shadow-sm"
+              sx={{ fontWeight: 600, px: 2.5, py: 1, boxShadow: 'none', textTransform: 'none' }}
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              กำหนดรอบปฏิทินฝึกงาน
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => setEvalRoundsModalOpen(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl inline-flex items-center gap-1.5 shadow-sm"
+              sx={{ fontWeight: 600, px: 2.5, py: 1, boxShadow: 'none', textTransform: 'none' }}
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              กำหนดรอบการประเมิน นศ.
+            </Button>
+          </Box>
         </header>
 
         <Box
@@ -1424,12 +1437,20 @@ const AdminDashboardPage = () => {
                   className="text-slate-900 font-extrabold text-lg md:text-xl tracking-tight"
                   sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.025em', mb: 0.5 }}
                 >
-                  คำร้องล่าสุด 5 รายการ
+                  คำร้องล่าสุด 10 รายการ
                 </Typography>
                 <Typography variant="caption" className="text-slate-400 text-xs" sx={{ color: '#94a3b8', fontSize: '0.75rem' }}>
                   รายการคำร้องที่ส่งเข้ามาล่าสุด
                 </Typography>
               </div>
+              <Button
+                component={Link}
+                to="/admin-dashboard/requests"
+                size="small"
+                sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#7c3aed', textTransform: 'none', whiteSpace: 'nowrap' }}
+              >
+                ดูคำร้องทั้งหมด &gt;
+              </Button>
             </Box>
           <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white">
             <Table size="small">
@@ -1467,263 +1488,6 @@ const AdminDashboardPage = () => {
         </Paper>
         </Box>
 
-        <Paper id="all-requests" className="bg-white border border-slate-100 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] p-6" elevation={0} sx={{ width: '100%', scrollMarginTop: 80, bgcolor: '#ffffff', borderRadius: '1rem', border: '1px solid #f1f5f9', boxShadow: '0 2px 15px -3px rgba(0,0,0,0.04)' }}>
-          <div className="section-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-            <div className="w-full flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-slate-900 font-extrabold text-lg md:text-xl tracking-tight mb-1" style={{ margin: 0 }}>
-                  คำร้องทั้งหมด
-                </h2>
-                <p className="text-slate-400 text-xs">
-                  จัดการและตรวจสอบข้อมูลคำร้องฝึกงานของนักศึกษาทั้งหมดในระบบ
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/admin-dashboard/requests')}
-                className="shrink-0 flex items-center gap-0.5 text-violet-600 hover:text-violet-700 font-semibold text-xs transition cursor-pointer border-none bg-transparent py-1"
-              >
-                ดูทั้งหมด
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-            <TextField
-              select
-              size="small"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl focus:bg-white focus:border-violet-500"
-              sx={{
-                minWidth: { xs: '100%', sm: '220px' },
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '0.75rem',
-                  backgroundColor: '#f8fafc',
-                  fontSize: '0.8125rem',
-                  color: '#334155',
-                  transition: 'all 0.2s ease',
-                  '& fieldset': { borderColor: '#e2e8f0' },
-                  '&:hover fieldset': { borderColor: '#cbd5e1' },
-                  '&.Mui-focused': {
-                    backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#8b5cf6', borderWidth: '1px' },
-                  },
-                },
-              }}
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: {
-                    sx: {
-                      maxHeight: 300,
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                    }
-                  }
-                }
-              }}
-            >
-              <MenuItem value="all" sx={{ fontSize: '0.8125rem' }}>ทั้งหมด</MenuItem>
-              <MenuItem value="pending_admin" sx={{ fontSize: '0.8125rem' }}>รอตรวจสอบ</MenuItem>
-              <MenuItem value="รอสถานประกอบการตอบรับ" sx={{ fontSize: '0.8125rem' }}>รอสถานประกอบการ</MenuItem>
-              <MenuItem value="approved" sx={{ fontSize: '0.8125rem' }}>อนุมัติแล้ว</MenuItem>
-              <MenuItem value="rejected" sx={{ fontSize: '0.8125rem' }}>ไม่อนุมัติ</MenuItem>
-            </TextField>
-
-          <div className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              {selectedIds.length === 0 ? (
-                <span className="text-xs text-slate-500 font-medium">
-                  ระบบจัดการคำร้องแบบกลุ่ม — กรุณาเลือกรายชื่อนักศึกษาจากตารางเพื่อดำเนินการ
-                </span>
-              ) : (
-                <span className="text-xs font-semibold text-violet-700 bg-violet-100/80 px-2.5 py-1 rounded-lg">
-                  เลือกคำร้องทั้งหมด {selectedIds.length} รายการ
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={openBatchMenu}
-                disabled={selectedIds.length === 0}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ backgroundColor: selectedIds.length === 0 ? undefined : '#7c3aed' }}
-              >
-                เลือกการดำเนินการแบบกลุ่ม
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={clearSelection}
-                disabled={selectedIds.length === 0}
-                className="text-xs font-medium px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-white transition cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                ล้างการเลือก
-              </button>
-            </div>
-            <Menu
-              anchorEl={batchMenuAnchor}
-              open={Boolean(batchMenuAnchor)}
-              onClose={closeBatchMenu}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              PaperProps={{
-                className: 'rounded-xl shadow-xl border border-slate-100',
-                sx: { mt: 1, minWidth: 260, borderRadius: '0.75rem' },
-              }}
-            >
-              <MenuItem onClick={() => { closeBatchMenu(); handleOpenBatchDateModal(); }} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
-                <Calendar className="w-4 h-4 text-violet-500 shrink-0" />
-                กำหนดวันฝึกงานพร้อมกัน
-              </MenuItem>
-              <MenuItem onClick={handleStartApproveWizard} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                อนุมัติคำร้องและแนบใบขอความอนุเคราะห์
-              </MenuItem>
-              <MenuItem onClick={() => { closeBatchMenu(); handleBatchStartInternship(); }} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1 }}>
-                <Check className="w-4 h-4 text-violet-500 shrink-0" />
-                เปลี่ยนสถานะเป็นเริ่มฝึกงาน
-              </MenuItem>
-              <MenuItem onClick={handleOpenBatchRejectModal} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1, color: '#ea580c' }}>
-                <XCircle className="w-4 h-4 text-orange-500 shrink-0" />
-                ปฏิเสธคำร้องที่เลือก
-              </MenuItem>
-              <MenuItem onClick={handleOpenBatchDeleteModal} sx={{ gap: 1.25, fontSize: '0.8125rem', py: 1.1, color: '#e11d48' }}>
-                <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
-                ลบรายการคำร้องที่เลือก
-              </MenuItem>
-            </Menu>
-          </div>
-          </div>
-
-          <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white">
-            <Table size="small">
-              <TableHead className="bg-slate-50/80 border-b border-slate-100">
-                <TableRow>
-                  <TableCell padding="checkbox" sx={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <Checkbox
-                      size="small"
-                      indeterminate={selectedIds.length > 0 && selectedIds.length < sortedRequests.length}
-                      checked={sortedRequests.length > 0 && selectedIds.length === sortedRequests.length}
-                      onChange={toggleSelectAll}
-                      sx={{ color: '#cbd5e1', '&.Mui-checked, &.MuiCheckbox-indeterminate': { color: '#7c3aed' } }}
-                    />
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('studentId')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    รหัสนักศึกษา {sortBy === 'studentId' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('studentName')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    ชื่อ-นามสกุล {sortBy === 'studentName' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('department')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    สาขา {sortBy === 'department' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('company')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    บริษัท {sortBy === 'company' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('submittedDate')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    วันที่ยื่น {sortBy === 'submittedDate' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell className="sortable" onClick={() => toggleSort('status')} sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    สถานะ {sortBy === 'status' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                  </TableCell>
-                  <TableCell align="center" sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', py: 1.25 }}>
-                    จัดการ
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody className="bg-white">
-                {sortedRequests.map((request) => {
-                  return (
-                    <TableRow key={request.id} hover selected={isRowSelected(request.id)} className="hover:bg-slate-50/60 transition-colors">
-                      <TableCell padding="checkbox" sx={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <Checkbox
-                          size="small"
-                          checked={isRowSelected(request.id)}
-                          onChange={() => toggleSelectOne(request.id)}
-                          sx={{ color: '#cbd5e1', '&.Mui-checked': { color: '#7c3aed' } }}
-                        />
-                      </TableCell>
-                      <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem', fontWeight: 500 }}>{request.studentId}</TableCell>
-                      <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem', fontWeight: 500 }}>{request.studentName}</TableCell>
-                      <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem' }}>{request.department}</TableCell>
-                      <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem' }}>
-                        <div className="font-medium text-slate-800">{request.company}</div>
-                        {(request.internship_start_date || request.details?.startDate) ? (
-                          <div style={{ fontSize: '0.74rem', color: '#6d28d9', fontWeight: 500, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <CalendarIcon style={{ width: 14, height: 14 }} />
-                            <span>{formatDateThai(request.internship_start_date || request.details?.startDate)} - {formatDateThai(request.internship_end_date || request.details?.endDate)}</span>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '3px' }}>ยังไม่กำหนดวันฝึก</div>
-                        )}
-                      </TableCell>
-                      <TableCell sx={{ color: '#334155', borderBottom: '1px solid #f1f5f9', py: 1.5, fontSize: '0.8125rem' }}>{new Date(request.submittedDate).toLocaleDateString('th-TH')}</TableCell>
-                      <TableCell sx={{ borderBottom: '1px solid #f1f5f9', py: 1.5 }}>
-                        {(() => {
-                          const effectiveStatus = getEffectiveInternshipStatus(request);
-                          return (
-                            <>
-                              <StatusBadge status={effectiveStatus} />
-                              {isCompanyAcceptedStatus(request.status) && (
-                                <div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenAdminScheduleAndDispatchModal(request)}
-                                    className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-lg transition cursor-pointer shadow-2xs"
-                                    title="กำหนดวันฝึกและแนบหนังสือส่งตัวให้นักศึกษา"
-                                  >
-                                    <Calendar size={13} className="text-violet-600" />
-                                    <FileUp size={13} className="text-violet-600" />
-                                    <span>กำหนดวันและแนบใบส่งตัว</span>
-                                  </button>
-                                </div>
-                              )}
-                              {(effectiveStatus === 'ออกฝึกงาน' || effectiveStatus === 'กำลังออกฝึกงาน' || effectiveStatus === 'สิ้นสุดการฝึกงาน (รอประเมิน)' || effectiveStatus === 'ประเมินเสร็จแล้ว' || effectiveStatus === 'ฝึกงานเสร็จแล้ว') && (
-                                <div style={{ marginTop: '8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px', fontWeight: 500 }}>
-                                  {request.hasCompanyEval ? 
-                                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> บริษัทประเมินแล้ว</span> : 
-                                    <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> บริษัทกำลังประเมิน</span>}
-                                  {request.hasAdvisorEval ? 
-                                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={14} /> อาจารย์ประเมินแล้ว</span> : 
-                                    <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}><ClockIcon style={{width: 16, height: 16}}/> อาจารย์กำลังประเมิน</span>}
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell align="center" sx={{ borderBottom: '1px solid #f1f5f9', py: 1.5 }}>
-                        <RequestActionsMenu
-                          request={request}
-                          onView={(target) => navigate(`/dashboard/request/${target.id}`)}
-                          onEdit={handleOpenEditModal}
-                          onApprove={(target) => {
-                            if (target.status === 'รอผู้ดูแลระบบตรวจสอบ' || target.status === 'รอผู้ดูแลระบบอนุมัติ') {
-                              handleApprove(target.id);
-                            } else {
-                              handleApproveStartInternship(target.id);
-                            }
-                          }}
-                          onReject={(target) => handleReject(target.id)}
-                          onSchedule={handleOpenScheduleModal}
-                          onScheduleAndDispatch={handleOpenAdminScheduleAndDispatchModal}
-                          onDelete={openDeleteModal}
-                          onOpenQr={(target) => handleOpenResponseQr(target.id, target)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {sortedRequests.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#94a3b8', fontSize: '0.875rem' }}>ไม่มีข้อมูล</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
       </main>
 
       <Dialog open={rejectModal.open} onClose={handleRejectClose} fullWidth maxWidth="sm">
@@ -3245,6 +3009,12 @@ const AdminDashboardPage = () => {
           </div>
         </div>
       </Dialog>
+
+      {/* จัดการรอบปฏิทินฝึกงาน */}
+      <AdminInternshipRoundsModal
+        open={internshipRoundsModalOpen}
+        onClose={() => setInternshipRoundsModalOpen(false)}
+      />
 
       {/* จัดการรอบการประเมินสถานประกอบการ */}
       <AdminEvaluationRoundsModal

@@ -25,7 +25,7 @@ const StudentDetailsPage = () => {
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
     const userObj = JSON.parse(userStr);

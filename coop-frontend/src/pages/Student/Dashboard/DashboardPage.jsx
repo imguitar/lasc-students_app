@@ -78,7 +78,7 @@ const DashboardPage = () => {
                  return;
               }
               if (user.role !== 'student') {
-                 navigate('/login'); 
+                 navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/')); 
                  return;
               }
 
@@ -100,7 +100,7 @@ const DashboardPage = () => {
               });
               setInternshipRequests(myRequests);
             } else {
-              navigate('/login');
+              navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
             }
         } catch (error) {
             console.error(error);

@@ -115,7 +115,7 @@ const AdvisorDashboardPage = () => {
       const user = JSON.parse(userStr);
       const normalizedRole = String(user.role || '').toLowerCase();
       if (normalizedRole !== 'advisor') {
-         navigate('/login'); 
+         navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/')); 
          return;
       }
       setAdvisorName(user.name);
@@ -125,7 +125,7 @@ const AdvisorDashboardPage = () => {
         setAllRequests(res.data.data || []);
       }).catch(err => console.error('Failed to load requests:', err));
     } else {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
   }, [navigate]);
 
@@ -387,10 +387,6 @@ const AdvisorDashboardPage = () => {
               <MenuItem value="ประเมินเสร็จแล้ว">ประเมินเสร็จแล้ว</MenuItem>
             </TextField>
           </div>
-
-          <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2 }}>
-            <strong>ข้อความแจ้งเตือนระบบ:</strong> หากอาจารย์ไม่ได้กดเสร็จสิ้นการฝึกงานด้วยตนเอง (ขั้นตอนสุดท้าย) ระบบจะอนุมัติให้จบการฝึกงานให้อัตโนมัติภายใน 3 วัน หลังจากที่สถานประกอบการส่งผลประเมินเรียบร้อยแล้ว
-          </Alert>
 
           {selectedIds.length > 0 && (
             <Paper

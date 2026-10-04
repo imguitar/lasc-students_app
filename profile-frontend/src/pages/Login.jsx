@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -93,6 +94,17 @@ const Login = () => {
         try {
           const redirectUrl = new URL(redirect, window.location.origin);
           if (redirectUrl.pathname === '/coop/sso' || redirectUrl.pathname === '/coop/sso-landing') {
+            try {
+              // ออกตั๋ว SSO อายุสั้นแนบไปกับ redirect — ระบบ Coop อยู่คนละ origin
+              // อ่าน localStorage ของระบบนี้ไม่ได้ ต้องส่งสิทธิ์ผ่าน ticket ใน URL เท่านั้น
+              const ssoRes = await api.post('/auth/sso-ticket');
+              const ticket = ssoRes.data?.data?.ticket;
+              if (ticket) {
+                redirectUrl.searchParams.set('ticket', ticket);
+              }
+            } catch (_) {
+              // ขอตั๋วไม่สำเร็จ — ปล่อยให้หน้า sso-landing ของ Coop แสดง error ตามปกติ
+            }
             targetUrl = redirectUrl.toString();
           }
         } catch (_) {

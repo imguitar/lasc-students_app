@@ -25,3 +25,6 @@ build/
 # Editor files
 .vscode/
 .idea/
+
+# Runtime user uploads (banners, signatures, attachments — live in disk/volumes)
+coop-backend/uploads/

@@ -1,0 +1,37 @@
+-- Migration: Relocation Request Workflow — คำร้องขอเปลี่ยนสถานที่ฝึกงาน
+CREATE TABLE IF NOT EXISTS internship_relocation_requests (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  internship_request_id INT UNSIGNED NOT NULL COMMENT 'FK → requests.id คำร้องฝึกงานเดิม',
+  student_id VARCHAR(50) NOT NULL COMMENT 'รหัสนักศึกษาผู้ยื่นคำร้อง',
+  reason TEXT NOT NULL COMMENT 'เหตุผลและความจำเป็นในการขอเปลี่ยนสถานที่ฝึกงาน',
+  return_letter_file VARCHAR(255) NOT NULL COMMENT 'ไฟล์หนังสือส่งตัวกลับจากสถานประกอบการเดิม',
+  return_letter_name VARCHAR(255) NULL COMMENT 'ชื่อไฟล์เดิมของหนังสือส่งตัวกลับ',
+  new_company_name VARCHAR(255) NOT NULL COMMENT 'ชื่อสถานประกอบการแห่งใหม่',
+  new_company_address TEXT NOT NULL COMMENT 'ที่อยู่สถานประกอบการแห่งใหม่',
+  new_company_contact VARCHAR(255) NOT NULL COMMENT 'ผู้ประสานงาน/เบอร์โทร/อีเมลแห่งใหม่ (รวมจากฟิลด์ mentor_*)',
+  mentor_name VARCHAR(255) NULL COMMENT 'ชื่อ-นามสกุล หัวหน้าหน่วยงาน/ผู้ดูแลที่ใหม่',
+  mentor_position VARCHAR(255) NULL COMMENT 'ตำแหน่งหัวหน้าหน่วยงาน',
+  mentor_email VARCHAR(255) NULL COMMENT 'อีเมลหัวหน้าหน่วยงาน',
+  mentor_phone VARCHAR(50) NULL COMMENT 'เบอร์โทรหัวหน้าหน่วยงาน',
+  days_trained INT DEFAULT 0 COMMENT 'จำนวนวันที่ฝึกงานไปแล้ว',
+  days_remaining INT DEFAULT 0 COMMENT 'จำนวนวันที่ยังคงเหลือตามเกณฑ์',
+  status ENUM(
+    'submitted_waiting_advisor',
+    'advisor_approved_waiting_admin',
+    'admin_approved_generating_request_letter',
+    'waiting_company_acceptance',
+    'company_accepted_generating_dispatch_letter',
+    'completed',
+    'rejected'
+  ) NOT NULL DEFAULT 'submitted_waiting_advisor',
+  advisor_comment TEXT NULL COMMENT 'ความเห็นของอาจารย์ที่ปรึกษา',
+  admin_comment TEXT NULL COMMENT 'บันทึกของสำนักงานคณบดี',
+  new_request_letter_file VARCHAR(255) NULL COMMENT 'หนังสือขอความอนุเคราะห์ฉบับใหม่',
+  new_acceptance_letter_file VARCHAR(255) NULL COMMENT 'แบบตอบรับจากสถานประกอบการใหม่',
+  new_dispatch_letter_file VARCHAR(255) NULL COMMENT 'หนังสือส่งตัวฉบับใหม่ (นักศึกษาดาวน์โหลดได้)',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_relocation_student (student_id),
+  INDEX idx_relocation_request (internship_request_id),
+  INDEX idx_relocation_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -79,7 +79,7 @@ const AdvisorProfilePage = () => {
     asyncStorage.getItem('user').then((raw) => {
       if (!mounted) return;
       if (!raw) {
-        navigate('/login');
+        navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
         return;
       }
       try {
@@ -101,7 +101,7 @@ const AdvisorProfilePage = () => {
         setAvatarPreview(parsed.avatar || null);
       } catch (error) {
         setUser(null);
-        navigate('/login');
+        navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       }
     });
     return () => { mounted = false; };

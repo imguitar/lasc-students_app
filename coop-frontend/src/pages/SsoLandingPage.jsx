@@ -41,15 +41,8 @@ const SsoLandingPage = () => {
       const userData = { ...user, token: authToken };
       localStorage.setItem('user', JSON.stringify(userData));
 
-      // นำทางไปยังหน้า Dashboard ตามบทบาทของผู้ใช้งาน
-      const role = String(user?.role || '').toLowerCase();
-      if (role === 'admin') {
-        navigate('/admin-dashboard', { replace: true });
-      } else if (role === 'advisor' || role === 'teacher') {
-        navigate('/advisor-dashboard', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      // เข้าจากระบบ Profile → ลงหน้า Home ก่อนเสมอ ให้ผู้ใช้เลือกเข้า dashboard เองจากเมนู
+      navigate('/', { replace: true });
     };
 
     const exchangeTicket = (ssoTicket) => api.post('/auth/sso', { ticket: ssoTicket })

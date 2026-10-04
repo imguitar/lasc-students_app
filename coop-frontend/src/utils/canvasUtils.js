@@ -29,7 +29,8 @@ export default async function getCroppedImg(
   imageSrc,
   pixelCrop,
   rotation = 0,
-  flip = { horizontal: false, vertical: false }
+  flip = { horizontal: false, vertical: false },
+  filter = ''
 ) {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
@@ -57,6 +58,9 @@ export default async function getCroppedImg(
 
   ctx.drawImage(image, 0, 0);
 
+  // Output มาตรฐาน: กว้าง 1920px สูงตามสัดส่วนที่ครอป (21:9 → 1920×820, 16:9 → 1920×1080)
+  const OUTPUT_WIDTH = 1920;
+  const outAspect = pixelCrop.width / pixelCrop.height || 1;
   const croppedCanvas = document.createElement('canvas');
   const croppedCtx = croppedCanvas.getContext('2d');
 
@@ -64,8 +68,15 @@ export default async function getCroppedImg(
     return null;
   }
 
-  croppedCanvas.width = pixelCrop.width;
-  croppedCanvas.height = pixelCrop.height;
+  croppedCanvas.width = OUTPUT_WIDTH;
+  croppedCanvas.height = Math.round(OUTPUT_WIDTH / outAspect);
+
+  // ฝัง CSS filter (brightness/contrast/ฯลฯ) ลงใน output ถาวร
+  if (filter) {
+    croppedCtx.filter = filter;
+  }
+  croppedCtx.imageSmoothingEnabled = true;
+  croppedCtx.imageSmoothingQuality = 'high';
 
   croppedCtx.drawImage(
     canvas,
@@ -75,9 +86,22 @@ export default async function getCroppedImg(
     pixelCrop.height,
     0,
     0,
-    pixelCrop.width,
-    pixelCrop.height
+    croppedCanvas.width,
+    croppedCanvas.height
   );
 
-  return croppedCanvas.toDataURL('image/jpeg');
+  return croppedCanvas.toDataURL('image/jpeg', 0.92);
+}
+
+// ใส่ filter ลงรูปทั้งใบโดยไม่ครอป — ใช้ตอนแอดมินปรับสีอย่างเดียว
+export async function getFilteredImg(imageSrc, filter = '', quality = 0.92) {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  canvas.width = image.width;
+  canvas.height = image.height;
+  if (filter) ctx.filter = filter;
+  ctx.drawImage(image, 0, 0);
+  return canvas.toDataURL('image/jpeg', quality);
 }

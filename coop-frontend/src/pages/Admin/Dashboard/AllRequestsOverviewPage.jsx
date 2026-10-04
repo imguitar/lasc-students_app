@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
-import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
@@ -39,6 +39,13 @@ const DEPARTMENT_MAP = {
 
 const DEPARTMENT_OPTIONS = Object.values(DEPARTMENT_MAP);
 
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 const matchStatus = (effectiveStatus, filterValue) => {
   const s = String(effectiveStatus || '');
   if (filterValue === 'all') return true;
@@ -65,18 +72,29 @@ const AllRequestsOverviewPage = () => {
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
   const menuPanelRef = useRef(null);
-  const [approveModal, setApproveModal] = useState({ open: false, request: null, submitting: false, error: '' });
+  const [approveModal, setApproveModal] = useState({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
+  const approveFileRef = useRef(null);
   const [rejectModal, setRejectModal] = useState({ open: false, request: null, reason: '', submitting: false, error: '' });
   const [assignModal, setAssignModal] = useState({ open: false, request: null, advisors: [], advisorId: '', loading: false, submitting: false, error: '' });
   const [qrModal, setQrModal] = useState({ open: false, request: null, link: '', loading: false, error: '', copied: false, expiresAt: '' });
-  const [scheduleModal, setScheduleModal] = useState({ open: false, request: null, startDate: '', endDate: '', note: '', submitting: false, error: '' });
+  const [scheduleModal, setScheduleModal] = useState({ open: false, request: null, startDate: '', endDate: '', note: '', submitting: false, error: '', continueToDispatch: false });
+  const [dispatchModal, setDispatchModal] = useState({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
+  const dispatchFileRef = useRef(null);
   const [deleteModal, setDeleteModal] = useState({ open: false, request: null, submitting: false, error: '' });
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  // จัดการแบบกลุ่ม
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchRejectModal, setBatchRejectModal] = useState({ open: false, reason: '', submitting: false, error: '' });
+  const [batchScheduleModal, setBatchScheduleModal] = useState({ open: false, startDate: '', endDate: '', submitting: false, error: '' });
+  // Sequential Approval Wizard — วนคิวแนบหนังสือขอความอนุเคราะห์ทีละคน
+  const [approveWizard, setApproveWizard] = useState({ open: false, queue: [], index: 0, file: null, submitting: false, error: '', done: 0 });
+  const wizardFileRef = useRef(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
     const user = JSON.parse(userStr);
@@ -162,22 +180,178 @@ const AllRequestsOverviewPage = () => {
 
   const closeActionMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
 
+  // ---- จัดการแบบกลุ่ม (Batch Actions) ----
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const filteredIds = filteredRequests.map((r) => r.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+  const toggleSelectAll = () => {
+    setSelectedIds(allFilteredSelected ? [] : [...new Set([...selectedIds, ...filteredIds])]);
+  };
+
+  const runBatchApprove = () => {
+    if (selectedIds.length === 0 || batchBusy) return;
+    // เปิด Sequential Wizard — แนบหนังสือขอความอนุเคราะห์ทีละคน
+    setApproveWizard({ open: true, queue: [...selectedIds], index: 0, file: null, submitting: false, error: '', done: 0 });
+  };
+
+  const wizardCurrent = approveWizard.open
+    ? requests.find((r) => String(r.id) === String(approveWizard.queue[approveWizard.index])) || null
+    : null;
+
+  const closeApproveWizard = () => {
+    if (approveWizard.submitting) return;
+    const done = approveWizard.done;
+    setApproveWizard({ open: false, queue: [], index: 0, file: null, submitting: false, error: '', done: 0 });
+    if (done > 0) {
+      setToast({ open: true, message: `อนุมัติและแนบเอกสารครบแล้ว ${done} รายการ`, severity: 'success' });
+      setSelectedIds([]);
+    }
+  };
+
+  const handleWizardSubmit = async () => {
+    const currentId = approveWizard.queue[approveWizard.index];
+    if (currentId === undefined || approveWizard.submitting) return;
+    if (!approveWizard.file) {
+      setApproveWizard((p) => ({ ...p, error: 'กรุณาแนบไฟล์หนังสือขอความอนุเคราะห์ของนักศึกษาคนนี้ก่อน' }));
+      return;
+    }
+    setApproveWizard((p) => ({ ...p, submitting: true, error: '' }));
+    try {
+      const dataUrl = await fileToDataUrl(approveWizard.file);
+      await api.patch(`/requests/${currentId}/status`, {
+        status: 'รอสถานประกอบการตอบรับ',
+        dispatchLetter: { fileName: approveWizard.file.name, mimeType: approveWizard.file.type, dataUrl }
+      });
+      const fileName = approveWizard.file.name;
+      setRequests((prev) => prev.map((r) => (
+        String(r.id) === String(currentId)
+          ? { ...r, status: 'รอสถานประกอบการตอบรับ', dispatchLetter: { fileName, dataUrl } }
+          : r
+      )));
+
+      const isLast = approveWizard.index + 1 >= approveWizard.queue.length;
+      const total = approveWizard.queue.length;
+      if (wizardFileRef.current) wizardFileRef.current.value = '';
+
+      if (isLast) {
+        setApproveWizard({ open: false, queue: [], index: 0, file: null, submitting: false, error: '', done: 0 });
+        setToast({ open: true, message: `อนุมัติและแนบเอกสารครบทั้ง ${total} รายการเรียบร้อยแล้ว`, severity: 'success' });
+        setSelectedIds([]);
+      } else {
+        setApproveWizard((p) => ({ ...p, index: p.index + 1, file: null, submitting: false, error: '', done: p.done + 1 }));
+      }
+    } catch (err) {
+      setApproveWizard((p) => ({
+        ...p,
+        submitting: false,
+        error: err.response?.data?.message || err.message || 'บันทึกคำร้องล้มเหลว'
+      }));
+    }
+  };
+
+  const handleWizardSkip = () => {
+    if (approveWizard.submitting) return;
+    const isLast = approveWizard.index + 1 >= approveWizard.queue.length;
+    if (isLast) { closeApproveWizard(); return; }
+    setApproveWizard((p) => ({ ...p, index: p.index + 1, file: null, error: '' }));
+    if (wizardFileRef.current) wizardFileRef.current.value = '';
+  };
+
+  const submitBatchReject = async () => {
+    if (!batchRejectModal.reason.trim()) {
+      setBatchRejectModal((p) => ({ ...p, error: 'กรุณาระบุเหตุผล' }));
+      return;
+    }
+    setBatchRejectModal((p) => ({ ...p, submitting: true, error: '' }));
+    try {
+      // วนรายตัวเพื่อเก็บ admin_comment ของแต่ละคำร้อง (batch/status ไม่รองรับ comment)
+      await Promise.all(selectedIds.map((id) =>
+        api.patch(`/requests/${id}/status`, { status: 'ไม่อนุมัติ (Admin)', admin_comment: batchRejectModal.reason.trim() })
+      ));
+      setRequests((prev) => prev.map((r) => (selectedIds.includes(r.id) ? { ...r, status: 'ไม่อนุมัติ (Admin)' } : r)));
+      setToast({ open: true, message: `ตีกลับคำร้อง ${selectedIds.length} รายการแล้ว`, severity: 'success' });
+      setBatchRejectModal({ open: false, reason: '', submitting: false, error: '' });
+      setSelectedIds([]);
+    } catch (err) {
+      setBatchRejectModal((p) => ({ ...p, submitting: false, error: err.response?.data?.message || 'ตีกลับแบบกลุ่มไม่สำเร็จ' }));
+    }
+  };
+
+  const submitBatchSchedule = async () => {
+    if (!batchScheduleModal.startDate || !batchScheduleModal.endDate) {
+      setBatchScheduleModal((p) => ({ ...p, error: 'กรุณาระบุวันเริ่มและสิ้นสุด' }));
+      return;
+    }
+    setBatchScheduleModal((p) => ({ ...p, submitting: true, error: '' }));
+    try {
+      await api.patch('/requests/batch/internship-period', {
+        ids: selectedIds,
+        startDate: batchScheduleModal.startDate,
+        endDate: batchScheduleModal.endDate
+      });
+      setRequests((prev) => prev.map((r) => (selectedIds.includes(r.id)
+        ? { ...r, internship_start_date: batchScheduleModal.startDate, internship_end_date: batchScheduleModal.endDate }
+        : r)));
+      setToast({ open: true, message: `กำหนดวันฝึกงานให้ ${selectedIds.length} รายการแล้ว`, severity: 'success' });
+      setBatchScheduleModal({ open: false, startDate: '', endDate: '', submitting: false, error: '' });
+      setSelectedIds([]);
+    } catch (err) {
+      setBatchScheduleModal((p) => ({ ...p, submitting: false, error: err.response?.data?.message || 'กำหนดวันฝึกงานแบบกลุ่มไม่สำเร็จ' }));
+    }
+  };
+
   const updateRequestInList = (requestId, patch) => {
     setRequests((prev) => prev.map((r) => (String(r.id) === String(requestId) ? { ...r, ...patch } : r)));
   };
 
+  // อนุมัติคำร้อง = แนบหนังสือขอความอนุเคราะห์ + ส่งให้สถานประกอบการตอบรับ (flow เดียวกับหน้ารายละเอียดคำร้อง)
   const handleConfirmApprove = async () => {
     const request = approveModal.request;
     if (!request) return;
+    if (!approveModal.file) {
+      setApproveModal((prev) => ({ ...prev, error: 'กรุณาแนบไฟล์หนังสือขอความอนุเคราะห์ก่อนอนุมัติ' }));
+      return;
+    }
     setApproveModal((prev) => ({ ...prev, submitting: true, error: '' }));
     try {
-      await api.patch(`/requests/${request.id}/status`, { status: 'อนุมัติแล้ว' });
-      updateRequestInList(request.id, { status: 'อนุมัติแล้ว' });
-      setApproveModal({ open: false, request: null, submitting: false, error: '' });
-      setToast({ open: true, message: `อนุมัติคำร้องของ ${request.studentName || request.studentId} เรียบร้อยแล้ว`, severity: 'success' });
+      const dataUrl = await fileToDataUrl(approveModal.file);
+      const dispatchLetter = {
+        fileName: approveModal.file.name,
+        mimeType: approveModal.file.type,
+        dataUrl,
+        uploadedAt: new Date().toISOString(),
+      };
+      await api.patch(`/requests/${request.id}/status`, {
+        status: 'รอสถานประกอบการตอบรับ',
+        admin_comment: approveModal.comment?.trim() || null,
+        dispatchLetter,
+      });
+      updateRequestInList(request.id, { status: 'รอสถานประกอบการตอบรับ', admin_comment: approveModal.comment?.trim() || null, dispatchLetter });
+      setApproveModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
+      setToast({ open: true, message: `อนุมัติและแนบหนังสือขอความอนุเคราะห์ของ ${request.studentName || request.studentId} เรียบร้อยแล้ว`, severity: 'success' });
+      handleOpenResponseQr(request);
     } catch (err) {
       setApproveModal((prev) => ({ ...prev, submitting: false, error: err.response?.data?.message || 'อัปเดตสถานะไม่สำเร็จ' }));
     }
+  };
+
+  const handleApproveFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      setApproveModal((prev) => ({ ...prev, error: 'รองรับเฉพาะไฟล์ PDF, JPG หรือ PNG เท่านั้น', file: null }));
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setApproveModal((prev) => ({ ...prev, error: 'ขนาดไฟล์ต้องไม่เกิน 20MB', file: null }));
+      event.target.value = '';
+      return;
+    }
+    setApproveModal((prev) => ({ ...prev, file, error: '' }));
   };
 
   const handleConfirmReject = async () => {
@@ -270,7 +444,99 @@ const AllRequestsOverviewPage = () => {
       note: request.details?.internshipDateNote || '',
       submitting: false,
       error: '',
+      continueToDispatch: false,
     });
+  };
+
+  // Flow ออกใบส่งตัว: ยังไม่มีวันฝึก → เปิดกำหนดวันก่อน (step 1) แล้วค่อยเด้ง modal แนบใบส่งตัว (step 2)
+  const openDispatchModal = (request) => {
+    if (dispatchFileRef.current) dispatchFileRef.current.value = '';
+    setDispatchModal({ open: true, request, file: null, comment: '', submitting: false, error: '' });
+  };
+
+  const handleOpenDispatchFlow = (request) => {
+    const start = request.internship_start_date || request.details?.startDate || '';
+    const end = request.internship_end_date || request.details?.endDate || '';
+    if (start && end) {
+      openDispatchModal(request);
+      return;
+    }
+    setScheduleModal({
+      open: true,
+      request,
+      startDate: start,
+      endDate: end,
+      note: request.details?.internshipDateNote || '',
+      submitting: false,
+      error: '',
+      continueToDispatch: true,
+    });
+  };
+
+  const handleDispatchFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      setDispatchModal((prev) => ({ ...prev, error: 'รองรับเฉพาะไฟล์ PDF, JPG หรือ PNG เท่านั้น', file: null }));
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setDispatchModal((prev) => ({ ...prev, error: 'ขนาดไฟล์ต้องไม่เกิน 20MB', file: null }));
+      event.target.value = '';
+      return;
+    }
+    setDispatchModal((prev) => ({ ...prev, file, error: '' }));
+  };
+
+  const handleDispatchSubmit = async () => {
+    const request = dispatchModal.request;
+    if (!request) return;
+    if (!dispatchModal.file) {
+      setDispatchModal((prev) => ({ ...prev, error: 'กรุณาแนบไฟล์หนังสือส่งตัวนักศึกษาก่อนยืนยัน' }));
+      return;
+    }
+    setDispatchModal((prev) => ({ ...prev, submitting: true, error: '' }));
+    try {
+      const dataUrl = await fileToDataUrl(dispatchModal.file);
+      const dispatchLetter = {
+        fileName: dispatchModal.file.name,
+        mimeType: dispatchModal.file.type,
+        dataUrl,
+        uploadedAt: new Date().toISOString(),
+      };
+      const startDate = request.internship_start_date || request.details?.startDate || '';
+      const endDate = request.internship_end_date || request.details?.endDate || '';
+      // ถ้าวันเริ่มฝึกผ่านมาแล้ว → ตัดเป็น "ออกฝึกงาน" ทันที (ไม่ต้องรอ cron เที่ยงคืน) เพื่อให้เช็คชื่อ/เซ็นย้อนหลังได้เลย
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const alreadyStarted = startDate && String(startDate).slice(0, 10) <= todayStr;
+      const newStatus = alreadyStarted ? 'ออกฝึกงาน' : 'อนุมัติแล้ว (รอออกฝึกงาน)';
+      await api.patch(`/requests/${request.id}/status`, {
+        status: newStatus,
+        admin_comment: dispatchModal.comment?.trim() || null,
+        dispatchLetter,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
+      updateRequestInList(request.id, {
+        status: newStatus,
+        admin_comment: dispatchModal.comment?.trim() || null,
+        dispatchLetter,
+        internship_start_date: startDate || request.internship_start_date,
+        internship_end_date: endDate || request.internship_end_date,
+      });
+      setDispatchModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
+      setToast({
+        open: true,
+        message: alreadyStarted
+          ? `ออกหนังสือส่งตัวและเปลี่ยนเป็น "ออกฝึกงาน" แล้ว — ${request.studentName || request.studentId} เช็คชื่อ/ให้พี่เลี้ยงเซ็นย้อนหลังได้ทันที`
+          : `ออกหนังสือส่งตัวให้ ${request.studentName || request.studentId} เรียบร้อย — ระบบจะเปลี่ยนเป็น "ออกฝึกงาน" อัตโนมัติเมื่อถึงวันเริ่ม`,
+        severity: 'success',
+      });
+    } catch (err) {
+      setDispatchModal((prev) => ({ ...prev, submitting: false, error: err.response?.data?.message || err.message || 'ออกหนังสือส่งตัวไม่สำเร็จ' }));
+    }
   };
 
   const handleScheduleSubmit = async () => {
@@ -301,8 +567,17 @@ const AllRequestsOverviewPage = () => {
           internshipDateNote: scheduleModal.note,
         },
       });
-      setScheduleModal({ open: false, request: null, startDate: '', endDate: '', note: '', submitting: false, error: '' });
+      const continueToDispatch = scheduleModal.continueToDispatch;
+      setScheduleModal({ open: false, request: null, startDate: '', endDate: '', note: '', submitting: false, error: '', continueToDispatch: false });
       setToast({ open: true, message: `กำหนดวันฝึกงานให้ ${request.studentName || request.studentId} เรียบร้อยแล้ว`, severity: 'success' });
+      // step 1 เสร็จ → เด้ง step 2 แนบหนังสือส่งตัวต่อทันที
+      if (continueToDispatch) {
+        openDispatchModal({
+          ...request,
+          internship_start_date: scheduleModal.startDate,
+          internship_end_date: scheduleModal.endDate,
+        });
+      }
     } catch (err) {
       setScheduleModal((prev) => ({ ...prev, submitting: false, error: err.response?.data?.message || err.message || 'บันทึกวันฝึกงานล้มเหลว' }));
     }
@@ -422,6 +697,39 @@ const AllRequestsOverviewPage = () => {
               </div>
             </div>
 
+            {/* Batch Action Bar — จัดการคำร้องแบบกลุ่ม */}
+            {selectedIds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-violet-50/80 border border-violet-200/70">
+                <span className="text-xs font-bold text-violet-800">เลือกแล้ว {selectedIds.length} รายการ</span>
+                <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                  <button
+                    type="button" onClick={runBatchApprove} disabled={batchBusy}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> อนุมัติพร้อมกัน
+                  </button>
+                  <button
+                    type="button" onClick={() => setBatchScheduleModal({ open: true, startDate: '', endDate: '', submitting: false, error: '' })} disabled={batchBusy}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <CalendarDays className="w-3.5 h-3.5" /> กำหนดวันฝึกงาน
+                  </button>
+                  <button
+                    type="button" onClick={() => setBatchRejectModal({ open: true, reason: '', submitting: false, error: '' })} disabled={batchBusy}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold border border-red-200 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> ตีกลับพร้อมกัน
+                  </button>
+                  <button
+                    type="button" onClick={() => setSelectedIds([])}
+                    className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 text-[11px] font-semibold border-0 bg-transparent cursor-pointer transition"
+                  >
+                    ล้างการเลือก
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Table (Tablet / Desktop) */}
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 w-full">
@@ -434,6 +742,15 @@ const AllRequestsOverviewPage = () => {
                   <table className="w-full min-w-[860px] text-left border-collapse table-auto">
                   <thead>
                     <tr className="bg-slate-50/80">
+                      <th className="px-3 py-2.5 border-b border-slate-100 w-9">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 rounded accent-violet-600 cursor-pointer align-middle"
+                          aria-label="เลือกทั้งหมด"
+                        />
+                      </th>
                       <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100 whitespace-nowrap">วันที่ยื่น</th>
                       <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100">นักศึกษา</th>
                       <th className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-3 py-2.5 border-b border-slate-100">สาขา</th>
@@ -444,7 +761,16 @@ const AllRequestsOverviewPage = () => {
                   </thead>
                   <tbody>
                     {filteredRequests.map((request) => (
-                      <tr key={request.id} className="group hover:bg-slate-50/60 transition-colors">
+                      <tr key={request.id} className={`group hover:bg-slate-50/60 transition-colors ${selectedIds.includes(request.id) ? 'bg-violet-50/50' : ''}`}>
+                        <td className="px-3 py-2.5 border-b border-slate-100 w-9">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(request.id)}
+                            onChange={() => toggleSelect(request.id)}
+                            className="w-4 h-4 rounded accent-violet-600 cursor-pointer align-middle"
+                            aria-label={`เลือกคำร้อง ${request.studentId}`}
+                          />
+                        </td>
                         <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 whitespace-nowrap">
                           {formatDateThai(request.submittedDate)}
                         </td>
@@ -481,7 +807,7 @@ const AllRequestsOverviewPage = () => {
                     ))}
                     {filteredRequests.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="text-center py-10 text-slate-400 text-sm">ไม่พบข้อมูลคำร้อง</td>
+                        <td colSpan={7} className="text-center py-10 text-slate-400 text-sm">ไม่พบข้อมูลคำร้อง</td>
                       </tr>
                     )}
                   </tbody>
@@ -493,7 +819,16 @@ const AllRequestsOverviewPage = () => {
                   {filteredRequests.map((request) => (
                     <div key={`card-${request.id}`} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs mb-3 space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-800">{request.studentId}</span>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(request.id)}
+                            onChange={() => toggleSelect(request.id)}
+                            className="w-4 h-4 rounded accent-violet-600 cursor-pointer"
+                            aria-label={`เลือกคำร้อง ${request.studentId}`}
+                          />
+                          <span className="font-mono text-xs font-bold text-slate-800">{request.studentId}</span>
+                        </label>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <StatusBadge status={getEffectiveInternshipStatus(request)} />
                           <button
@@ -546,8 +881,9 @@ const AllRequestsOverviewPage = () => {
       {actionMenu.id && activeMenuRequest && (() => {
         const s = String(getEffectiveInternshipStatus(activeMenuRequest) || '');
         const isRejected = s.includes('ไม่อนุมัติ') || s.includes('ปฏิเสธ') || s.includes('ยกเลิก');
-        const isPendingAdmin = s.includes('รอผู้ดูแลระบบ') || s === 'รอตรวจสอบ';
         const isDispatchWaiting = s.includes('ส่งตัว') || s.includes('ตอบรับแล้ว');
+        // 'ตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)' มี 'รอผู้ดูแลระบบ' ปนอยู่ — ต้องตัดสถานะที่บริษัทตอบรับแล้วออกก่อน
+        const isPendingAdmin = !isDispatchWaiting && (s.includes('รอผู้ดูแลระบบ') || s === 'รอตรวจสอบ');
         const isApproved = !isPendingAdmin && !isRejected && !isDispatchWaiting
           && !s.includes('รอสถานประกอบการ') && s !== 'ร่าง' && s !== '';
         const menuItemClass = 'w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-violet-700 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent text-left';
@@ -565,18 +901,20 @@ const AllRequestsOverviewPage = () => {
               <Eye className="w-4 h-4 shrink-0" />
               ดูรายละเอียดคำร้อง
             </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenResponseQr(activeMenuRequest);
-                closeActionMenu();
-              }}
-              className={menuItemClass}
-            >
-              <QrCode className="w-4 h-4 shrink-0 text-slate-500" />
-              ดู QR ตอบรับล่วงหน้า
-            </button>
+            {!isDispatchWaiting && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenResponseQr(activeMenuRequest);
+                  closeActionMenu();
+                }}
+                className={menuItemClass}
+              >
+                <QrCode className="w-4 h-4 shrink-0 text-slate-500" />
+                ดู QR ตอบรับล่วงหน้า
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); goDetail(); }}
@@ -591,7 +929,8 @@ const AllRequestsOverviewPage = () => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setApproveModal({ open: true, request: activeMenuRequest, submitting: false, error: '' });
+                    setApproveModal({ open: true, request: activeMenuRequest, file: null, comment: '', submitting: false, error: '' });
+                    if (approveFileRef.current) approveFileRef.current.value = '';
                     closeActionMenu();
                   }}
                   className={`${menuItemClass} hover:text-emerald-700 hover:bg-emerald-50`}
@@ -634,7 +973,15 @@ const AllRequestsOverviewPage = () => {
               </>
             )}
             {isDispatchWaiting && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); goDetail(); }} className={menuItemClass}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenDispatchFlow(activeMenuRequest);
+                  closeActionMenu();
+                }}
+                className={menuItemClass}
+              >
                 <Send className="w-4 h-4 shrink-0" />
                 ออกหนังสือส่งตัวนักศึกษา
               </button>
@@ -671,21 +1018,55 @@ const AllRequestsOverviewPage = () => {
 
       {/* Approve Confirm Modal */}
       {approveModal.open && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => !approveModal.submitting && setApproveModal({ open: false, request: null, submitting: false, error: '' })}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => !approveModal.submitting && setApproveModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' })}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onMouseDown={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
             </div>
-            <h3 className="text-base font-bold text-slate-800 text-center m-0">ยืนยันการอนุมัติคำร้อง</h3>
+            <h3 className="text-base font-bold text-slate-800 text-center m-0">อนุมัติและแนบหนังสือขอความอนุเคราะห์</h3>
             <p className="text-sm text-slate-500 text-center mt-2 mb-0">
-              ยืนยันการอนุมัติคำร้องของ <span className="font-semibold text-slate-700">{approveModal.request?.studentName || approveModal.request?.studentId}</span> หรือไม่?
+              คำร้องของ <span className="font-semibold text-slate-700">{approveModal.request?.studentName || approveModal.request?.studentId}</span> จะถูกส่งให้สถานประกอบการตอบรับ
             </p>
+
+            <textarea
+              value={approveModal.comment || ''}
+              onChange={(e) => setApproveModal((prev) => ({ ...prev, comment: e.target.value }))}
+              placeholder="หมายเหตุถึงสถานประกอบการ (ถ้ามี)"
+              className="w-full box-border rounded-2xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-none h-20 text-slate-800 bg-white mt-4"
+            />
+
+            {/* แนบหนังสือขอความอนุเคราะห์ (บังคับ) */}
+            <input
+              ref={approveFileRef}
+              type="file"
+              hidden
+              accept="application/pdf,image/jpeg,image/png,image/jpg"
+              onChange={handleApproveFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => approveFileRef.current?.click()}
+              disabled={approveModal.submitting}
+              className="w-full mt-3 border-2 border-dashed border-violet-200 hover:border-violet-300 bg-violet-50/20 hover:bg-violet-50/40 rounded-2xl py-4 px-4 flex items-center justify-center gap-2 cursor-pointer transition"
+            >
+              <FileUp className="w-4 h-4 text-violet-600" />
+              <span className="text-xs font-semibold text-violet-700">เลือกไฟล์หนังสือขอความอนุเคราะห์ *</span>
+            </button>
+            <p className="text-[10px] text-slate-400 mt-1.5 mb-0 text-center">รองรับไฟล์ PDF, JPG หรือ PNG (ขนาดไม่เกิน 20MB)</p>
+
+            {approveModal.file && (
+              <div className="mt-2.5 text-xs text-emerald-600 font-semibold flex items-center gap-1.5 break-all">
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span>ไฟล์ที่เลือก: {approveModal.file.name}</span>
+              </div>
+            )}
+
             {approveModal.error && <p className="text-xs text-red-500 text-center mt-3 mb-0">{approveModal.error}</p>}
             <div className="flex gap-2.5 mt-5">
               <button
                 type="button"
                 disabled={approveModal.submitting}
-                onClick={() => setApproveModal({ open: false, request: null, submitting: false, error: '' })}
+                onClick={() => setApproveModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' })}
                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer bg-white"
               >
                 ยกเลิก
@@ -877,6 +1258,9 @@ const AllRequestsOverviewPage = () => {
               <Calendar className="w-6 h-6 text-indigo-500" />
             </div>
             <h3 className="text-base font-bold text-slate-800 text-center m-0">กำหนดวันฝึกงาน</h3>
+            {scheduleModal.continueToDispatch && (
+              <p className="text-[11px] font-semibold text-violet-600 text-center mt-1 mb-0">ขั้นที่ 1 จาก 2 — กำหนดวันก่อนออกใบส่งตัว</p>
+            )}
             <p className="text-sm text-slate-500 text-center mt-2 mb-4">
               คำร้องของ <span className="font-semibold text-slate-700">{scheduleModal.request?.studentName || scheduleModal.request?.studentId}</span>
             </p>
@@ -935,6 +1319,77 @@ const AllRequestsOverviewPage = () => {
         document.body
       )}
 
+      {/* Dispatch Letter Modal — step 2 ของ flow ออกใบส่งตัว */}
+      {dispatchModal.open && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => !dispatchModal.submitting && setDispatchModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' })}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+              <Send className="w-6 h-6 text-violet-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 text-center m-0">ออกหนังสือส่งตัวนักศึกษา</h3>
+            <p className="text-sm text-slate-500 text-center mt-2 mb-4">
+              คำร้องของ <span className="font-semibold text-slate-700">{dispatchModal.request?.studentName || dispatchModal.request?.studentId}</span>
+            </p>
+            {(() => {
+              const s = dispatchModal.request?.internship_start_date || dispatchModal.request?.details?.startDate;
+              const e = dispatchModal.request?.internship_end_date || dispatchModal.request?.details?.endDate;
+              return (s || e) ? (
+                <p className="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2 mt-0 mb-4 flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                  กำหนดฝึกงาน {s || '—'} ถึง {e || '—'} — เมื่อถึงวันเริ่มระบบจะเปลี่ยนเป็น "ออกฝึกงาน" อัตโนมัติ
+                </p>
+              ) : null;
+            })()}
+            <input
+              ref={dispatchFileRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="hidden"
+              onChange={handleDispatchFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => dispatchFileRef.current?.click()}
+              disabled={dispatchModal.submitting}
+              className="w-full flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 hover:border-violet-300 hover:bg-violet-50/40 transition cursor-pointer bg-white"
+            >
+              <FileUp className="w-6 h-6 text-violet-400" />
+              {dispatchModal.file
+                ? <span className="text-slate-700 font-medium">{dispatchModal.file.name}</span>
+                : <span>คลิกเพื่อแนบไฟล์หนังสือส่งตัว <span className="text-red-400">*</span> (PDF, JPG, PNG ≤ 20MB)</span>}
+            </button>
+            <textarea
+              value={dispatchModal.comment}
+              onChange={(e) => setDispatchModal((prev) => ({ ...prev, comment: e.target.value }))}
+              rows={2}
+              placeholder="หมายเหตุ (ถ้ามี)"
+              className="w-full box-border rounded-xl border border-slate-200 px-3.5 py-2.5 mt-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
+            />
+            {dispatchModal.error && <p className="text-xs text-red-500 mt-2 mb-0">{dispatchModal.error}</p>}
+            <div className="flex gap-2.5 mt-4">
+              <button
+                type="button"
+                disabled={dispatchModal.submitting}
+                onClick={() => setDispatchModal({ open: false, request: null, file: null, comment: '', submitting: false, error: '' })}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer bg-white"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={dispatchModal.submitting}
+                onClick={handleDispatchSubmit}
+                className="flex-1 py-2.5 rounded-xl border-none text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                {dispatchModal.submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                แนบไฟล์และออกใบส่งตัว
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Delete Confirm Modal */}
       {deleteModal.open && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => !deleteModal.submitting && setDeleteModal({ open: false, request: null, submitting: false, error: '' })}>
@@ -971,15 +1426,212 @@ const AllRequestsOverviewPage = () => {
         document.body
       )}
 
+      {/* Sequential Approval Wizard — แนบหนังสือขอความอนุเคราะห์ทีละคน */}
+      {approveWizard.open && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={closeApproveWizard} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-800 m-0">อนุมัติคำร้องแบบต่อเนื่อง</h3>
+                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                    รายการที่ {approveWizard.index + 1} จาก {approveWizard.queue.length} รายการ
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-violet-600 rounded-full transition-all duration-300"
+                  style={{ width: `${approveWizard.queue.length > 0 ? (approveWizard.index / approveWizard.queue.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-4 overflow-y-auto grow">
+              {wizardCurrent ? (
+                <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3.5">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                    <div>
+                      <div className="text-[11px] text-slate-500 mb-0.5">ชื่อ-นามสกุล</div>
+                      <div className="text-xs font-semibold text-slate-800 break-words">{wizardCurrent.studentName || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-slate-500 mb-0.5">รหัสนักศึกษา</div>
+                      <div className="text-xs font-semibold text-slate-800">{wizardCurrent.studentId || '-'}</div>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-[11px] text-slate-500 mb-0.5">บริษัทที่ยื่นขอฝึกงาน</div>
+                      <div className="text-xs font-semibold text-slate-800 break-words">{wizardCurrent.company || '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-4 text-xs text-slate-500">
+                  ไม่พบข้อมูลคำร้องในคิว — อาจถูกลบหรือปรับสถานะไปแล้ว
+                </div>
+              )}
+
+              <div className="mt-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  หนังสือขอความอนุเคราะห์ / หนังสือส่งตัว <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  ref={wizardFileRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setApproveWizard((p) => ({ ...p, file: f, error: '' }));
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => wizardFileRef.current?.click()}
+                  disabled={approveWizard.submitting}
+                  className={`w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-5 transition cursor-pointer border-0 ${
+                    approveWizard.file
+                      ? 'border-violet-300 bg-violet-50/60'
+                      : 'border-slate-200 bg-slate-50/60 hover:border-violet-300 hover:bg-violet-50/40'
+                  }`}
+                >
+                  <FileUp className={`w-6 h-6 ${approveWizard.file ? 'text-violet-600' : 'text-slate-400'}`} />
+                  {approveWizard.file ? (
+                    <>
+                      <span className="text-xs font-semibold text-violet-700 break-all text-center">{approveWizard.file.name}</span>
+                      <span className="text-[11px] text-slate-500">คลิกเพื่อเปลี่ยนไฟล์</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-semibold text-slate-600">คลิกเพื่อเลือกไฟล์สำหรับนักศึกษาคนนี้</span>
+                      <span className="text-[11px] text-slate-400">PDF, JPG หรือ PNG</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {approveWizard.error && (
+                <div className="mt-3 text-[11px] text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                  {approveWizard.error}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2.5 pb-3 px-5 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={closeApproveWizard}
+                disabled={approveWizard.submitting}
+                className="w-full sm:w-auto py-2 px-3 text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border-none bg-transparent disabled:opacity-50"
+              >
+                ยกเลิกคิว
+              </button>
+              {approveWizard.index + 1 < approveWizard.queue.length && (
+                <button
+                  type="button"
+                  onClick={handleWizardSkip}
+                  disabled={approveWizard.submitting}
+                  className="w-full sm:w-auto py-2 px-3 text-xs font-semibold rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer border-none bg-transparent disabled:opacity-50"
+                >
+                  ข้ามรายการนี้
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleWizardSubmit}
+                disabled={approveWizard.submitting || !wizardCurrent}
+                className="w-full sm:w-auto py-2 px-3.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap transition cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {approveWizard.submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {approveWizard.submitting
+                  ? 'กำลังบันทึก...'
+                  : approveWizard.index + 1 >= approveWizard.queue.length
+                    ? 'แนบไฟล์และอนุมัติ (คนสุดท้าย)'
+                    : 'แนบไฟล์และอนุมัติ →'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Batch Reject Modal */}
+      {batchRejectModal.open && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={() => !batchRejectModal.submitting && setBatchRejectModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+            <h3 className="text-base font-bold text-slate-800 mt-0 mb-1">ตีกลับคำร้อง {selectedIds.length} รายการ</h3>
+            <p className="text-xs text-slate-500 mb-3 m-0">ระบุเหตุผลร่วมสำหรับทุกรายการที่เลือก</p>
+            <textarea
+              value={batchRejectModal.reason}
+              onChange={(e) => setBatchRejectModal((p) => ({ ...p, reason: e.target.value, error: '' }))}
+              placeholder="เหตุผลที่ไม่อนุมัติ/ส่งกลับแก้ไข *"
+              className="w-full box-border rounded-xl border border-slate-200 p-3 text-xs resize-none h-24 text-slate-700 bg-slate-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400"
+            />
+            {batchRejectModal.error && <p className="text-[11px] font-semibold text-red-500 mt-1.5 m-0">{batchRejectModal.error}</p>}
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setBatchRejectModal((p) => ({ ...p, open: false }))} disabled={batchRejectModal.submitting}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 bg-white hover:bg-slate-50 cursor-pointer">ยกเลิก</button>
+              <button type="button" onClick={submitBatchReject} disabled={batchRejectModal.submitting}
+                className="flex-1 py-2.5 rounded-xl border-none text-sm font-semibold text-white bg-red-500 hover:bg-red-600 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5">
+                {batchRejectModal.submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                ยืนยันตีกลับ
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Batch Schedule Modal */}
+      {batchScheduleModal.open && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={() => !batchScheduleModal.submitting && setBatchScheduleModal((p) => ({ ...p, open: false }))} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+            <h3 className="text-base font-bold text-slate-800 mt-0 mb-1">กำหนดวันฝึกงาน {selectedIds.length} รายการ</h3>
+            <p className="text-xs text-slate-500 mb-3 m-0">ระบุช่วงวันฝึกงานร่วมสำหรับทุกรายการที่เลือก</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">วันเริ่มฝึกงาน *</label>
+                <input type="date" value={batchScheduleModal.startDate}
+                  onChange={(e) => setBatchScheduleModal((p) => ({ ...p, startDate: e.target.value, error: '' }))}
+                  className="w-full box-border h-10 px-3 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15" />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">วันสิ้นสุด *</label>
+                <input type="date" value={batchScheduleModal.endDate}
+                  onChange={(e) => setBatchScheduleModal((p) => ({ ...p, endDate: e.target.value, error: '' }))}
+                  className="w-full box-border h-10 px-3 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15" />
+              </div>
+            </div>
+            {batchScheduleModal.error && <p className="text-[11px] font-semibold text-red-500 mt-1.5 m-0">{batchScheduleModal.error}</p>}
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setBatchScheduleModal((p) => ({ ...p, open: false }))} disabled={batchScheduleModal.submitting}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 bg-white hover:bg-slate-50 cursor-pointer">ยกเลิก</button>
+              <button type="button" onClick={submitBatchSchedule} disabled={batchScheduleModal.submitting}
+                className="flex-1 py-2.5 rounded-xl border-none text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5">
+                {batchScheduleModal.submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                บันทึก
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Toast */}
       {toast.open && createPortal(
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[110] bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5" role="status">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[110] bg-white border border-gray-200/80 text-gray-900 text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5" role="status">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
           {toast.message}
           <button
             type="button"
             onClick={() => setToast({ open: false, message: '', severity: 'success' })}
-            className="ml-1 text-slate-400 hover:text-white transition cursor-pointer border-none bg-transparent text-lg leading-none p-0"
+            className="ml-1 text-gray-400 hover:text-gray-700 transition cursor-pointer border-none bg-transparent text-lg leading-none p-0"
             aria-label="ปิด"
           >
             ×

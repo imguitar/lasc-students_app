@@ -23,13 +23,14 @@ import {
     TableRow,
     Typography,
 } from '@mui/material';
-import { CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Users, Video, MapPin, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, FileText, Loader2, Trash2, Upload, Users, Video, MapPin, X } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
 import NotificationBell from '../../components/NotificationBell';
 import DateTimeIndicator from '../../components/DateTimeIndicator';
 import StatCard from '../../components/StatCard';
+import { getUploadUrl } from '../../utils/fileUrl';
 
 const AdvisorSupervisionPage = () => {
     const navigate = useNavigate();
@@ -51,6 +52,7 @@ const AdvisorSupervisionPage = () => {
     });
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const [actionMenu, setActionMenu] = useState({ anchor: null, request: null });
+    const [docUpload, setDocUpload] = useState({ uploading: false, progress: 0, docType: 'แบบบันทึกการนิเทศ', dragOver: false });
 
     const closeActionMenu = () => setActionMenu({ anchor: null, request: null });
 
@@ -149,7 +151,7 @@ const AdvisorSupervisionPage = () => {
     useEffect(() => {
         const userStr = localStorage.getItem('user');
         if (!userStr) {
-            navigate('/login');
+            navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
             return;
         }
 
@@ -245,6 +247,8 @@ const AdvisorSupervisionPage = () => {
                         ? {
                                 ...request,
                                 supervisionAppointment: {
+                                    // คงเอกสารแนบและเมทาดาทาการมอบหมายเดิมไว้
+                                    ...(request.supervisionAppointment || {}),
                                     date: appointmentDialog.date,
                                     mode: appointmentDialog.mode,
                                     note: appointmentDialog.note,
@@ -267,6 +271,89 @@ const AdvisorSupervisionPage = () => {
     const handleLogout = () => {
         localStorage.removeItem('user');
         navigate('/');
+    };
+
+    // ---- เอกสารการนิเทศ (อัปโหลด/ลบ) ----
+    const ALLOWED_DOC_TYPES = ['แบบบันทึกการนิเทศ', 'ภาพถ่ายการนิเทศ', 'หนังสือขอเข้านิเทศ', 'เอกสารสรุปผลการนิเทศ', 'อื่นๆ'];
+    const DOC_MAX_BYTES = 10 * 1024 * 1024;
+    const docFileUrl = getUploadUrl;
+
+    const activeDialogRequest = supervisionRows.find((r) => r.id === appointmentDialog.requestId);
+    const activeDocs = activeDialogRequest?.supervisionAppointment?.documents || [];
+
+    // ช่วงวันที่ฝึกงานสำหรับกำหนด min/max ของ date picker
+    const internshipRange = (() => {
+        if (!activeDialogRequest) return { min: '', max: '' };
+        const toYMD = (v) => {
+            const d = new Date(v);
+            return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+        return {
+            min: toYMD(activeDialogRequest.internship_start_date || activeDialogRequest.details?.startDate),
+            max: toYMD(activeDialogRequest.internship_end_date || activeDialogRequest.details?.endDate)
+        };
+    })();
+
+    const uploadSupervisionDoc = async (file) => {
+        if (!file || !appointmentDialog.requestId) return;
+        const okExt = /\.(pdf|png|jpe?g)$/i.test(file.name);
+        if (!okExt) {
+            setToast({ open: true, message: 'รองรับเฉพาะไฟล์ PDF, PNG, JPG', severity: 'warning' });
+            return;
+        }
+        if (file.size > DOC_MAX_BYTES) {
+            setToast({ open: true, message: 'ไฟล์ต้องมีขนาดไม่เกิน 10MB', severity: 'warning' });
+            return;
+        }
+        try {
+            setDocUpload((prev) => ({ ...prev, uploading: true, progress: 0 }));
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            const res = await api.post(`/requests/${appointmentDialog.requestId}/supervision-documents`, {
+                document_name: file.name,
+                document_type: docUpload.docType,
+                data_url: dataUrl
+            }, {
+                onUploadProgress: (e) => {
+                    if (e.total) setDocUpload((prev) => ({ ...prev, progress: Math.round((e.loaded / e.total) * 100) }));
+                }
+            });
+            const doc = res.data?.data;
+            if (doc) {
+                persistRequests((all) =>
+                    all.map((r) =>
+                        r.id === appointmentDialog.requestId
+                            ? { ...r, supervisionAppointment: { ...(r.supervisionAppointment || {}), documents: [...(r.supervisionAppointment?.documents || []), doc] } }
+                            : r
+                    )
+                );
+            }
+            setToast({ open: true, message: 'อัปโหลดเอกสารเรียบร้อย', severity: 'success' });
+        } catch (error) {
+            setToast({ open: true, message: 'อัปโหลดไม่สำเร็จ: ' + (error.response?.data?.message || error.message), severity: 'error' });
+        } finally {
+            setDocUpload((prev) => ({ ...prev, uploading: false, progress: 0 }));
+        }
+    };
+
+    const deleteSupervisionDoc = async (doc) => {
+        try {
+            await api.delete(`/requests/${appointmentDialog.requestId}/supervision-documents/${doc.id}`);
+            persistRequests((all) =>
+                all.map((r) =>
+                    r.id === appointmentDialog.requestId
+                        ? { ...r, supervisionAppointment: { ...(r.supervisionAppointment || {}), documents: (r.supervisionAppointment?.documents || []).filter((d) => d.id !== doc.id) } }
+                        : r
+                )
+            );
+            setToast({ open: true, message: 'ลบเอกสารเรียบร้อย', severity: 'success' });
+        } catch (error) {
+            setToast({ open: true, message: 'ลบเอกสารไม่สำเร็จ: ' + (error.response?.data?.message || error.message), severity: 'error' });
+        }
     };
 
     const summary = {
@@ -549,6 +636,8 @@ const AdvisorSupervisionPage = () => {
                                 <input
                                     type="date"
                                     value={appointmentDialog.date}
+                                    min={internshipRange.min || undefined}
+                                    max={internshipRange.max || undefined}
                                     onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, date: event.target.value }))}
                                     className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition"
                                 />
@@ -577,6 +666,10 @@ const AdvisorSupervisionPage = () => {
                                 </div>
                             </div>
                         </div>
+                        <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 -mt-1.5 mb-0">
+                            โปรดระบุวันที่นิเทศให้ตรงกับวันที่ในเอกสารราชการ/หนังสือนิเทศ
+                            {internshipRange.min && internshipRange.max && ` (ช่วงฝึกงาน ${formatDate(internshipRange.min)} – ${formatDate(internshipRange.max)})`}
+                        </p>
 
                         <div>
                             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">หมายเหตุ</label>
@@ -586,6 +679,87 @@ const AdvisorSupervisionPage = () => {
                                 placeholder="รายละเอียดเพิ่มเติม เช่น ลิงก์ประชุม หรือสถานที่นัดหมาย..."
                                 className="w-full box-border rounded-xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 resize-none h-20 text-slate-700 bg-slate-50/70 focus:bg-white transition"
                             />
+                        </div>
+
+                        {/* เอกสารการนิเทศ */}
+                        <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <label className="text-xs font-semibold text-slate-600 m-0">เอกสารนิเทศ (PDF/PNG/JPG ≤ 10MB)</label>
+                                <div className="relative">
+                                    <select
+                                        value={docUpload.docType}
+                                        onChange={(e) => setDocUpload((prev) => ({ ...prev, docType: e.target.value }))}
+                                        className="appearance-none h-8 pl-3 pr-8 text-[11px] text-slate-600 bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/15 cursor-pointer"
+                                    >
+                                        {ALLOWED_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                </div>
+                            </div>
+
+                            <label
+                                onDragOver={(e) => { e.preventDefault(); setDocUpload((prev) => ({ ...prev, dragOver: true })); }}
+                                onDragLeave={() => setDocUpload((prev) => ({ ...prev, dragOver: false }))}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setDocUpload((prev) => ({ ...prev, dragOver: false }));
+                                    uploadSupervisionDoc(e.dataTransfer.files?.[0]);
+                                }}
+                                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-5 text-center transition cursor-pointer ${
+                                    docUpload.dragOver ? 'border-violet-400 bg-violet-50/60' : 'border-slate-200 bg-slate-50/50 hover:border-violet-300 hover:bg-violet-50/30'
+                                }`}
+                            >
+                                <input
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg"
+                                    className="hidden"
+                                    onChange={(e) => { uploadSupervisionDoc(e.target.files?.[0]); e.target.value = ''; }}
+                                />
+                                {docUpload.uploading ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+                                        <span className="text-[11px] text-violet-600 font-semibold">กำลังอัปโหลด... {docUpload.progress}%</span>
+                                        <div className="w-full max-w-[220px] h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                            <div className="h-full bg-violet-600 rounded-full transition-all" style={{ width: `${docUpload.progress}%` }} />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload className="w-5 h-5 text-slate-400" />
+                                        <span className="text-[11px] text-slate-500">ลากไฟล์มาวาง หรือ <span className="text-violet-600 font-semibold">คลิกเลือกไฟล์</span></span>
+                                    </>
+                                )}
+                            </label>
+
+                            {activeDocs.length > 0 && (
+                                <ul className="mt-2.5 space-y-1.5">
+                                    {activeDocs.map((doc) => (
+                                        <li key={doc.id} className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                            <FileText className="w-4 h-4 text-violet-500 shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[11px] font-medium text-slate-700 truncate m-0">{doc.name}</p>
+                                                <p className="text-[10px] text-slate-400 m-0">{doc.type} • {(doc.size / 1024 / 1024).toFixed(1)} MB</p>
+                                            </div>
+                                            <a
+                                                href={docFileUrl(doc.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] font-semibold text-violet-600 hover:text-violet-800 no-underline shrink-0"
+                                            >
+                                                เปิดดู
+                                            </a>
+                                            <button
+                                                type="button"
+                                                onClick={() => deleteSupervisionDoc(doc)}
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer border-none bg-transparent shrink-0"
+                                                aria-label="ลบเอกสาร"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </div>
                 </DialogContent>

@@ -27,7 +27,18 @@ const requireCompanyResponseToken = async (req, res, next) => {
 // GET /api/public/requests/:id — สถานประกอบการดูรายละเอียดคำร้อง (ต้องมีโทเค็น)
 router.get('/:id', requireCompanyResponseToken, handleGetSingleRequest);
 
+// ตอบรับต้องมีลายเซ็นเสมอ (บังคับฝั่ง server ด้วย กันยิง API ข้ามหน้าเว็บ)
+// ปฏิเสธไม่ต้องเซ็น
+const requireSignatureForAccept = (req, res, next) => {
+  const wantsAccept = req.body?.statusCode === 'COMPANY_ACCEPTED'
+    || String(req.body?.status || '').includes('ตอบรับ');
+  if (wantsAccept && !req.body?.signature) {
+    return res.status(400).json({ success: false, message: 'กรุณาเซ็นลายมือชื่อก่อนยืนยันการตอบรับ' });
+  }
+  next();
+};
+
 // PATCH /api/public/requests/:id/status — สถานประกอบการตอบรับ/ปฏิเสธ (ต้องมีโทเค็น)
-router.patch('/:id/status', requireCompanyResponseToken, updateStatusHandler);
+router.patch('/:id/status', requireCompanyResponseToken, requireSignatureForAccept, updateStatusHandler);
 
 module.exports = router;

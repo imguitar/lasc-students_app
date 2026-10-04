@@ -3,6 +3,45 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middlewares/auth');
 
+// สถานะคำร้องที่อนุญาตเช็คชื่อ/เซ็นย้อนหลัง:
+// กำลังฝึก + อนุมัติแล้วรอออกฝึก (วันเริ่มผ่านแล้วแต่ cron ยังไม่ flip) + เฟสประเมิน/ปิดงาน (เซ็นย้อนหลังได้)
+const CHECKIN_REQUEST_STATUSES = [
+  'ออกฝึกงาน', 'กำลังออกฝึกงาน',
+  'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', // legacy keys
+  'อนุมัติแล้ว (รอออกฝึกงาน)', 'รอออกฝึกงาน',
+  'รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติการออกฝึกงาน',
+  'สิ้นสุดการฝึกงาน (รอประเมิน)', 'สิ้นสุดการฝึกงาน', 'ประเมินเสร็จแล้ว',
+  'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว',
+  'ฝึกงานเสร็จแล้ว', 'เสร็จสิ้นสมบูรณ์',
+];
+const CHECKIN_STATUS_SQL = CHECKIN_REQUEST_STATUSES.map(() => '?').join(',');
+// สถานะก่อนออกฝึก — อนุญาตเฉพาะเมื่อมีวันฝึกทางการแล้ว (ห้าม fallback ไปวันยื่นคำร้อง)
+const PRE_ACTIVE_STATUSES = new Set([
+  'อนุมัติแล้ว (รอออกฝึกงาน)', 'รอออกฝึกงาน',
+  'รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติการออกฝึกงาน',
+]);
+const todayBangkok = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+// คืน internship_start_date (YYYY-MM-DD) ของคำร้องล่าสุดที่เข้าเกณฑ์เช็คชื่อ หรือ { error }
+const getCheckinGuard = async (studentId) => {
+  const [reqRows] = await pool.query(
+    `SELECT internship_start_date, status, updated_at, submittedDate FROM requests
+     WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?)
+       AND status IN (${CHECKIN_STATUS_SQL}) ORDER BY id DESC LIMIT 1`,
+    [studentId, studentId, ...CHECKIN_REQUEST_STATUSES]
+  );
+  const row = reqRows[0];
+  if (!row) {
+    return { error: 'ยังไม่สามารถเช็คชื่อได้ — คำร้องยังไม่ถึงช่วงออกฝึกงาน' };
+  }
+  if (PRE_ACTIVE_STATUSES.has(row.status) && !row.internship_start_date) {
+    return { error: 'ยังไม่ได้กำหนดวันเริ่มฝึกงานอย่างเป็นทางการ' };
+  }
+  const startDateStr = row.internship_start_date
+    ? new Date(row.internship_start_date).toISOString().slice(0, 10)
+    : new Date(row.updated_at || row.submittedDate).toISOString().slice(0, 10);
+  return { startDateStr };
+};
+
 // GET /api/checkins
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -47,23 +86,21 @@ router.post('/', authenticate, async (req, res) => {
   try {
     const { studentId, studentName, date, status, note, workExperience, supervisorSignature, supervisorName, supervisorComment } = req.body;
 
-    // Check internship start date
+    // Check internship window: ต้องมีคำร้องที่ถึงช่วงออกฝึก + ไม่ก่อนวันเริ่ม + ไม่ล่วงหน้า
     if (studentId) {
-      const [reqRows] = await pool.query(
-        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
-        [studentId, studentId]
-      );
-      if (reqRows[0]) {
-        const startDateStr = reqRows[0].internship_start_date 
-          ? new Date(reqRows[0].internship_start_date).toISOString().slice(0, 10)
-          : new Date(reqRows[0].updated_at || reqRows[0].submittedDate).toISOString().slice(0, 10);
-        const checkinDateStr = String(date).split('T')[0];
-        if (checkinDateStr < startDateStr) {
-          return res.status(400).json({
-            success: false,
-            message: `ไม่สามารถบันทึกรายงานก่อนวันเริ่มฝึกงานได้ (วันเริ่มฝึกงานคือ: ${startDateStr})`
-          });
-        }
+      const checkinDateStr = String(date).split('T')[0];
+      if (checkinDateStr > todayBangkok()) {
+        return res.status(400).json({ success: false, message: 'ไม่สามารถเช็คชื่อล่วงหน้าได้' });
+      }
+      const guard = await getCheckinGuard(studentId);
+      if (guard.error) {
+        return res.status(400).json({ success: false, message: guard.error });
+      }
+      if (checkinDateStr < guard.startDateStr) {
+        return res.status(400).json({
+          success: false,
+          message: `ไม่สามารถบันทึกรายงานก่อนวันเริ่มฝึกงานได้ (วันเริ่มฝึกงานคือ: ${guard.startDateStr})`
+        });
       }
     }
 
@@ -100,25 +137,19 @@ router.patch('/batch-sign', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'กรุณาเลือกวันที่ต้องการเซ็นรับรองอย่างน้อย 1 วัน' });
     }
 
-    // Filter out dates strictly before internship_start_date
-    let validDates = dates;
+    // Filter out dates strictly before internship_start_date และวันล่วงหน้า
+    let validDates = dates.filter(d => String(d).split('T')[0] <= todayBangkok());
     if (studentId && dates.length > 0) {
-      const [reqRows] = await pool.query(
-        "SELECT internship_start_date, status, updated_at, submittedDate FROM requests WHERE (studentId = ? OR JSON_UNQUOTE(JSON_EXTRACT(details, '$.student_info.studentId')) = ?) AND status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์') ORDER BY id DESC LIMIT 1",
-        [studentId, studentId]
-      );
-      if (reqRows[0]) {
-        const startDateStr = reqRows[0].internship_start_date 
-          ? new Date(reqRows[0].internship_start_date).toISOString().slice(0, 10)
-          : new Date(reqRows[0].updated_at || reqRows[0].submittedDate).toISOString().slice(0, 10);
-        
-        validDates = dates.filter(d => String(d).split('T')[0] >= startDateStr);
-        if (validDates.length === 0) {
-          return res.status(400).json({
-            success: false,
-            message: `ไม่สามารถเซ็นรับรองวันก่อนวันเริ่มฝึกงานได้ (วันเริ่มฝึกงานคือ: ${startDateStr})`
-          });
-        }
+      const guard = await getCheckinGuard(studentId);
+      if (guard.error) {
+        return res.status(400).json({ success: false, message: guard.error });
+      }
+      validDates = validDates.filter(d => String(d).split('T')[0] >= guard.startDateStr);
+      if (validDates.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `ไม่สามารถเซ็นรับรองวันก่อนวันเริ่มฝึกงานได้ (วันเริ่มฝึกงานคือ: ${guard.startDateStr})`
+        });
       }
     }
 

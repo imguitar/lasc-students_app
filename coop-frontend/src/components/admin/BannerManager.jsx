@@ -1,0 +1,652 @@
+import { useEffect, useState, useRef } from 'react';
+import {
+  Box, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, Typography, Snackbar, Alert as MuiAlert, Switch,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  IconButton, Zoom, MenuItem, Slider
+} from '@mui/material';
+import api from '../../api/axios';
+import { resolveBannerSrc, isExternalImageUrl } from '../../utils/bannerImage';
+import ImageEditorModal from '../ImageEditorModal';
+import {
+  PhotoIcon, XMarkIcon, ArrowUpIcon, ArrowDownIcon, PencilIcon,
+  LinkIcon, ArrowTopRightOnSquareIcon
+} from '@heroicons/react/24/outline';
+
+const emptyForm = {
+  title: '',
+  subtitle: '',
+  image_url: '',
+  image_base64: '',
+  link_url: '',
+  link_label: 'ดูรายละเอียด',
+  display_order: 0,
+  is_active: true,
+  title_color: '#FFFFFF',
+  subtitle_color: '#E2E8F0',
+  show_text_overlay: true,
+  overlay_style: 'gradient_purple',
+  overlay_color: '#4c1d95',
+  overlay_opacity: 75,
+  content_mode: 'standard',
+};
+
+// preset สีเริ่มต้นของแต่ละรูปแบบ overlay — เลือกรูปแบบแล้วเติมสีให้อัตโนมัติ (แก้เองได้ต่อ)
+const OVERLAY_STYLE_OPTIONS = [
+  { value: 'gradient_purple', label: 'ไล่สีม่วงเข้ม (ทางการ)', color: '#4c1d95' },
+  { value: 'gradient_dark', label: 'ไล่สีดำนุ่มนวล', color: '#000000' },
+  { value: 'solid_purple', label: 'ม่วงทึบทั้งภาพ', color: '#4c1d95' },
+  { value: 'solid', label: 'สีทึบทั้งภาพ (กำหนดสีเอง)', color: '#111827' },
+  { value: 'custom', label: 'ไล่สีกำหนดเอง (เลือกสีเอง)', color: '#4c1d95' },
+  { value: 'none', label: 'ไม่มีพื้นหลัง Overlay', color: '#000000' },
+];
+
+// ส่วนจัดการสไลด์แบนเนอร์ — ใช้ซ้ำได้ทั้งหน้า /admin-dashboard/banners และ Home Editor Hub
+const BannerManager = () => {
+  const [banners, setBanners] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [formDialog, setFormDialog] = useState({ open: false, mode: 'create', data: null });
+  const [formData, setFormData] = useState(emptyForm);
+  const [fetchRemote, setFetchRemote] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, title: '' });
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetchBanners();
+  }, []);
+
+  const fetchBanners = async () => {
+    try {
+      const res = await api.get('/banners');
+      setBanners(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch banners:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCreateDialog = () => {
+    const nextOrder = banners.length ? Math.max(...banners.map(b => b.display_order || 0)) + 1 : 1;
+    setFormData({ ...emptyForm, display_order: nextOrder });
+    setFetchRemote(true);
+    setFormDialog({ open: true, mode: 'create', data: null });
+  };
+
+  const openEditDialog = (item) => {
+    setFormData({
+      title: item.title || '',
+      subtitle: item.subtitle || '',
+      image_url: item.image_url || '',
+      image_base64: '',
+      link_url: item.link_url || '',
+      link_label: item.link_label || 'ดูรายละเอียด',
+      display_order: item.display_order ?? 0,
+      is_active: !!item.is_active,
+      title_color: item.title_color || '#FFFFFF',
+      subtitle_color: item.subtitle_color || '#E2E8F0',
+      show_text_overlay: item.show_text_overlay === undefined ? true : !!item.show_text_overlay,
+      overlay_style: item.overlay_style || 'gradient_purple',
+      overlay_color: item.overlay_color || '#4c1d95',
+      overlay_opacity: item.overlay_opacity ?? 75,
+      content_mode: item.content_mode || 'standard',
+    });
+    setFetchRemote(true);
+    setFormDialog({ open: true, mode: 'edit', data: item });
+  };
+
+  const handleCloseDialog = () => setFormDialog({ open: false, mode: 'create', data: null });
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ open: true, message: 'ไฟล์รูปภาพต้องไม่เกิน 5MB', severity: 'warning' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setFormData(prev => ({ ...prev, image_base64: reader.result }));
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const previewSrc = formData.image_base64 || resolveBannerSrc(formData.image_url, '');
+
+  const handleSubmit = async () => {
+    if (!formData.title.trim()) {
+      setToast({ open: true, message: 'กรุณากรอกหัวข้อแบนเนอร์', severity: 'warning' });
+      return;
+    }
+    if (!formData.image_base64 && !formData.image_url.trim()) {
+      setToast({ open: true, message: 'กรุณาอัปโหลดรูปภาพหรือระบุ URL รูปภาพ', severity: 'warning' });
+      return;
+    }
+    const payload = {
+      title: formData.title,
+      subtitle: formData.subtitle,
+      image_url: formData.image_base64 ? null : formData.image_url,
+      image_base64: formData.image_base64 || undefined,
+      fetch_remote_image: !formData.image_base64 && fetchRemote && isExternalImageUrl(formData.image_url),
+      link_url: formData.link_url,
+      link_label: formData.link_label,
+      display_order: Number(formData.display_order) || 0,
+      is_active: formData.is_active,
+      title_color: formData.title_color,
+      subtitle_color: formData.subtitle_color,
+      show_text_overlay: formData.show_text_overlay,
+      overlay_style: formData.overlay_style,
+      overlay_color: formData.overlay_color,
+      overlay_opacity: Number(formData.overlay_opacity) || 0,
+      content_mode: formData.content_mode,
+    };
+    try {
+      if (formDialog.mode === 'create') {
+        await api.post('/banners', payload);
+        setToast({ open: true, message: 'สร้างแบนเนอร์สำเร็จ', severity: 'success' });
+      } else {
+        await api.put(`/banners/${formDialog.data.id}`, payload);
+        setToast({ open: true, message: 'อัปเดตแบนเนอร์สำเร็จ', severity: 'success' });
+      }
+      handleCloseDialog();
+      fetchBanners();
+    } catch (err) {
+      setToast({ open: true, message: err.response?.data?.message || 'เกิดข้อผิดพลาด', severity: 'error' });
+    }
+  };
+
+  const handleToggle = async (id) => {
+    try {
+      const res = await api.patch(`/banners/${id}/toggle`);
+      setToast({ open: true, message: res.data.message, severity: 'success' });
+      fetchBanners();
+    } catch (err) {
+      setToast({ open: true, message: 'เกิดข้อผิดพลาด', severity: 'error' });
+    }
+  };
+
+  const handleMove = async (id, direction) => {
+    const index = banners.findIndex(b => b.id === id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= banners.length) return;
+    const reordered = [...banners];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    setBanners(reordered);
+    try {
+      await api.patch('/banners/reorder', { ids: reordered.map(b => b.id) });
+    } catch (err) {
+      setToast({ open: true, message: 'จัดลำดับไม่สำเร็จ', severity: 'error' });
+      fetchBanners();
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await api.delete(`/banners/${deleteDialog.id}`);
+      setToast({ open: true, message: 'ลบแบนเนอร์สำเร็จ', severity: 'success' });
+      setDeleteDialog({ open: false, id: null, title: '' });
+      fetchBanners();
+    } catch (err) {
+      setToast({ open: true, message: 'ลบไม่สำเร็จ', severity: 'error' });
+    }
+  };
+
+  return (
+    <>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2 }}>
+          + เพิ่มแบนเนอร์
+        </Button>
+      </Box>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+        {/* มุมมองตาราง — เฉพาะหน้าจอ desktop */}
+        <TableContainer sx={{ display: { xs: 'none', md: 'block' } }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 70 }}>ลำดับ</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>แบนเนอร์</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>ลิงก์ปลายทาง</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>สถานะ</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>จัดการ</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={5} align="center">กำลังโหลด...</TableCell></TableRow>
+              ) : banners.length === 0 ? (
+                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4, color: '#94a3b8' }}>ยังไม่มีแบนเนอร์ กด "เพิ่มแบนเนอร์" เพื่อเริ่มต้น</TableCell></TableRow>
+              ) : banners.map((item, index) => (
+                <TableRow key={item.id} hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+                      <IconButton size="small" disabled={index === 0} onClick={() => handleMove(item.id, -1)} aria-label="เลื่อนขึ้น">
+                        <ArrowUpIcon style={{ width: 14, height: 14 }} />
+                      </IconButton>
+                      <Typography variant="caption" sx={{ fontWeight: 700 }}>{index + 1}</Typography>
+                      <IconButton size="small" disabled={index === banners.length - 1} onClick={() => handleMove(item.id, 1)} aria-label="เลื่อนลง">
+                        <ArrowDownIcon style={{ width: 14, height: 14 }} />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Box component="img" src={resolveBannerSrc(item.image_url, '')} referrerPolicy="no-referrer" alt="" sx={{ width: 96, height: 48, borderRadius: 1, objectFit: 'cover', flexShrink: 0, bgcolor: '#f1f5f9', border: '1px solid #e5e7eb' }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.title}
+                        </Typography>
+                        {item.subtitle && (
+                          <Typography variant="caption" sx={{ color: '#64748b', display: 'block', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.subtitle}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {item.link_url ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: '#6d28d9' }}>
+                        <LinkIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        <Typography
+                          variant="caption"
+                          component="a"
+                          href={item.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ color: 'inherit', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 0.25 }}
+                        >
+                          {item.link_label || item.link_url}
+                          <ArrowTopRightOnSquareIcon style={{ width: 12, height: 12 }} />
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" sx={{ color: '#94a3b8' }}>-</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      size="small"
+                      checked={!!item.is_active}
+                      onChange={() => handleToggle(item.id)}
+                      color="success"
+                    />
+                    <Typography variant="caption" sx={{ color: item.is_active ? '#10b981' : '#94a3b8' }}>
+                      {item.is_active ? 'แสดง' : 'ซ่อน'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size="small" variant="outlined" onClick={() => openEditDialog(item)} sx={{ borderRadius: 999, fontWeight: 600 }}>แก้ไข</Button>
+                      <Button size="small" variant="outlined" color="error" onClick={() => setDeleteDialog({ open: true, id: item.id, title: item.title })} sx={{ borderRadius: 999, fontWeight: 600 }}>ลบ</Button>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* มุมมองการ์ด — เฉพาะหน้าจอมือถือ (กันตารางล้นจอ) */}
+        <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+          {loading ? (
+            <Typography sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>กำลังโหลด...</Typography>
+          ) : banners.length === 0 ? (
+            <Typography sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>ยังไม่มีแบนเนอร์ กด "+ เพิ่มแบนเนอร์" เพื่อเริ่มต้น</Typography>
+          ) : banners.map((item, index) => (
+            <Box key={item.id} sx={{ p: 2, borderTop: index === 0 ? 'none' : '1px solid #f3f4f6' }}>
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                <Box component="img" src={resolveBannerSrc(item.image_url, '')} referrerPolicy="no-referrer" alt="" sx={{ width: 88, height: 50, borderRadius: 1.5, objectFit: 'cover', flexShrink: 0, bgcolor: '#f1f5f9', border: '1px solid #e5e7eb' }} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {item.title}
+                  </Typography>
+                  {item.subtitle && (
+                    <Typography variant="caption" sx={{ color: '#64748b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.subtitle}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                  <IconButton size="small" disabled={index === 0} onClick={() => handleMove(item.id, -1)} aria-label="เลื่อนขึ้น">
+                    <ArrowUpIcon style={{ width: 14, height: 14 }} />
+                  </IconButton>
+                  <Typography variant="caption" sx={{ fontWeight: 700 }}>{index + 1}</Typography>
+                  <IconButton size="small" disabled={index === banners.length - 1} onClick={() => handleMove(item.id, 1)} aria-label="เลื่อนลง">
+                    <ArrowDownIcon style={{ width: 14, height: 14 }} />
+                  </IconButton>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5, pt: 1.5, borderTop: '1px solid #f3f4f6' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Switch size="small" checked={!!item.is_active} onChange={() => handleToggle(item.id)} color="success" />
+                  <Typography variant="caption" sx={{ color: item.is_active ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                    {item.is_active ? 'แสดง' : 'ซ่อน'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => openEditDialog(item)} sx={{ borderRadius: 999, fontWeight: 600 }}>แก้ไข</Button>
+                  <Button size="small" variant="outlined" color="error" onClick={() => setDeleteDialog({ open: true, id: item.id, title: item.title })} sx={{ borderRadius: 999, fontWeight: 600 }}>ลบ</Button>
+                </Box>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+
+      {/* Create / Edit Dialog */}
+      <Dialog open={formDialog.open} onClose={handleCloseDialog} fullWidth maxWidth="sm" TransitionComponent={Zoom} PaperProps={{ sx: { borderRadius: 4, boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' } }}>
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', borderBottom: '1px solid #f3f4f6', py: 2, color: '#111' }}>
+          {formDialog.mode === 'create' ? 'เพิ่มแบนเนอร์ใหม่' : 'แก้ไขแบนเนอร์'}
+          <IconButton onClick={handleCloseDialog} sx={{ position: 'absolute', right: 16, top: 12, bgcolor: '#f3f4f6', '&:hover': { bgcolor: '#e5e7eb' } }}>
+            <XMarkIcon style={{ width: 20, height: 20, color: '#4b5563' }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* รูปภาพแบนเนอร์ */}
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#374151', mb: 1 }}>รูปภาพแบนเนอร์ *</Typography>
+              {previewSrc ? (
+                <Box sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: '1px solid #e5e7eb', bgcolor: '#f1f5f9' }}>
+                  <img src={previewSrc} alt="preview" referrerPolicy="no-referrer" style={{ width: '100%', height: 180, objectFit: 'contain', display: 'block' }} />
+                  <Box sx={{ position: 'absolute', right: 8, top: 8, display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => setEditorOpen(true)}
+                      startIcon={<PencilIcon style={{ width: 14, height: 14 }} />}
+                      sx={{ bgcolor: 'rgba(255,255,255,0.92)', color: '#111', '&:hover': { bgcolor: '#fff' }, boxShadow: '0 2px 4px rgba(0,0,0,0.15)', borderRadius: 2, fontWeight: 600, textTransform: 'none' }}
+                    >
+                      แก้ไข
+                    </Button>
+                    <IconButton
+                      onClick={() => setFormData(prev => ({ ...prev, image_base64: '', image_url: '' }))}
+                      sx={{ bgcolor: 'rgba(255,255,255,0.9)', color: '#ef4444', '&:hover': { bgcolor: '#fff' } }}
+                      size="small"
+                    >
+                      <XMarkIcon style={{ width: 18, height: 18 }} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ) : (
+                <Button
+                  component="label"
+                  variant="outlined"
+                  fullWidth
+                  sx={{ borderStyle: 'dashed', borderRadius: 2, py: 4, color: '#6d28d9', borderColor: '#c4b5fd', bgcolor: '#faf5ff', textTransform: 'none', fontWeight: 600 }}
+                  startIcon={<PhotoIcon style={{ width: 22, height: 22 }} />}
+                >
+                  อัปโหลดรูปภาพ (JPG, PNG, WEBP ≤ 5MB)
+                  <input ref={fileInputRef} type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} />
+                </Button>
+              )}
+              {previewSrc && (
+                <Button component="label" size="small" sx={{ mt: 1, textTransform: 'none' }} startIcon={<PhotoIcon style={{ width: 16, height: 16 }} />}>
+                  เปลี่ยนรูปภาพ
+                  <input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} />
+                </Button>
+              )}
+              <TextField
+                label="หรือระบุ URL รูปภาพ"
+                name="image_url"
+                value={formData.image_url}
+                onChange={handleFormChange}
+                size="small"
+                fullWidth
+                disabled={!!formData.image_base64}
+                placeholder="https://example.com/banner.jpg"
+                sx={{ mt: 1 }}
+              />
+              {isExternalImageUrl(formData.image_url) && !formData.image_base64 && (
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 1, p: 1.25, borderRadius: 1.5, bgcolor: '#fffbeb', border: '1px solid #fde68a' }}>
+                  <Switch
+                    size="small"
+                    checked={fetchRemote}
+                    onChange={(e) => setFetchRemote(e.target.checked)}
+                    color="warning"
+                  />
+                  <Typography variant="caption" sx={{ color: '#92400e', lineHeight: 1.5 }}>
+                    <strong>ดึงรูปมาเก็บในระบบถาวร (แนะนำ)</strong><br />
+                    ลิงก์ภายนอกโดยเฉพาะจาก Facebook อาจหมดอายุหรือถูกบล็อก (403) — เลือกตัวเลือกนี้เพื่อให้เซิร์ฟเวอร์ดาวน์โหลดรูปมาเก็บไว้ในระบบ
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            <TextField label="หัวข้อแบนเนอร์ *" name="title" value={formData.title} onChange={handleFormChange} size="small" fullWidth />
+            <TextField
+              label="คำบรรยาย (subtitle)"
+              name="subtitle"
+              value={formData.subtitle}
+              onChange={handleFormChange}
+              size="small"
+              fullWidth
+              multiline
+              minRows={2}
+              placeholder="เช่น คณะศิลปศาสตร์และวิทยาศาสตร์"
+              sx={{ '& textarea': { resize: 'vertical', minHeight: '48px' } }}
+            />
+
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <TextField
+                label="ลิงก์ปลายทาง (ไม่บังคับ)"
+                name="link_url"
+                value={formData.link_url}
+                onChange={handleFormChange}
+                size="small"
+                fullWidth
+                placeholder="https://facebook.com/..."
+              />
+              <TextField
+                label="ข้อความบนปุ่ม"
+                name="link_label"
+                value={formData.link_label}
+                onChange={handleFormChange}
+                size="small"
+                sx={{ width: { xs: '100%', sm: 180 } }}
+                disabled={!formData.link_url}
+              />
+            </Box>
+
+            {/* การแสดงผลข้อความบนรูป — โหมด + สีตัวอักษร + overlay */}
+            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <TextField
+                select
+                label="โหมดการแสดงผล"
+                value={formData.content_mode}
+                onChange={(e) => setFormData(prev => ({ ...prev, content_mode: e.target.value }))}
+                size="small"
+                fullWidth
+                helperText={formData.content_mode === 'poster' ? 'โหมดโปสเตอร์: ซ่อนหัวข้อ/คำบรรยาย/ปุ่มทั้งหมด — ใช้เมื่อรูปมีข้อความในตัวแล้ว (ลิงก์ปลายทางจะกดได้ทั้งภาพ)' : undefined}
+              >
+                <MenuItem value="standard">มาตรฐาน — แสดงข้อความทับบนภาพ</MenuItem>
+                <MenuItem value="poster">โปสเตอร์ — ภาพกราฟิกสำเร็จรูป ซ่อนข้อความทับ</MenuItem>
+              </TextField>
+
+              {formData.content_mode === 'standard' && (
+              <>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#374151' }}>ข้อความบนรูปแบนเนอร์</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Switch
+                    size="small"
+                    checked={formData.show_text_overlay}
+                    onChange={(e) => setFormData(prev => ({ ...prev, show_text_overlay: e.target.checked }))}
+                    color="success"
+                  />
+                  <Typography variant="caption" sx={{ color: formData.show_text_overlay ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                    {formData.show_text_overlay ? 'แสดง' : 'ซ่อน (รูปมีข้อความในตัว)'}
+                  </Typography>
+                </Box>
+              </Box>
+              {formData.show_text_overlay && (
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'title_color', label: 'สีหัวข้อ' },
+                    { key: 'subtitle_color', label: 'สีคำบรรยาย' },
+                  ].map((c) => (
+                    <Box key={c.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 150 }}>
+                      <Box
+                        component="input"
+                        type="color"
+                        value={formData[c.key]}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [c.key]: e.target.value }))}
+                        sx={{ width: 36, height: 36, border: '1px solid #e5e7eb', borderRadius: 1.5, p: 0.25, cursor: 'pointer', bgcolor: '#fff', flexShrink: 0 }}
+                      />
+                      <TextField
+                        label={c.label}
+                        value={formData[c.key]}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [c.key]: e.target.value }))}
+                        size="small"
+                        sx={{ flex: 1 }}
+                        inputProps={{ maxLength: 9, style: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* พื้นหลัง Overlay — รูปแบบ + สี + ความทึบ */}
+              {formData.show_text_overlay && (
+                <Box sx={{ borderTop: '1px dashed #e5e7eb', pt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#374151' }}>พื้นหลังหลังข้อความ (Overlay)</Typography>
+                  <TextField
+                    select
+                    label="รูปแบบ Overlay"
+                    value={formData.overlay_style}
+                    onChange={(e) => {
+                      const opt = OVERLAY_STYLE_OPTIONS.find(o => o.value === e.target.value);
+                      setFormData(prev => ({
+                        ...prev,
+                        overlay_style: e.target.value,
+                        overlay_color: opt ? opt.color : prev.overlay_color,
+                      }));
+                    }}
+                    size="small"
+                    fullWidth
+                  >
+                    {OVERLAY_STYLE_OPTIONS.map(o => (
+                      <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                    ))}
+                  </TextField>
+                  {formData.overlay_style !== 'none' && (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          component="input"
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(formData.overlay_color) ? formData.overlay_color : '#4c1d95'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, overlay_color: e.target.value }))}
+                          sx={{ width: 36, height: 36, border: '1px solid #e5e7eb', borderRadius: 1.5, p: 0.25, cursor: 'pointer', bgcolor: '#fff', flexShrink: 0 }}
+                        />
+                        <TextField
+                          label="สี Overlay"
+                          value={formData.overlay_color}
+                          onChange={(e) => setFormData(prev => ({ ...prev, overlay_color: e.target.value }))}
+                          size="small"
+                          sx={{ flex: 1 }}
+                          inputProps={{ maxLength: 9, style: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                        />
+                      </Box>
+                      <Box sx={{ px: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>ความทึบของ Overlay</Typography>
+                          <Typography variant="caption" sx={{ color: '#111', fontWeight: 700, fontFamily: 'monospace' }}>{formData.overlay_opacity}%</Typography>
+                        </Box>
+                        <Slider
+                          size="small"
+                          min={0}
+                          max={100}
+                          value={Number(formData.overlay_opacity) || 0}
+                          onChange={(_, v) => setFormData(prev => ({ ...prev, overlay_opacity: v }))}
+                          sx={{ color: '#7c3aed' }}
+                        />
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              )}
+              </>
+              )}
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <TextField
+                label="ลำดับการแสดง"
+                name="display_order"
+                type="number"
+                value={formData.display_order}
+                onChange={handleFormChange}
+                size="small"
+                sx={{ width: 140 }}
+                inputProps={{ min: 0 }}
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Switch
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                  color="success"
+                />
+                <Typography variant="body2" sx={{ color: formData.is_active ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                  {formData.is_active ? 'แสดงบนหน้าแรก' : 'ซ่อนไว้'}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, pt: 1 }}>
+          <Button onClick={handleCloseDialog} sx={{ textTransform: 'none' }}>ยกเลิก</Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={!formData.title.trim()}
+            sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
+          >
+            {formDialog.mode === 'create' ? 'บันทึกแบนเนอร์' : 'บันทึกการแก้ไข'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Image Editor — ครอป/หมุน/ปรับสี ก่อนบันทึก */}
+      {previewSrc && (
+        <ImageEditorModal
+          open={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          imageSrc={previewSrc}
+          title="แก้ไขรูปแบนเนอร์"
+          defaultAspect={21 / 9}
+          onSave={({ image }) => {
+            setFormData(prev => ({ ...prev, image_base64: image }));
+            setEditorOpen(false);
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null, title: '' })}>
+        <DialogTitle>ยืนยันการลบแบนเนอร์</DialogTitle>
+        <DialogContent>
+          <Typography>คุณต้องการลบแบนเนอร์ <strong>"{deleteDialog.title}"</strong> ใช่หรือไม่?</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteDialog({ open: false, id: null, title: '' })}>ยกเลิก</Button>
+          <Button variant="contained" color="error" onClick={handleDeleteConfirm}>ลบ</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar open={toast.open} autoHideDuration={2600} onClose={() => setToast(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <MuiAlert elevation={6} variant="filled" onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>{toast.message}</MuiAlert>
+      </Snackbar>
+    </>
+  );
+};
+
+export default BannerManager;

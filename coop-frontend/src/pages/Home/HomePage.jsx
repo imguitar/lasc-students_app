@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import { resolveBannerSrc } from '../../utils/bannerImage';
 import './HomePage.css';
 import logo from '../../assets/LASC-SSKRU-1.png';
 import sskruBg from '../../assets/SSKRU_BG.png';
@@ -17,19 +18,59 @@ import {
   AcademicCapIcon,
   BookOpenIcon,
   StarIcon,
-  DocumentArrowDownIcon,
-  QuestionMarkCircleIcon,
-  ClockIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 import { redirectToProfileLogin } from '../../utils/sso';
 import NotificationBell from '../../components/NotificationBell';
 import UserProfileMenu from '../../components/UserProfileMenu';
+import QuickActionBar from '../../components/QuickActionBar';
+import FacebookIcon from '../../components/icons/FacebookIcon';
+import DigitalJourney from '../../components/home/DigitalJourney';
+import FaqAccordion from '../../components/home/FaqAccordion';
+import HomeFooter from '../../components/home/HomeFooter';
+
+const DEFAULT_BANNER = {
+  id: 'default',
+  title: 'ระบบบริหารจัดการการฝึกประสบการณ์วิชาชีพและสหกิจศึกษา',
+  subtitle: 'คณะศิลปศาสตร์และวิทยาศาสตร์',
+  image_url: null, // ใช้ sskruBg เป็น fallback
+  link_url: null,
+  link_label: 'ดูรายละเอียด',
+};
+
+// แปลง HEX เป็น rgba() สำหรับสร้าง overlay จากค่าที่แอดมินตั้งไว้ต่อแบนเนอร์
+const hexToRgba = (hex, alpha) => {
+  const v = String(hex || '').replace('#', '');
+  const full = v.length === 3 ? v.split('').map(c => c + c).join('') : v.padEnd(6, '0').slice(0, 6);
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return `rgba(0,0,0,${alpha})`;
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+};
+
+// คำนวณ CSS background ของ overlay จาก overlay_style/color/opacity ใน DB
+const bannerOverlayBackground = (banner) => {
+  const opacity = Math.max(0, Math.min(100, Number(banner.overlay_opacity ?? 75))) / 100;
+  const color = banner.overlay_color || '#4c1d95';
+  const style = banner.overlay_style || 'gradient_purple';
+  if (style === 'none' || opacity === 0) return 'none';
+  if (style.startsWith('solid')) return hexToRgba(color, opacity);
+  // gradient_* / custom — ไล่เข้มด้านล่างจางด้านบนให้อ่านข้อความง่าย
+  return `linear-gradient(to top, ${hexToRgba(color, opacity)} 0%, ${hexToRgba(color, opacity * 0.55)} 55%, transparent 100%)`;
+};
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [stats, setStats] = useState({ companies: 0, students: 0 });
+  const [banners, setBanners] = useState([DEFAULT_BANNER]);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isHeroHovered, setIsHeroHovered] = useState(false);
+  const [urgentAnnouncement, setUrgentAnnouncement] = useState({
+    is_active: true,
+    text: 'ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป',
+    link_url: '',
+  });
   const carouselRef = useRef(null);
   const [isCarouselHovered, setIsCarouselHovered] = useState(false);
 
@@ -58,7 +99,9 @@ const HomePage = () => {
   const [contactInfo, setContactInfo] = useState({
     phone: '',
     email: '',
-    name: ''
+    name: '',
+    facebook_url: '',
+    facebook_name: ''
   });
 
   useEffect(() => {
@@ -94,7 +137,38 @@ const HomePage = () => {
         }
       })
       .catch(() => {});
+
+    api.get('/public/banners')
+      .then(res => {
+        const list = res.data?.data || [];
+        if (list.length > 0) setBanners(list);
+      })
+      .catch(() => {});
+
+    api.get('/public/settings')
+      .then(res => {
+        const announcement = res.data?.data?.urgent_announcement;
+        if (announcement && typeof announcement === 'object') {
+          setUrgentAnnouncement({
+            is_active: !!announcement.is_active,
+            text: announcement.text || '',
+            link_url: announcement.link_url || '',
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  // Autoplay Hero Banner Carousel (หยุดเมื่อ hover) — สไลด์เดียวไม่ต้องหมุน
+  useEffect(() => {
+    if (isHeroHovered || banners.length <= 1) return undefined;
+    const interval = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % banners.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [isHeroHovered, banners.length]);
+
+  const goToSlide = (index) => setActiveSlide((index + banners.length) % banners.length);
 
   // Autoplay News Carousel Effect
   useEffect(() => {
@@ -114,18 +188,36 @@ const HomePage = () => {
       ? { label: 'แดชบอร์ด', to: '/admin-dashboard' }
       : (normalizedRole === 'advisor' || normalizedRole === 'teacher')
         ? { label: 'แดชบอร์ด', to: '/advisor-dashboard' }
-        : { label: 'ยื่นคำร้อง', to: '/dashboard/new-request' };
+        : { label: 'แดชบอร์ด', to: '/dashboard' };
 
-  const navButtonClass = 'rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-5 py-2.5 flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition cursor-pointer border-none no-underline';
+  const navButtonClass = 'rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold p-2.5 md:px-5 md:py-2.5 flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition cursor-pointer border-none no-underline';
+
+
+  // ตัดคำนำหน้า "ประกาศด่วน:" ออกเพราะมี badge กำกับแล้ว
+  const announcementText = (urgentAnnouncement.text || '').replace(/^ประกาศด่วน\s*[:：]?\s*/, '');
+
+  // normalize ลิงก์เพจ — เติม https:// ให้อัตโนมัติ และปล่อยเฉพาะโปรโตคอล http/https (กัน javascript:)
+  const facebookHref = (() => {
+    const raw = (contactInfo.facebook_url || '').trim();
+    if (!raw) return '';
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  })();
 
   return (
     <div className="home-container bg-slate-50/50">
       {/* Utility Bar */}
       <div className="bg-purple-950 text-purple-200 text-xs py-2 px-4 md:px-6 flex justify-end items-center gap-4">
-        <span className="inline-flex items-center gap-1.5">
-          <PhoneIcon className="w-3.5 h-3.5 text-amber-300" />
-          {contactInfo.phone ? `ติดต่อสอบถาม ${contactInfo.phone}` : 'ติดต่อสอบถาม 02-XXX-XXXX'}
-        </span>
+        {facebookHref ? (
+          <a href={facebookHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-purple-200 hover:text-white transition-colors no-underline">
+            <FacebookIcon className="w-3.5 h-3.5 text-amber-300" />
+            {contactInfo.facebook_name || 'Facebook'}
+          </a>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <PhoneIcon className="w-3.5 h-3.5 text-amber-300" />
+            {contactInfo.phone ? `ติดต่อสอบถาม ${contactInfo.phone}` : 'ติดต่อสอบถาม 02-XXX-XXXX'}
+          </span>
+        )}
         <span className="hidden sm:inline-flex items-center gap-1.5">
           <EnvelopeIcon className="w-3.5 h-3.5 text-amber-300" />
           {contactInfo.email || 'contact@example.com'}
@@ -150,9 +242,10 @@ const HomePage = () => {
               </button>
             ) : (
               <>
-                <Link to={navAction.to} className={navButtonClass}>
-                  <span>{navAction.label}</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5" />
+                <Link to={navAction.to} className={navButtonClass} aria-label="ไปยังแดชบอร์ด" title="ไปยังแดชบอร์ด">
+                  <Squares2X2Icon className="w-4 h-4 md:hidden" />
+                  <span className="hidden md:inline">{navAction.label}</span>
+                  <ArrowRightIcon className="hidden md:inline w-3.5 h-3.5" />
                 </Link>
                 <NotificationBell />
                 <UserProfileMenu user={user} compact={true} />
@@ -162,45 +255,150 @@ const HomePage = () => {
         </div>
       </nav>
 
-      {/* Ticker Banner — pill */}
-      <div className="px-4 flex justify-center">
-        <div className="bg-purple-50 border border-purple-200/70 text-purple-900 text-xs sm:text-sm py-2 px-5 rounded-full max-w-4xl text-center shadow-xs my-3 inline-flex items-center justify-center gap-2">
-          <MegaphoneIcon className="w-4 h-4 text-purple-500 shrink-0" />
-          <span className="font-medium">ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป</span>
+      {/* Slim Announcement Bar — sub-navbar แนบใต้ navbar (เนื้อหาจาก site_settings.urgent_announcement) */}
+      {urgentAnnouncement.is_active && urgentAnnouncement.text && (
+        <div className="bg-transparent">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-center gap-2.5 text-xs">
+            <span className="inline-flex items-center gap-1 bg-purple-50 border border-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">
+              <MegaphoneIcon className="w-3 h-3" />
+              ประกาศด่วน
+            </span>
+            {urgentAnnouncement.link_url ? (
+              <a
+                href={urgentAnnouncement.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-600 hover:text-purple-700 hover:underline no-underline truncate"
+              >
+                {announcementText}
+              </a>
+            ) : (
+              <span className="text-slate-600 truncate">{announcementText}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Hero Banner Carousel — สไลด์ประชาสัมพันธ์จากระบบ (fallback = อาคารจุฬาภรณวลัยลักษณ์) */}
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
+        <div
+          className="relative aspect-[16/10] md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden shadow-md md:shadow-2xl border border-purple-100/50 bg-slate-100"
+          onMouseEnter={() => setIsHeroHovered(true)}
+          onMouseLeave={() => setIsHeroHovered(false)}
+        >
+          {banners.map((banner, index) => {
+            // โหมดโปสเตอร์ = ภาพมีข้อความในตัวแล้ว → ซ่อนข้อความทับ/overlay ทั้งหมด
+            const isPoster = banner.content_mode === 'poster';
+            const showText = !isPoster && banner.show_text_overlay !== 0 && banner.show_text_overlay !== false;
+            const bannerImage = (
+              <img
+                src={resolveBannerSrc(banner.image_url, sskruBg)}
+                referrerPolicy="no-referrer"
+                alt={banner.title || 'แบนเนอร์ประชาสัมพันธ์'}
+                onError={(e) => {
+                  if (e.currentTarget.src !== sskruBg) e.currentTarget.src = sskruBg;
+                }}
+                className="w-full h-full object-cover object-center transition-transform duration-700"
+              />
+            );
+            return (
+            <div
+              key={banner.id}
+              className={`absolute inset-0 transition-opacity duration-700 ${index === activeSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+              aria-hidden={index !== activeSlide}
+            >
+              {isPoster && banner.link_url ? (
+                <a href={banner.link_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-pointer" aria-label={banner.link_label || 'ดูรายละเอียด'}>
+                  {bannerImage}
+                </a>
+              ) : bannerImage}
+              {/* Overlay — สี/รูปแบบ/ความทึบตั้งค่าได้ต่อแบนเนอร์จากหน้า admin */}
+              {showText && (
+                <div className="absolute inset-0" style={{ background: bannerOverlayBackground(banner) }} />
+              )}
+              {showText && (
+                <div className="absolute bottom-5 sm:bottom-6 left-6 sm:left-8 right-6 sm:right-8 text-white">
+                  <h1
+                    className="text-2xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm text-white m-0"
+                    style={banner.title_color ? { color: banner.title_color } : undefined}
+                  >
+                    {banner.title}
+                  </h1>
+                  {index === 0 && banner.id === 'default' && (
+                    <p className="mt-2 text-purple-100/90 text-sm sm:text-base max-w-2xl font-light leading-relaxed m-0">
+                      เชื่อมโยงนักศึกษา อาจารย์ และสถานประกอบการชั้นนำ ยกระดับทักษะสู่วิชาชีพในอนาคต
+                    </p>
+                  )}
+                  {banner.subtitle && (
+                    <p
+                      className="mt-1.5 text-sm text-purple-100/80 max-w-2xl leading-relaxed m-0 drop-shadow-sm"
+                      style={banner.subtitle_color ? { color: banner.subtitle_color } : undefined}
+                    >
+                      {banner.subtitle}
+                    </p>
+                  )}
+                  {banner.link_url && (
+                    <a
+                      href={banner.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 mt-2.5 text-xs font-semibold text-white/90 hover:text-white underline underline-offset-4 transition no-underline drop-shadow-sm"
+                    >
+                      {banner.link_label || 'ดูรายละเอียด'}
+                      <ArrowRightIcon className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+            );
+          })}
+
+          {/* Carousel controls — แสดงเมื่อมีมากกว่า 1 สไลด์ */}
+          {banners.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => goToSlide(activeSlide - 1)}
+                aria-label="สไลด์ก่อนหน้า"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 p-1 bg-transparent hover:bg-transparent text-white/80 hover:text-white transition-all border-0 shadow-none appearance-none outline-none focus:outline-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] cursor-pointer"
+              >
+                <ChevronLeftIcon className="w-3 h-3 stroke-[2.5]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => goToSlide(activeSlide + 1)}
+                aria-label="สไลด์ถัดไป"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 p-1 bg-transparent hover:bg-transparent text-white/80 hover:text-white transition-all border-0 shadow-none appearance-none outline-none focus:outline-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] cursor-pointer"
+              >
+                <ChevronRightIcon className="w-3 h-3 stroke-[2.5]" />
+              </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                {banners.map((banner, index) => (
+                  <button
+                    key={banner.id}
+                    type="button"
+                    onClick={() => goToSlide(index)}
+                    aria-label={`ไปสไลด์ที่ ${index + 1}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer border-0 ${index === activeSlide ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/75'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Hero — rounded image card with purple gradient overlay */}
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
-        <div className="relative h-[380px] sm:h-[460px] rounded-3xl overflow-hidden shadow-2xl border border-purple-100/50">
-          <img
-            src={sskruBg}
-            alt="อาคารจุฬาภรณวลัยลักษณ์"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-700"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-purple-950/90 via-purple-900/40 to-transparent" />
-          <div className="absolute bottom-6 sm:bottom-8 left-6 sm:left-8 right-6 sm:right-8 text-white">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/25 text-purple-100 mb-3">
-              คณะศิลปศาสตร์และวิทยาศาสตร์
-            </span>
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm text-white m-0">
-              ระบบบริหารจัดการการฝึกประสบการณ์วิชาชีพและสหกิจศึกษา
-            </h1>
-            <p className="mt-2 text-purple-100/90 text-sm sm:text-base max-w-2xl font-light leading-relaxed m-0">
-              เชื่อมโยงนักศึกษา อาจารย์ และสถานประกอบการชั้นนำ ยกระดับทักษะสู่วิชาชีพในอนาคต
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* Quick Actions — ทางลัดยื่นคำร้อง/ติดตามสถานะ/ค้นหาบริษัท/ดาวน์โหลดฟอร์ม */}
+      <QuickActionBar />
 
       {/* Announcements Section */}
       {announcements.length > 0 && (
-        <section className="py-12 sm:py-16">
+        <section className="pt-4 pb-12 sm:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-4 sm:mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
                 <div className="w-14 h-1 bg-purple-600 rounded-full mt-2.5" />
               </div>
               <div className="flex items-center gap-4">
@@ -246,7 +444,7 @@ const HomePage = () => {
                     </span>
                   )}
                   {news.coverImage ? (
-                    <img src={news.coverImage} alt={news.title} className="w-full aspect-[3/2] object-cover" />
+                    <img src={news.coverImage} alt={news.title} referrerPolicy="no-referrer" className="w-full aspect-[3/2] object-cover" />
                   ) : (
                     <div className="w-full aspect-[3/2] bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-50 flex items-center justify-center">
                       <span className="text-purple-300 text-sm font-medium">ไม่มีรูปภาพ</span>
@@ -273,6 +471,9 @@ const HomePage = () => {
           </div>
         </section>
       )}
+
+      {/* ขั้นตอนดิจิทัล 100% Paperless */}
+      <DigitalJourney />
 
       {/* Recommended Companies Gateway */}
       <section className="py-12 sm:py-16">
@@ -352,80 +553,13 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* Resources & Support Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Documents */}
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 sm:p-7">
-              <h3 className="text-lg font-bold text-gray-900 m-0">เอกสารและแบบฟอร์มที่เกี่ยวข้อง</h3>
-              <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-5" />
-              <div className="flex flex-col gap-3">
-                {[
-                  { icon: DocumentArrowDownIcon, title: 'คู่มือการใช้งานระบบฝึกประสบการณ์วิชาชีพออนไลน์', meta: 'PDF' },
-                  { icon: DocumentArrowDownIcon, title: 'แบบฟอร์มบันทึกการปฏิบัติงานประจำวัน', meta: 'Logbook Template' },
-                  { icon: DocumentArrowDownIcon, title: 'เกณฑ์และข้อกำหนดการฝึกงานและสหกิจศึกษาของคณะ', meta: 'เอกสารประกอบ' },
-                ].map((doc, i) => (
-                  <div
-                    key={i}
-                    className="group flex items-center gap-3.5 rounded-xl border border-gray-100 hover:border-purple-200 bg-slate-50/60 hover:bg-purple-50/40 p-4 transition-all cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-white border border-purple-100 text-purple-500 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all">
-                      <doc.icon className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-slate-700 group-hover:text-purple-800 transition-colors leading-snug">
-                        {doc.title}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">{doc.meta}</div>
-                    </div>
-                    <DocumentArrowDownIcon className="w-5 h-5 text-slate-300 group-hover:text-purple-600 shrink-0 transition-colors" />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: FAQ & Contact */}
-            <div className="flex flex-col gap-6">
-              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 sm:p-7 flex-1">
-                <h3 className="text-lg font-bold text-gray-900 m-0">มีข้อสงสัยเกี่ยวกับการฝึกงาน?</h3>
-                <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-5" />
-                <div className="flex flex-col gap-3">
-                  {[
-                    'หากต้องการเปลี่ยนสถานที่ฝึกงานต้องทำอย่างไร? — ติดต่ออาจารย์ที่ปรึกษาเพื่อยื่นคำร้องฉบับใหม่ผ่านระบบ',
-                    'ช่องทางการส่งเล่มรายงานฝึกงาน — ส่งผ่านระบบเมนู "รายงานการฝึกงานประจำวัน" หลังสิ้นสุดการฝึก',
-                  ].map((faq, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl bg-slate-50/60 border border-gray-100 p-4">
-                      <QuestionMarkCircleIcon className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-                      <p className="m-0 text-xs text-slate-600 leading-relaxed">{faq}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-purple-700 via-indigo-700 to-purple-800 text-white shadow-md p-6 sm:p-7">
-                <h3 className="text-base font-bold text-white m-0 mb-4">ติดต่อฝ่ายฝึกประสบการณ์วิชาชีพ</h3>
-                <div className="flex flex-col gap-2.5 text-sm">
-                  <span className="inline-flex items-center gap-2.5 text-purple-100">
-                    <PhoneIcon className="w-4 h-4 text-amber-300 shrink-0" />
-                    {contactInfo.phone || '02-XXX-XXXX'}
-                  </span>
-                  <span className="inline-flex items-center gap-2.5 text-purple-100">
-                    <EnvelopeIcon className="w-4 h-4 text-amber-300 shrink-0" />
-                    {contactInfo.email || 'coop@sskru.ac.th'}
-                  </span>
-                  <span className="inline-flex items-center gap-2.5 text-purple-100">
-                    <ClockIcon className="w-4 h-4 text-amber-300 shrink-0" />
-                    จันทร์ - ศุกร์ 08:30 - 16:30 น.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* FAQ Accordion */}
+          <FaqAccordion />
         </div>
       </section>
 
-      <footer className="footer">
-        <p>&copy; 2026 ระบบคำร้องฝึกงานวิชาชีพ. All rights reserved.</p>
-      </footer>
+      {/* Official University Footer */}
+      <HomeFooter contactInfo={contactInfo} facebookHref={facebookHref} />
     </div>
   );
 };

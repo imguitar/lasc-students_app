@@ -24,7 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users } from 'lucide-react';
+import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users, CalendarDays } from 'lucide-react';
 import api from '../../api/axios';
 import './NewRequestPage.css';
 import './Dashboard/DashboardPage.css'; // Import dashboard styles
@@ -143,7 +143,7 @@ const NewRequestPage = () => {
     // Check if user is logged in
     const userStr = localStorage.getItem('user');
     if (!userStr) {
-      navigate('/login');
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       return;
     }
     const user = JSON.parse(userStr);
@@ -234,6 +234,11 @@ const NewRequestPage = () => {
         studentPhone: user.phone || prev.studentPhone
       }));
 
+      // รอบปฏิทินฝึกงานที่แอดมินประกาศ — แสดงช่วงวันให้นักศึกษาเห็นตอนเลือกเทอม
+      api.get('/internship-rounds/active')
+        .then(res => setInternshipRounds(res.data?.data || []))
+        .catch(() => {});
+
       // Check for existing active request via API only in NEW mode
       const studentId = targetStudentId;
       api.get(`/requests?studentId=${studentId}`).then(res => {
@@ -292,6 +297,23 @@ const NewRequestPage = () => {
     jobDescription: '',
     skills: ''
   });
+
+  const [internshipRounds, setInternshipRounds] = useState([]);
+
+  // รอบปฏิทินที่ตรงกับเทอมที่นักศึกษาเลือกอยู่ตอนนี้
+  const selectedRound = useMemo(() => {
+    const sem = { term1: '1', term2: '2', summer: 'summer' }[formData.internshipTerm];
+    if (!sem) return null;
+    return internshipRounds.find((r) => String(r.semester) === sem) || null;
+  }, [formData.internshipTerm, internshipRounds]);
+
+  const formatRoundDate = (d) => {
+    try {
+      return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
+      return String(d).slice(0, 10);
+    }
+  };
 
   const provinceOptions = useMemo(() => getProvinces(), []);
 
@@ -1371,6 +1393,15 @@ const NewRequestPage = () => {
                       <MenuItem value="term2">ภาคการศึกษาที่ 2</MenuItem>
                       <MenuItem value="summer">ภาคฤดูร้อน</MenuItem>
                     </TextField>
+                    {selectedRound && (
+                      <div className="mt-2.5 p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2">
+                        <CalendarDays className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>{selectedRound.title}:</strong> ฝึกงาน {formatRoundDate(selectedRound.startDate)} - {formatRoundDate(selectedRound.endDate)}
+                          {selectedRound.note && <span className="block mt-0.5 text-emerald-600">{selectedRound.note}</span>}
+                        </span>
+                      </div>
+                    )}
                     <div className="mt-2.5 p-3.5 bg-violet-50/60 rounded-xl border border-violet-100 text-xs text-violet-800 flex items-start gap-2">
                       <Info className="w-4 h-4 text-violet-600 shrink-0 mt-0.5" />
                       <span><strong>ช่วงฝึกงาน:</strong> ผู้ดูแลระบบ (Admin) จะเป็นผู้กดกำหนดวันฝึกงานจริง (วันเริ่ม - วันสิ้นสุด) หลังตรวจสอบคำร้อง</span>

@@ -116,6 +116,7 @@ const AnnouncementDetailPage = () => {
             <div className="rounded-none overflow-hidden">
               <img
                 src={news.coverImage}
+                referrerPolicy="no-referrer"
                 alt={news.title}
                 className="w-full h-auto max-h-[480px] object-cover"
               />
@@ -230,7 +231,7 @@ const AnnouncementDetailPage = () => {
                   className="group rounded-2xl border border-gray-100 bg-white hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer"
                 >
                   {item.coverImage ? (
-                    <img src={item.coverImage} alt={item.title} className="w-full h-32 object-cover" />
+                    <img src={item.coverImage} alt={item.title} referrerPolicy="no-referrer" className="w-full h-32 object-cover" />
                   ) : (
                     <div className="w-full h-32 bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-50 flex items-center justify-center text-purple-400">
                       <MegaphoneIcon className="w-8 h-8" />
