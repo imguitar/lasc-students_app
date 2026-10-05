@@ -96,4 +96,22 @@ const RelocationStepper = ({ status }) => {
   );
 };
 
+// จุดสถานะแบบกะทัดรัดสำหรับตารางจอเล็ก — hover ดู label ผ่าน title tooltip
+export const RelocationDots = ({ status }) => {
+  if (status === 'rejected') {
+    return <XCircle className="w-4 h-4 text-red-500" title={RELOCATION_STATUS_LABEL.rejected} />;
+  }
+  const doneIndex = STEP_OF_STATUS[status] ?? -1;
+  return (
+    <div className="flex items-center gap-1" title={RELOCATION_STATUS_LABEL[status] || status}>
+      {STEPS.map((s, idx) => (
+        <span
+          key={s}
+          className={`w-2 h-2 rounded-full shrink-0 ${idx <= doneIndex ? 'bg-emerald-500' : idx === doneIndex + 1 ? 'bg-violet-500' : 'bg-slate-200'}`}
+        />
+      ))}
+    </div>
+  );
+};
+
 export default RelocationStepper;

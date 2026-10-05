@@ -21,6 +21,7 @@ import AdvisorStudentListPage from './pages/Advisor/AdvisorStudentListPage';
 import AdvisorSupervisionPage from './pages/Advisor/AdvisorSupervisionPage';
 import AdvisorRelocationsPage from './pages/Advisor/AdvisorRelocationsPage';
 import AdminRelocationsPage from './pages/Admin/Dashboard/AdminRelocationsPage';
+import AdminRelocationDetailPage from './pages/Admin/Dashboard/AdminRelocationDetailPage';
 import AdvisorProgressCheckPage from './pages/Advisor/AdvisorProgressCheckPage';
 import AdvisorEvaluationPage from './pages/Advisor/AdvisorEvaluationPage';
 import RequestDetailsPage from './pages/Admin/Shared/RequestDetailsPage';
@@ -32,6 +33,8 @@ import AdminAttendanceOverviewPage from './pages/Admin/Dashboard/AdminAttendance
 import PublicRequestPage from './pages/Public/PublicRequestPage';
 import PublicEvaluationPage from './pages/Public/PublicEvaluationPage';
 import PublicRelocationApprovalPage from './pages/Public/PublicRelocationApprovalPage';
+import PublicRelocationDeanPage from './pages/Public/PublicRelocationDeanPage';
+import PublicCompanyAcceptancePage from './pages/Public/PublicCompanyAcceptancePage';
 import RelocationRequestPage from './pages/Student/RelocationRequestPage';
 import AnnouncementDetailPage from './pages/Public/AnnouncementDetailPage';
 import NewsListPage from './pages/Public/NewsListPage';
@@ -69,6 +72,7 @@ function App() {
         <Route path="/admin-dashboard/attendance-overview" element={<AdminAttendanceOverviewPage />} />
         <Route path="/admin-dashboard/reports" element={<AdminReportsPage />} />
         <Route path="/admin-dashboard/relocations" element={<AdminRelocationsPage />} />
+        <Route path="/admin-dashboard/relocations/:id" element={<AdminRelocationDetailPage />} />
         {/* เมนูข่าวสาร/แบนเนอร์รวมศูนย์ที่ Home Editor — ลิงก์เก่า redirect มาที่เดียวกัน */}
         <Route path="/admin-dashboard/announcements" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
         <Route path="/admin-dashboard/banners" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
@@ -84,6 +88,8 @@ function App() {
         <Route path="/public/request/:id" element={<PublicRequestPage />} />
         <Route path="/public/evaluate/:id" element={<PublicEvaluationPage />} />
         <Route path="/public/relocation-approval/:token" element={<PublicRelocationApprovalPage />} />
+        <Route path="/public/relocation-dean/:token" element={<PublicRelocationDeanPage />} />
+        <Route path="/public/company-acceptance/:token" element={<PublicCompanyAcceptancePage />} />
         <Route path="/news" element={<NewsListPage />} />
         <Route path="/news/:id" element={<AnnouncementDetailPage />} />
         <Route path="/companies" element={<PublicCompaniesPage />} />

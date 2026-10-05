@@ -7,13 +7,29 @@ import api from '../../../api/axios';
 import './RequestDetailsPage.css';
 import PrintableEvaluationForm from '../../../components/PrintableEvaluationForm';
 import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
-import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud } from 'lucide-react';
+import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud, ArrowRight } from 'lucide-react';
 import { formatAddress } from '../../../utils/formatters';
+import { getUploadUrl } from '../../../utils/fileUrl';
+import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 import { isMobileDevice, dataUrlToBlobUrl, downloadDocument } from '../../../utils/documentViewer';
 import { isStudentEditableStatus } from '../../Student/Dashboard/MyRequestsPage';
+import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
   downloadDocument(dataUrl, fileName);
+};
+
+// โทนสี badge ตามขั้นตอนคำร้องเปลี่ยนสถานที่ฝึกงาน
+const RELOC_BADGE = {
+  submitted_waiting_company: 'bg-amber-50 text-amber-600 border-amber-200',
+  company_approved_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
+  submitted_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
+  advisor_approved_waiting_admin: 'bg-sky-50 text-sky-600 border-sky-200',
+  admin_approved_generating_request_letter: 'bg-violet-50 text-violet-600 border-violet-200',
+  waiting_company_acceptance: 'bg-blue-50 text-blue-600 border-blue-200',
+  company_accepted_generating_dispatch_letter: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  completed: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  rejected: 'bg-red-50 text-red-500 border-red-200',
 };
 
 const RequestDetailsPage = () => {
@@ -39,6 +55,7 @@ const RequestDetailsPage = () => {
     error: ''
   });
   const [internshipRounds, setInternshipRounds] = useState([]);
+  const [relocations, setRelocations] = useState([]);
   const [imageModal, setImageModal] = useState(false);
   const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
   const dispatchFileInputRef = useRef(null);
@@ -66,9 +83,15 @@ const RequestDetailsPage = () => {
       api.get(`/requests/${id}`),
       api.get(`/evaluations/request/${id}`).catch(() => ({ data: { data: null } })),
       api.get(`/advisor-evaluations/request/${id}`).catch(() => ({ data: { data: null } })),
-      api.get('/internship-rounds').catch(() => ({ data: { data: [] } }))
-    ]).then(([reqRes, evalRes, advisorEvalRes, roundsRes]) => {
+      api.get('/internship-rounds').catch(() => ({ data: { data: [] } })),
+      api.get('/relocations').catch(() => ({ data: { data: [] } }))
+    ]).then(([reqRes, evalRes, advisorEvalRes, roundsRes, relocRes]) => {
       setInternshipRounds(roundsRes.data?.data || []);
+      // ประวัติย้ายสถานที่ของคำร้องนี้เท่านั้น — เรียงเก่า→ใหม่ ให้ "ครั้งที่ 1" คือคำร้องแรก
+      const relocs = (relocRes.data?.data || [])
+        .filter((r) => String(r.internship_request_id) === String(id))
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      setRelocations(relocs);
       if (reqRes.data.data) {
         setRequest(reqRes.data.data);
         setEvaluation(evalRes.data.data);
@@ -462,6 +485,9 @@ const RequestDetailsPage = () => {
       'รอแอดมินอนุมัติเริ่มฝึกงาน': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'อนุมัติแล้ว': { bg: '#d1fae5', color: '#065f46', label: 'รอแอดมินอนุมัติการออกฝึกงาน' },
       'ออกฝึกงาน': { bg: '#c4f1f9', color: '#0c4a6e' },
+      'กำลังออกฝึกงาน': { bg: '#c4f1f9', color: '#0c4a6e' },
+      'อนุมัติแล้ว (รอออกฝึกงาน)': { bg: '#d1fae5', color: '#065f46' },
+      'สิ้นสุดการฝึกงาน (รอประเมิน)': { bg: '#ddd6fe', color: '#4c1d95' },
       'ประเมินเสร็จแล้ว': { bg: '#ddd6fe', color: '#4c1d95' },
       'ฝึกงานเสร็จแล้ว': { bg: '#fbcfe8', color: '#9d174d' },
       'ไม่อนุมัติ (อาจารย์)': { bg: '#f8d7da', color: '#721c24' },
@@ -476,7 +502,8 @@ const RequestDetailsPage = () => {
   if (loading || !request) return <div className="loading">กำลังโหลดข้อมูล...</div>;
 
   const normalizedStatus = String(request.status || '').trim();
-  const statusInfo = getStatusBadge(normalizedStatus || request.status);
+  const effectiveStatusBadge = getEffectiveInternshipStatus(request) || normalizedStatus;
+  const statusInfo = getStatusBadge(effectiveStatusBadge);
   const details = request.details || {}; // Fields from NewRequestPage payload
   const studentPhotoSrc = details.studentPhoto?.dataUrl || details.studentPhoto || request.studentPhotoUrl || request.photo || '';
   const studentAddress = formatAddress(details.student_info?.address);
@@ -488,6 +515,27 @@ const RequestDetailsPage = () => {
       : details.internshipTerm === 'summer'
         ? 'ภาคฤดูร้อน'
         : (details.internshipTerm || '');
+
+  // ค่าปัจจุบันหลังเปลี่ยนสถานที่ฝึกงาน (relocations sort เก่า→ใหม่ ตัวท้ายคือล่าสุด)
+  const latestReloc = relocations.length > 0 ? relocations[relocations.length - 1] : null;
+  const effectiveStart = latestReloc?.new_start_date || request.internship_start_date || details.startDate;
+  const effectiveEnd = latestReloc?.new_end_date || request.internship_end_date || details.endDate;
+  const effectiveStatus = effectiveStatusBadge;
+  const isInterning = effectiveStatus.includes('ออกฝึกงาน') || effectiveStatus.includes('สิ้นสุด') || effectiveStatus.includes('เสร็จ');
+  // บริษัทตอบรับแล้วหรือออกฝึกงานแล้ว → ไม่ต้องมี QR ตอบรับล่วงหน้า
+  const hideQrButton = isInterning || effectiveStatus.includes('ตอบรับแล้ว') || effectiveStatus.includes('อนุมัติแล้ว');
+  // มีประวัติย้าย + ออกฝึกงานแล้ว → ห้ามแก้วันฝึกย้อนหลัง
+  const hideScheduleButton = relocations.length > 0 && isInterning;
+  // ข้อมูลบริษัทปัจจุบัน (ถ้าย้ายแล้วใช้ค่าที่ใหม่)
+  const currentCompanyName = latestReloc?.new_company_name || details.companyName || request.company;
+  const currentCompanyAddress = latestReloc?.new_company_address
+    ? formatAddress(latestReloc.new_company_address)
+    : companyAddress;
+  const currentContactPerson = latestReloc?.mentor_name || details.contactPerson;
+  const currentContactPosition = latestReloc?.mentor_position || details.contactPosition;
+  const currentContactPhone = latestReloc?.mentor_phone || details.contactPhone;
+  const currentContactEmail = latestReloc?.mentor_email || details.contactEmail;
+  const isPostApproval = isInterning || effectiveStatus.includes('อนุมัติแล้ว') || effectiveStatus.includes('ตอบรับแล้ว');
 
   // Determine if current user can execute actions
   const isAdvisorPending = normalizedStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ' || normalizedStatus === 'รออนุมัติ';
@@ -516,7 +564,7 @@ const RequestDetailsPage = () => {
               <img
                 src={studentPhotoSrc}
                 alt="รูปนักศึกษา"
-                className="student-photo-thumb"
+                className="w-24 h-32 object-cover rounded-2xl border border-slate-200"
               />
             </div>
           )}
@@ -566,20 +614,20 @@ const RequestDetailsPage = () => {
             <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
               <span className="detail-label">1. ชื่อบุคคล / ชื่อตำแหน่งงานติดต่อ / ผู้ประสานงานที่ติดต่อ</span>
               <span className="detail-value">
-                {details.contactPerson || '-'} {details.contactPosition ? `(${details.contactPosition})` : ''}
+                {currentContactPerson || '-'} {currentContactPosition ? `(${currentContactPosition})` : ''}
               </span>
             </div>
             <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ</span>
-              <span className="detail-value">{details.companyName || request.company}</span>
+              <span className="detail-label">2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ{latestReloc ? ' (สถานที่ฝึกปัจจุบัน)' : ''}</span>
+              <span className="detail-value">{currentCompanyName}</span>
             </div>
             <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
               <span className="detail-label">3. ที่อยู่หน่วยงาน</span>
-              <span className="detail-value">{companyAddress}</span>
+              <span className="detail-value">{currentCompanyAddress}</span>
             </div>
             <div className="detail-item">
               <span className="detail-label">4. โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">{details.contactPhone || '-'} / {details.contactEmail || '-'}</span>
+              <span className="detail-value">{currentContactPhone || '-'} / {currentContactEmail || '-'}</span>
             </div>
             <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
               <span className="detail-label">อีเมลผู้ประเมินจากสถานประกอบการ (สำหรับส่งแบบประเมิน)</span>
@@ -613,16 +661,92 @@ const RequestDetailsPage = () => {
               <p className="detail-value" style={{whiteSpace: 'pre-wrap', marginTop: '5px'}}>
                 {details.description ? `ลักษณะงาน: ${details.description}\n` : ''}
                 {details.skills ? `ทักษะ: ${details.skills}` : ''}
-                {!details.description && !details.skills && '-'}
+                {!details.description && !details.skills && <span style={{ color: '#94a3b8' }}>ไม่ได้ระบุ</span>}
               </p>
             </div>
           </div>
         </section>
 
+        {/* ประวัติการเปลี่ยนสถานที่ฝึกงาน — แสดงเฉพาะเมื่อเคยยื่นคำร้องย้าย */}
+        {relocations.length > 0 && (
+          <section className="detail-section">
+            <h3>
+              ประวัติการเปลี่ยนสถานที่ฝึกงาน
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-600 text-[11px] font-bold align-middle">
+                {relocations.length} ครั้ง
+              </span>
+            </h3>
+            <div className="space-y-3">
+              {relocations.map((r, idx) => (
+                <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+                  {/* หัวรายการ: ครั้งที่ + วันยื่น + สถานะ */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-bold text-slate-800 m-0">
+                      คำร้องครั้งที่ {idx + 1}
+                      <span className="text-[11px] font-normal text-slate-400 ml-1.5">
+                        (ยื่นเมื่อ {new Date(r.created_at).toLocaleDateString('th-TH')})
+                      </span>
+                    </p>
+                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border inline-flex items-center gap-1.5 ${RELOC_BADGE[r.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                      {RELOCATION_STATUS_LABEL[r.status] || r.status}
+                    </span>
+                  </div>
+
+                  {/* ที่เดิม → ที่ใหม่ (มือถือเรียงแนวตั้ง) */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <div className="flex-1 min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+                      <p className="text-[10px] font-semibold text-slate-400 m-0">สถานประกอบการเดิม</p>
+                      <p className="text-xs font-bold text-slate-700 m-0 mt-0.5 truncate">{r.old_company || request.company || '—'}</p>
+                      {(request.internship_start_date || request.details?.startDate) && (
+                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">
+                          ฝึกช่วง {new Date(request.internship_start_date || request.details?.startDate).toLocaleDateString('th-TH')} – {new Date(r.created_at).toLocaleDateString('th-TH')}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">ฝึกสะสมแล้ว {r.days_trained || 0} วัน</p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-violet-400 shrink-0 rotate-90 sm:rotate-0 self-center" />
+                    <div className="flex-1 min-w-0 rounded-xl bg-violet-50/60 border border-violet-100 px-3 py-2">
+                      <p className="text-[10px] font-semibold text-violet-400 m-0">สถานประกอบการใหม่</p>
+                      <p className="text-xs font-bold text-violet-800 m-0 mt-0.5 truncate">{r.new_company_name}</p>
+                      <p className="text-[10px] text-violet-500 m-0 mt-0.5">
+                        {r.new_start_date && r.new_end_date
+                          ? `${new Date(r.new_start_date).toLocaleDateString('th-TH')} – ${new Date(r.new_end_date).toLocaleDateString('th-TH')}`
+                          : 'รอสำนักงานคณบดีกำหนดวันฝึกงาน'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* เหตุผล */}
+                  <div className="detail-item">
+                    <span className="detail-label">เหตุผลการขอย้าย</span>
+                    <span className="detail-value">{r.reason}</span>
+                  </div>
+
+                  {/* เอกสารที่เกี่ยวข้อง */}
+                  {(r.return_letter_file || r.new_request_letter_file || r.new_dispatch_letter_file) && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {[
+                        [r.return_letter_file, 'หนังสือส่งตัวกลับ'],
+                        [r.new_request_letter_file, 'หนังสือขอความอนุเคราะห์'],
+                        [r.new_dispatch_letter_file, 'หนังสือส่งตัวฉบับใหม่'],
+                      ].filter(([u]) => u).map(([u, label]) => (
+                        <a key={label} href={getUploadUrl(u)} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 no-underline hover:text-violet-800 px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-100">
+                          <FileText className="w-3.5 h-3.5" /> {label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="detail-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ margin: 0 }}>ความประสงค์และกำหนดวันฝึกงาน</h3>
-            {userRole === 'admin' && (
+            <h3 style={{ margin: 0 }}>ความประสงค์และกำหนดวันฝึกงาน{latestReloc ? ' (ช่วงฝึกปัจจุบัน)' : ''}</h3>
+            {userRole === 'admin' && !hideScheduleButton && (
               <Button
                 variant="contained"
                 size="small"
@@ -650,16 +774,16 @@ const RequestDetailsPage = () => {
             <div className="detail-item">
               <span className="detail-label">วันที่เริ่มต้นฝึกงาน</span>
               <span className="detail-value">
-                {(request.internship_start_date || details.startDate) 
-                  ? new Date(request.internship_start_date || details.startDate).toLocaleDateString('th-TH') 
+                {effectiveStart 
+                  ? new Date(effectiveStart).toLocaleDateString('th-TH') 
                   : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
               </span>
             </div>
             <div className="detail-item">
               <span className="detail-label">วันที่สิ้นสุดการฝึกงาน</span>
               <span className="detail-value">
-                {(request.internship_end_date || details.endDate) 
-                  ? new Date(request.internship_end_date || details.endDate).toLocaleDateString('th-TH') 
+                {effectiveEnd 
+                  ? new Date(effectiveEnd).toLocaleDateString('th-TH') 
                   : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
               </span>
             </div>
@@ -673,10 +797,25 @@ const RequestDetailsPage = () => {
         </section>
 
 
-        {request.supervisionAppointment && (
+        {(request.supervisionAppointment || isPostApproval) && (
           <section className="detail-section">
-            <h3 style={{ color: '#0ea5e9' }}>กำหนดการนิเทศ (โดยอาจารย์ที่ปรึกษา)</h3>
+            <h3 style={{ color: '#0ea5e9' }}>อาจารย์นิเทศก์และกำหนดการนิเทศ</h3>
             <div className="detail-grid">
+              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                <span className="detail-label">อาจารย์นิเทศก์</span>
+                {request.supervisionAppointment?.advisorName ? (
+                  <span className="detail-value" style={{ fontWeight: 'bold' }}>
+                    {request.supervisionAppointment.advisorName}
+                    {request.supervisionAppointment.advisorPhone ? ` — ${request.supervisionAppointment.advisorPhone}` : ''}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                    รอประธานสาขามอบหมายอาจารย์นิเทศก์
+                  </span>
+                )}
+              </div>
+              {request.supervisionAppointment && (
+                <>
               <div className="detail-item">
                 <span className="detail-label">วันที่นิเทศ</span>
                 <span className="detail-value" style={{ fontWeight: 'bold' }}>{request.supervisionAppointment.date ? new Date(request.supervisionAppointment.date).toLocaleDateString('th-TH') : '-'}</span>
@@ -699,6 +838,8 @@ const RequestDetailsPage = () => {
                   <span className="detail-label">หมายเหตุ</span>
                   <span className="detail-value">{request.supervisionAppointment.note}</span>
                 </div>
+              )}
+                </>
               )}
             </div>
           </section>
@@ -903,7 +1044,7 @@ const RequestDetailsPage = () => {
             ย้อนกลับ
           </Button>
           
-          {userRole === 'admin' && (
+          {userRole === 'admin' && !hideQrButton && (
             <Button
               variant="contained"
               startIcon={<QrCodeIcon style={{ width: 19, height: 19 }} />}

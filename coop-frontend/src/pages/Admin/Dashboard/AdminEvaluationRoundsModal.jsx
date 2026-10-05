@@ -22,7 +22,7 @@ import {
   Checkbox,
   Stack,
 } from '@mui/material';
-import { TrashIcon, PencilSquareIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilSquareIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../../../api/axios';
 
 const AdminEvaluationRoundsModal = ({ open, onClose }) => {
@@ -133,16 +133,29 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>จัดการรอบการประเมินนักศึกษา (Evaluation Rounds)</span>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"
+      PaperProps={{ sx: { m: 2, borderRadius: '1rem', p: 0, boxShadow: 24 } }}>
+      <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+          <Typography component="span" sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.125rem' }, color: '#1e293b', lineHeight: 1.4 }}>
+            จัดการรอบการประเมินนักศึกษา
+            <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>(Evaluation Rounds)</Box>
+          </Typography>
+          <IconButton size="small" onClick={onClose} aria-label="ปิด" sx={{ color: '#94a3b8', flexShrink: 0 }}>
+            <XMarkIcon style={{ width: 20, height: 20 }} />
+          </IconButton>
+        </Box>
         {!formOpen && (
           <Button
             variant="contained"
-            size="small"
             startIcon={<PlusIcon style={{ width: 18, height: 18 }} />}
             onClick={() => handleOpenForm(null)}
-            sx={{ bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' }, fontWeight: 600, borderRadius: 2 }}
+            sx={{
+              mt: 1.5, width: { xs: '100%', sm: 'auto' }, height: 40, px: 2,
+              bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' }, fontWeight: 600,
+              borderRadius: '0.75rem', textTransform: 'none', boxShadow: 'none',
+              fontSize: { xs: '0.78rem', sm: '0.875rem' }, whiteSpace: 'nowrap',
+            }}
           >
             สร้างรอบประเมินใหม่
           </Button>
@@ -233,60 +246,103 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
             </Stack>
           </Box>
         ) : (
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: '#f1f5f9' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>ชื่อรอบการประเมิน</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>ภาค/ปี</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>ช่วงวันที่เปิดประเมิน</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>สถานะ</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700 }}>จัดการ</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rounds.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#94a3b8' }}>
-                      {loading ? 'กำลังโหลดข้อมูล...' : 'ยังไม่มีการกำหนดรอบการประเมิน กดปุ่ม "สร้างรอบประเมินใหม่" ด้านบน'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rounds.map((r) => (
-                    <TableRow key={r.id} hover>
-                      <TableCell sx={{ fontWeight: 600 }}>{r.title}</TableCell>
-                      <TableCell>{r.semester ? `${r.semester}/${r.academicYear || ''}` : (r.academicYear || '-')}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
-                          {formatDate(r.startDate)} - {formatDate(r.endDate)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
+          <>
+            {rounds.length === 0 ? (
+              <Box sx={{ py: 8, textAlign: 'center', fontSize: { xs: '0.78rem', sm: '0.875rem' }, color: '#64748b' }}>
+                {loading ? 'กำลังโหลดข้อมูล...' : 'ยังไม่มีการกำหนดรอบการประเมิน กดปุ่ม "สร้างรอบประเมินใหม่" ด้านบน'}
+              </Box>
+            ) : (
+              <>
+                {/* Desktop: ตาราง */}
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, display: { xs: 'none', sm: 'block' } }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>ชื่อรอบการประเมิน</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>ภาค/ปี</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>ช่วงวันที่เปิดประเมิน</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>สถานะ</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>จัดการ</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rounds.map((r) => (
+                        <TableRow key={r.id} hover>
+                          <TableCell sx={{ fontWeight: 600 }}>{r.title}</TableCell>
+                          <TableCell>{r.semester ? `${r.semester}/${r.academicYear || ''}` : (r.academicYear || '-')}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                              {formatDate(r.startDate)} - {formatDate(r.endDate)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {r.isActive ? (
+                              <Chip label="เปิดใช้งานอยู่" color="success" size="small" sx={{ fontWeight: 600 }} />
+                            ) : (
+                              <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b' }} />
+                            )}
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton size="small" color="primary" onClick={() => handleOpenForm(r)} title="แก้ไข">
+                              <PencilSquareIcon style={{ width: 18, height: 18 }} />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => handleDeleteRound(r.id)} title="ลบ">
+                              <TrashIcon style={{ width: 18, height: 18 }} />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Mobile: Card List */}
+                <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+                  {rounds.map((r) => (
+                    <Box key={r.id} sx={{ p: 2, borderRadius: '0.875rem', border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', mb: 0.5 }}>
+                        {r.title}
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap' }}>
+                        <Chip size="small" label={`ภาค ${r.semester || '-'} / ${r.academicYear || '-'}`}
+                          sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
                         {r.isActive ? (
-                          <Chip label="เปิดใช้งานอยู่" color="success" size="small" sx={{ fontWeight: 600 }} />
+                          <Chip label="เปิดใช้งานอยู่" color="success" size="small" sx={{ fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
                         ) : (
-                          <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b' }} />
+                          <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b', fontSize: '0.68rem', height: 22 }} />
                         )}
-                      </TableCell>
-                      <TableCell align="center">
-                        <IconButton size="small" color="primary" onClick={() => handleOpenForm(r)} title="แก้ไข">
-                          <PencilSquareIcon style={{ width: 18, height: 18 }} />
-                        </IconButton>
-                        <IconButton size="small" color="error" onClick={() => handleDeleteRound(r.id)} title="ลบ">
-                          <TrashIcon style={{ width: 18, height: 18 }} />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      </Stack>
+                      <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mb: 1.5 }}>
+                        {formatDate(r.startDate)} - {formatDate(r.endDate)}
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" variant="outlined" onClick={() => handleOpenForm(r)}
+                          startIcon={<PencilSquareIcon style={{ width: 14, height: 14 }} />}
+                          sx={{ fontSize: '0.7rem', fontWeight: 600, borderRadius: 1.5, textTransform: 'none', color: '#475569', borderColor: '#e2e8f0' }}>
+                          แก้ไข
+                        </Button>
+                        <Button size="small" variant="outlined" color="error" onClick={() => handleDeleteRound(r.id)}
+                          startIcon={<TrashIcon style={{ width: 14, height: 14 }} />}
+                          sx={{ fontSize: '0.7rem', fontWeight: 600, borderRadius: 1.5, textTransform: 'none' }}>
+                          ลบ
+                        </Button>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </>
+            )}
+          </>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} variant="outlined">
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+        <Button onClick={onClose} variant="outlined"
+          sx={{
+            width: { xs: '100%', sm: 'auto' }, px: 2, py: 1, borderRadius: '0.75rem',
+            borderColor: '#e2e8f0', color: '#475569', textTransform: 'none', fontWeight: 500,
+            fontSize: { xs: '0.78rem', sm: '0.875rem' }, '&:hover': { bgcolor: '#f8fafc', borderColor: '#cbd5e1' },
+          }}>
           ปิดหน้าต่าง
         </Button>
       </DialogActions>

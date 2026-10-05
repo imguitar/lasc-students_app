@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
-import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
@@ -70,6 +71,8 @@ const AllRequestsOverviewPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [quickTab, setQuickTab] = useState('all');
+  const [relocations, setRelocations] = useState([]);
   const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
   const menuPanelRef = useRef(null);
   const [approveModal, setApproveModal] = useState({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
@@ -107,6 +110,9 @@ const AllRequestsOverviewPage = () => {
       .then((res) => setRequests(res.data.data || []))
       .catch((err) => console.error('Failed to load requests:', err))
       .finally(() => setLoading(false));
+    api.get('/relocations')
+      .then((res) => setRelocations(res.data.data || []))
+      .catch(() => {});
   }, [navigate]);
 
   useEffect(() => {
@@ -152,10 +158,26 @@ const AllRequestsOverviewPage = () => {
     setActionMenu({ id: menuId, top: Math.max(8, top), left: Math.max(8, left) });
   };
 
+  // id คำร้องที่เคยยื่นขอเปลี่ยนสถานที่ฝึกงาน
+  const relocatedRequestIds = useMemo(
+    () => new Set(relocations.map((r) => Number(r.internship_request_id))),
+    [relocations]
+  );
+
+  const matchQuickTab = (r, tab) => {
+    const s = String(getEffectiveInternshipStatus(r) || '');
+    if (tab === 'pending') return s.includes('รอ') || s === 'ยื่นคำร้องแล้ว';
+    if (tab === 'interning') return s === 'กำลังออกฝึกงาน' || s === 'ออกฝึกงาน';
+    if (tab === 'reloc') return relocatedRequestIds.has(Number(r.id));
+    if (tab === 'done') return s.includes('เสร็จ') || s.includes('สิ้นสุด') || s.includes('ไม่อนุมัติ') || s.includes('ปฏิเสธ') || s.includes('ยกเลิก');
+    return true;
+  };
+
   const filteredRequests = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return requests.filter((r) => {
       const effectiveStatus = getEffectiveInternshipStatus(r);
+      if (!matchQuickTab(r, quickTab)) return false;
       if (!matchStatus(effectiveStatus, statusFilter)) return false;
       if (!matchDepartment(r.department, departmentFilter)) return false;
       if (!q) return true;
@@ -163,7 +185,8 @@ const AllRequestsOverviewPage = () => {
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q));
     });
-  }, [requests, searchQuery, statusFilter, departmentFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requests, searchQuery, statusFilter, departmentFilter, quickTab, relocatedRequestIds]);
 
   const formatDateThai = (dateStr) => {
     if (!dateStr) return '-';
@@ -172,6 +195,38 @@ const AllRequestsOverviewPage = () => {
     } catch {
       return '-';
     }
+  };
+
+  // Export ตารางที่กรองอยู่เป็น CSV (BOM + quoting ให้ Excel อ่านภาษาไทยถูก)
+  const handleExportReport = () => {
+    const rows = filteredRequests;
+    if (rows.length === 0) {
+      setToast({ open: true, message: 'ไม่มีข้อมูลให้ส่งออกตามตัวกรองปัจจุบัน', severity: 'warning' });
+      return;
+    }
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['รหัสนักศึกษา', 'ชื่อ-นามสกุล', 'สาขาวิชา', 'บริษัท/หน่วยงาน', 'วันที่เริ่มฝึก', 'วันที่สิ้นสุด', 'อาจารย์นิเทศก์', 'สถานะปัจจุบัน'];
+    const lines = rows.map((r) => [
+      r.studentId,
+      r.studentName,
+      r.department,
+      r.company,
+      formatDateThai(r.internship_start_date || r.startDate || r.details?.startDate),
+      formatDateThai(r.internship_end_date || r.endDate || r.details?.endDate),
+      r.supervisionAppointment?.advisorName || '',
+      getEffectiveInternshipStatus(r) || r.status || '',
+    ].map(esc).join(','));
+    const csv = '﻿' + header.map(esc).join(',') + '\n' + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `requests-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setToast({ open: true, message: `ส่งออกรายงาน ${rows.length} รายการเรียบร้อยแล้ว`, severity: 'success' });
   };
 
   const activeMenuRequest = actionMenu.id
@@ -189,6 +244,21 @@ const AllRequestsOverviewPage = () => {
   const toggleSelectAll = () => {
     setSelectedIds(allFilteredSelected ? [] : [...new Set([...selectedIds, ...filteredIds])]);
   };
+
+  // Bulk Actions Validation — เช็คสถานะจริง (effective) ของรายการที่ถูกติ๊ก
+  const selectedRequests = requests.filter((r) => selectedIds.includes(r.id));
+  // มีรายการที่ออกฝึกงานแล้ว/จบแล้ว ปนอยู่ในการเลือกหรือไม่
+  const hasActiveOrCompleted = selectedRequests.some((r) => {
+    const s = String(getEffectiveInternshipStatus(r) || '');
+    return s.includes('ออกฝึกงาน') || s.includes('สิ้นสุด') || s.includes('เสร็จ');
+  });
+  // อนุมัติ/ตีกลับได้เฉพาะรายการที่ยังรอแอดมินตรวจสอบทั้งหมด
+  const canApproveOrReject = selectedRequests.length > 0 && selectedRequests.every((r) => {
+    const s = String(getEffectiveInternshipStatus(r) || '');
+    return s === 'รอตรวจสอบ' || s.includes('รอผู้ดูแลระบบ') || s === 'รออนุมัติ';
+  });
+  // กำหนดวันฝึกงานได้เฉพาะกลุ่มที่ยังไม่มีใครออกฝึกงาน/จบแล้ว
+  const canSetDates = selectedRequests.length > 0 && !hasActiveOrCompleted;
 
   const runBatchApprove = () => {
     if (selectedIds.length === 0 || batchBusy) return;
@@ -654,6 +724,33 @@ const AllRequestsOverviewPage = () => {
 
           {/* Card */}
           <div className="w-full min-w-0">
+            {/* Quick Filter Tabs */}
+            <ToggleButtonGroup
+              value={quickTab}
+              exclusive
+              onChange={(_, v) => { if (v) { setQuickTab(v); setStatusFilter('all'); setSelectedIds([]); } }}
+              size="small"
+              sx={{
+                display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2,
+                '& .MuiToggleButton-root': {
+                  border: '1px solid #e2e8f0', borderRadius: '12px !important',
+                  px: 2, py: 0.9, fontSize: '0.78rem', fontWeight: 600, color: '#475569',
+                  textTransform: 'none', bgcolor: '#fff',
+                  '&:hover': { bgcolor: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' },
+                  '&.Mui-selected': {
+                    bgcolor: '#7c3aed', color: '#fff', borderColor: '#7c3aed', fontWeight: 700,
+                    '&:hover': { bgcolor: '#6d28d9' },
+                  },
+                },
+              }}
+            >
+              <ToggleButton value="all">ทั้งหมด</ToggleButton>
+              <ToggleButton value="pending">รอตรวจสอบ / รอดำเนินการ</ToggleButton>
+              <ToggleButton value="interning">กำลังออกฝึกงาน</ToggleButton>
+              <ToggleButton value="reloc">ขอเปลี่ยนสถานที่ฝึกงาน</ToggleButton>
+              <ToggleButton value="done">เสร็จสิ้น / ยุติการฝึกงาน</ToggleButton>
+            </ToggleButtonGroup>
+
             {/* Filter Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
               <div className="relative w-full sm:grow sm:max-w-md">
@@ -695,6 +792,14 @@ const AllRequestsOverviewPage = () => {
                 </select>
                 <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+
+              <button
+                type="button"
+                onClick={handleExportReport}
+                className="w-full sm:w-auto sm:ml-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 cursor-pointer transition"
+              >
+                <Download className="w-4 h-4" /> ส่งออกรายงาน
+              </button>
             </div>
 
             {/* Batch Action Bar — จัดการคำร้องแบบกลุ่ม */}
@@ -703,20 +808,23 @@ const AllRequestsOverviewPage = () => {
                 <span className="text-xs font-bold text-violet-800">เลือกแล้ว {selectedIds.length} รายการ</span>
                 <div className="flex flex-wrap items-center gap-1.5 ml-auto">
                   <button
-                    type="button" onClick={runBatchApprove} disabled={batchBusy}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50"
+                    type="button" onClick={runBatchApprove} disabled={batchBusy || !canApproveOrReject}
+                    title={!canApproveOrReject ? 'อนุมัติได้เฉพาะคำร้องที่ยังรอตรวจสอบทั้งหมด' : ''}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" /> อนุมัติพร้อมกัน
                   </button>
                   <button
-                    type="button" onClick={() => setBatchScheduleModal({ open: true, startDate: '', endDate: '', submitting: false, error: '' })} disabled={batchBusy}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50"
+                    type="button" onClick={() => setBatchScheduleModal({ open: true, startDate: '', endDate: '', submitting: false, error: '' })} disabled={batchBusy || !canSetDates}
+                    title={!canSetDates ? 'ไม่สามารถกำหนดวันให้คำร้องที่ออกฝึกงานแล้ว' : ''}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <CalendarDays className="w-3.5 h-3.5" /> กำหนดวันฝึกงาน
                   </button>
                   <button
-                    type="button" onClick={() => setBatchRejectModal({ open: true, reason: '', submitting: false, error: '' })} disabled={batchBusy}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold border border-red-200 cursor-pointer transition disabled:opacity-50"
+                    type="button" onClick={() => setBatchRejectModal({ open: true, reason: '', submitting: false, error: '' })} disabled={batchBusy || !canApproveOrReject}
+                    title={!canApproveOrReject ? 'ตีกลับได้เฉพาะคำร้องที่ยังรอตรวจสอบทั้งหมด' : ''}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold border border-red-200 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <XCircle className="w-3.5 h-3.5" /> ตีกลับพร้อมกัน
                   </button>
@@ -886,6 +994,7 @@ const AllRequestsOverviewPage = () => {
         const isPendingAdmin = !isDispatchWaiting && (s.includes('รอผู้ดูแลระบบ') || s === 'รอตรวจสอบ');
         const isApproved = !isPendingAdmin && !isRejected && !isDispatchWaiting
           && !s.includes('รอสถานประกอบการ') && s !== 'ร่าง' && s !== '';
+        const isInterning = s === 'กำลังออกฝึกงาน' || s === 'ออกฝึกงาน';
         const menuItemClass = 'w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-violet-700 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent text-left';
         const goDetail = () => {
           closeActionMenu();
@@ -901,7 +1010,7 @@ const AllRequestsOverviewPage = () => {
               <Eye className="w-4 h-4 shrink-0" />
               ดูรายละเอียดคำร้อง
             </button>
-            {!isDispatchWaiting && (
+            {!isDispatchWaiting && !isInterning && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -921,7 +1030,7 @@ const AllRequestsOverviewPage = () => {
               className={`${menuItemClass} hover:text-violet-700`}
             >
               <Pencil className="w-4 h-4 shrink-0 text-violet-500" />
-              แก้ไขคำร้อง
+              {isInterning ? 'แก้ไขข้อมูลติดต่อสถานประกอบการ' : 'แก้ไขคำร้อง'}
             </button>
             {isPendingAdmin && (
               <>
@@ -952,25 +1061,17 @@ const AllRequestsOverviewPage = () => {
                 </button>
               </>
             )}
-            {isApproved && (
-              <>
-                <button type="button" onClick={(e) => { e.stopPropagation(); goDetail(); }} className={menuItemClass}>
-                  <FileText className="w-4 h-4 shrink-0" />
-                  พิมพ์/ออกหนังสือขอความอนุเคราะห์
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenAssignModal(activeMenuRequest);
-                    closeActionMenu();
-                  }}
-                  className={menuItemClass}
-                >
-                  <UserCheck className="w-4 h-4 shrink-0" />
-                  มอบหมายอาจารย์นิเทศ
-                </button>
-              </>
+            {isApproved && !isInterning && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); goDetail(); }} className={menuItemClass}>
+                <FileText className="w-4 h-4 shrink-0" />
+                พิมพ์/ออกหนังสือขอความอนุเคราะห์
+              </button>
+            )}
+            {isInterning && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); goDetail(); }} className={menuItemClass}>
+                <FileText className="w-4 h-4 shrink-0" />
+                พิมพ์/ดาวน์โหลดหนังสือส่งตัว (PDF)
+              </button>
             )}
             {isDispatchWaiting && (
               <button
@@ -986,31 +1087,37 @@ const AllRequestsOverviewPage = () => {
                 ออกหนังสือส่งตัวนักศึกษา
               </button>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenScheduleModal(activeMenuRequest);
-                closeActionMenu();
-              }}
-              className={`${menuItemClass} hover:text-indigo-700 hover:bg-indigo-50`}
-            >
-              <Calendar className="w-4 h-4 shrink-0 text-indigo-500" />
-              กำหนดวันฝึกงาน
-            </button>
-            <div className="my-1 border-t border-slate-100" />
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteModal({ open: true, request: activeMenuRequest, submitting: false, error: '' });
-                closeActionMenu();
-              }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer border-none bg-transparent text-left"
-            >
-              <Trash2 className="w-4 h-4 shrink-0" />
-              ลบคำร้อง
-            </button>
+            {!isInterning && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenScheduleModal(activeMenuRequest);
+                  closeActionMenu();
+                }}
+                className={`${menuItemClass} hover:text-indigo-700 hover:bg-indigo-50`}
+              >
+                <Calendar className="w-4 h-4 shrink-0 text-indigo-500" />
+                กำหนดวันฝึกงาน
+              </button>
+            )}
+            {!isInterning && (
+              <>
+                <div className="my-1 border-t border-slate-100" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteModal({ open: true, request: activeMenuRequest, submitting: false, error: '' });
+                    closeActionMenu();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer border-none bg-transparent text-left"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  ลบคำร้อง
+                </button>
+              </>
+            )}
           </div>,
           document.body
         );

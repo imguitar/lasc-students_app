@@ -355,13 +355,44 @@ router.delete('/companies/:id', async (req, res) => {
   }
 });
 
+// GET /api/public/stats — ตัวเลขภาพรวมหน้าแรก: บริษัท / กำลังฝึกจริง / สำเร็จการฝึกจริง
+// กำลังฝึก = ออกหนังสือส่งตัวแล้ว + อยู่ในช่วงวันฝึก + ยังไม่ถูกประเมินรอบสุดท้าย
+// สำเร็จ  = พ้นวันสิ้นสุดฝึกแล้ว + สถานะยืนยันว่าประเมินจากสถานประกอบการครบแล้วเท่านั้น
+router.get('/stats', async (req, res) => {
+  try {
+    const [[{ c: companies }]] = await pool.query('SELECT COUNT(*) AS c FROM `companies`').catch(() => [[{ c: 0 }]]);
+
+    const [[{ c: activeStudents }]] = await pool.query(`
+      SELECT COUNT(*) AS c FROM requests
+      WHERE status IN ('ออกฝึกงาน', 'กำลังออกฝึกงาน')
+        AND (internship_start_date IS NULL OR DATE(internship_start_date) <= CURDATE())
+        AND (internship_end_date IS NULL OR DATE(internship_end_date) >= CURDATE())
+    `).catch(() => [[{ c: 0 }]]);
+
+    const [[{ c: completedStudents }]] = await pool.query(`
+      SELECT COUNT(*) AS c FROM requests
+      WHERE status IN ('ประเมินเสร็จแล้ว', 'ฝึกงานเสร็จแล้ว', 'ผ่านการฝึกงาน', 'เสร็จสิ้นสมบูรณ์')
+        AND (internship_end_date IS NULL OR DATE(internship_end_date) < CURDATE())
+    `).catch(() => [[{ c: 0 }]]);
+
+    res.json({ success: true, data: { companies, activeStudents, completedStudents } });
+  } catch (error) {
+    console.error('Public stats error:', error);
+    res.status(500).json({ success: false, message: 'ไม่สามารถโหลดสถิติได้' });
+  }
+});
+
 // GET /api/public/contact — ข้อมูลติดต่อแอดมินสำหรับแถบติดต่อด้านบน
 // อ่านจาก site_settings.contact_info ก่อน (แก้ไขได้ในหน้า Home Editor) แล้ว fallback เป็น user admin
 router.get('/contact', async (req, res) => {
   try {
-    const [settingRows] = await pool.query(
-      "SELECT setting_value FROM site_settings WHERE setting_key = 'contact_info'"
-    );
+    // ถ้าตาราง site_settings ยังไม่มี (env ที่ยังไม่ migrate) ให้ข้ามไป fallback admin ทันที
+    let settingRows = [];
+    try {
+      [settingRows] = await pool.query(
+        "SELECT setting_value FROM site_settings WHERE setting_key = 'contact_info'"
+      );
+    } catch (_) { /* table ยังไม่มี — ใช้ fallback ด้านล่าง */ }
     if (settingRows[0]?.setting_value) {
       try {
         const info = JSON.parse(settingRows[0].setting_value);

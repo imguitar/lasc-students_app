@@ -56,6 +56,18 @@ const ensureTable = async () => {
     dean_signature LONGTEXT NULL,
     dean_signed_at DATETIME NULL,
     dean_decision VARCHAR(50) NULL,
+    dean_token VARCHAR(64) NULL COMMENT 'one-time token สำหรับคณบดีลงนามอนุญาตผ่านลิงก์',
+    dean_token_used_at DATETIME NULL,
+    acceptance_token VARCHAR(64) NULL COMMENT 'one-time token สำหรับสถานประกอบการใหม่ตอบรับ',
+    acceptance_token_used_at DATETIME NULL,
+    acceptance_signer_name VARCHAR(255) NULL,
+    acceptance_signer_position VARCHAR(255) NULL,
+    acceptance_signature LONGTEXT NULL,
+    acceptance_signed_at DATETIME NULL,
+    acceptance_department VARCHAR(255) NULL COMMENT 'แผนก/ฝ่ายที่สถานประกอบการใหม่มอบหมาย',
+    acceptance_allowance VARCHAR(255) NULL COMMENT 'เบี้ยเลี้ยงที่ให้ เช่น "ไม่มีเบี้ยเลี้ยง" หรือ "3,000 บาท/เดือน"',
+    acceptance_preparations TEXT NULL COMMENT 'สิ่งของ/เอกสารที่ให้นักศึกษาเตรียม (สถานประกอบการใหม่ระบุตอนตอบรับ)',
+    acceptance_evaluator_email VARCHAR(255) NULL COMMENT 'อีเมลสำหรับรับแบบประเมินอัตโนมัติ',
     new_addr_house VARCHAR(50) NULL,
     new_addr_moo VARCHAR(50) NULL,
     new_addr_road VARCHAR(255) NULL,
@@ -68,6 +80,8 @@ const ensureTable = async () => {
     semester VARCHAR(50) NULL,
     academic_year VARCHAR(20) NULL,
     student_phone VARCHAR(50) NULL,
+    new_start_date DATE NULL COMMENT 'วันที่เริ่มฝึกงาน ณ ที่ใหม่ (แอดมินระบุตอนออกหนังสือ)',
+    new_end_date DATE NULL COMMENT 'วันที่สิ้นสุดการฝึกงาน ณ ที่ใหม่',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_relocation_student (student_id),
@@ -91,6 +105,18 @@ const ensureTable = async () => {
     'dean_signature LONGTEXT NULL',
     'dean_signed_at DATETIME NULL',
     'dean_decision VARCHAR(50) NULL',
+    'dean_token VARCHAR(64) NULL',
+    'dean_token_used_at DATETIME NULL',
+    'acceptance_token VARCHAR(64) NULL',
+    'acceptance_token_used_at DATETIME NULL',
+    'acceptance_signer_name VARCHAR(255) NULL',
+    'acceptance_signer_position VARCHAR(255) NULL',
+    'acceptance_signature LONGTEXT NULL',
+    'acceptance_signed_at DATETIME NULL',
+    'acceptance_department VARCHAR(255) NULL',
+    'acceptance_allowance VARCHAR(255) NULL',
+    'acceptance_preparations TEXT NULL',
+    'acceptance_evaluator_email VARCHAR(255) NULL',
     'new_addr_house VARCHAR(50) NULL',
     'new_addr_moo VARCHAR(50) NULL',
     'new_addr_road VARCHAR(255) NULL',
@@ -106,7 +132,9 @@ const ensureTable = async () => {
     'mentor_name VARCHAR(255) NULL',
     'mentor_position VARCHAR(255) NULL',
     'mentor_email VARCHAR(255) NULL',
-    'mentor_phone VARCHAR(50) NULL'
+    'mentor_phone VARCHAR(50) NULL',
+    'new_start_date DATE NULL',
+    'new_end_date DATE NULL'
   ];
   // MySQL 8 ไม่รองรับ ADD COLUMN IF NOT EXISTS — เช็ค information_schema ก่อนเพิ่ม (idempotent, ใช้ได้ทั้ง MySQL/MariaDB)
   const [colRows] = await pool.query(
@@ -157,9 +185,11 @@ const STATUS_LABEL = {
 
 // ดึงข้อมูลร่วมกับคำร้องเดิมเพื่อให้ UI แสดงบริบท (บริษัทเดิม/สาขา)
 const listQuery = `
-  SELECT rr.*, r.studentName, r.department, r.company AS old_company, r.position AS old_position
+  SELECT rr.*, r.studentName, r.department, r.company AS old_company, r.position AS old_position,
+         COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.details, '$.studentPhoto.dataUrl')), p.avatar_url) AS student_avatar
   FROM internship_relocation_requests rr
   LEFT JOIN requests r ON r.id = rr.internship_request_id
+  LEFT JOIN profile p ON p.profile_id = r.studentId
 `;
 
 const notifyAdmins = async (payload) => {
@@ -344,7 +374,16 @@ const adminOnly = (req, res) => {
   return true;
 };
 
-const transition = async (req, res, { from, to, fileField, filePrefix, notify }) => {
+// นับวันทำการ (จันทร์–เสาร์ ไม่รวมอาทิตย์) ระหว่างวันที่ — ใช้คำนวณวัน/ชั่วโมงฝึกงานคงเหลือ
+const countWorkDays = (start, end) => {
+  let d = new Date(`${start}T00:00:00`);
+  const e = new Date(`${end}T00:00:00`);
+  let n = 0;
+  while (d <= e) { if (d.getDay() !== 0) n += 1; d.setDate(d.getDate() + 1); }
+  return n;
+};
+
+const transition = async (req, res, { from, to, fileField, filePrefix, notify, extra, requireDates }) => {
   const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE id = ?', [req.params.id]);
   const rel = rows[0];
   if (!rel) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
@@ -354,6 +393,21 @@ const transition = async (req, res, { from, to, fileField, filePrefix, notify })
 
   const updates = ['status = ?'];
   const params = [to];
+
+  // บังคับระบุช่วงวันฝึกงานจริงก่อนออกหนังสือ (ขอความอนุเคราะห์ / ส่งตัว) — เก็บไว้ให้บริษัทใหม่เห็นในหน้าตอบรับ
+  if (requireDates) {
+    const sd = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.new_start_date || '') ? req.body.new_start_date : null;
+    const ed = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.new_end_date || '') ? req.body.new_end_date : null;
+    if (sd || ed) {
+      if (!sd || !ed || new Date(ed) < new Date(sd)) {
+        return res.status(400).json({ success: false, message: 'ช่วงวันฝึกงานไม่ถูกต้อง — วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น' });
+      }
+      updates.push('new_start_date = ?', 'new_end_date = ?', 'days_remaining = ?');
+      params.push(sd, ed, countWorkDays(sd, ed));
+    } else if (!rel.new_start_date || !rel.new_end_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุวันที่เริ่มฝึกงานและวันที่สิ้นสุด ณ สถานประกอบการใหม่' });
+    }
+  }
 
   if (fileField) {
     const { file_name, file_data_url } = req.body || {};
@@ -367,6 +421,7 @@ const transition = async (req, res, { from, to, fileField, filePrefix, notify })
 
   const { comment } = req.body || {};
   if (comment !== undefined) { updates.push('admin_comment = ?'); params.push(comment || null); }
+  if (extra) for (const [k, v] of Object.entries(extra)) { updates.push(`${k} = ?`); params.push(v); }
 
   params.push(rel.id);
   await pool.query(`UPDATE internship_relocation_requests SET ${updates.join(', ')} WHERE id = ?`, params);
@@ -424,6 +479,27 @@ router.patch('/:id/admin-approve', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// สร้าง/ดึง one-time link สำหรับคณบดีลงนามอนุญาต (admin gen QR ส่งให้คณบดีเซ็นเอง)
+router.post('/:id/dean-link', authenticate, async (req, res) => {
+  try {
+    if (!adminOnly(req, res)) return;
+    await withTable(async () => {
+      const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE id = ?', [req.params.id]);
+      const rel = rows[0];
+      if (!rel) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+      if (rel.status !== 'advisor_approved_waiting_admin') {
+        return res.status(409).json({ success: false, message: `คำร้องนี้ผ่านขั้นคณบดีไปแล้ว (สถานะ: ${STATUS_LABEL[rel.status] || rel.status})` });
+      }
+      let token = rel.dean_token;
+      if (!token) {
+        token = crypto.randomBytes(24).toString('hex');
+        await pool.query('UPDATE internship_relocation_requests SET dean_token = ? WHERE id = ?', [token, rel.id]);
+      }
+      res.json({ success: true, data: { token, approvalUrl: `/public/relocation-dean/${token}` } });
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // (เก่า) admin-approve ผ่าน transition — ไม่ใช้แล้ว คงไว้เผื่อ legacy caller โดยไม่มีลายเซ็นจะถูก block ผ่าน path ใหม่ข้างบน
 router.patch('/:id/admin-approve-legacy', authenticate, async (req, res) => {
   try {
@@ -470,6 +546,9 @@ router.patch('/:id/request-letter', authenticate, async (req, res) => {
       to: 'waiting_company_acceptance',
       fileField: 'new_request_letter_file',
       filePrefix: 'request-letter',
+      requireDates: true,
+      // one-time token สำหรับลิงก์/QR ให้สถานประกอบการใหม่ตอบรับออนไลน์
+      extra: { acceptance_token: crypto.randomBytes(24).toString('hex') },
       notify: async (rel) => {
         // ส่งอีเมลแจ้งบริษัทใหม่ (ใช้อีเมลหัวหน้าหน่วยงาน หรือดึงอีเมลแรกจากช่องผู้ประสานงานเดิม)
         const emailMatch = rel.mentor_email
@@ -523,12 +602,59 @@ router.patch('/:id/dispatch-letter', authenticate, async (req, res) => {
       to: 'completed',
       fileField: 'new_dispatch_letter_file',
       filePrefix: 'dispatch-letter',
+      requireDates: true,
       notify: (rel) => notifyStudent(rel.student_id, {
         type: 'relocation_status', title: 'หนังสือส่งตัวฉบับใหม่พร้อมดาวน์โหลด',
         message: `ระบบออกหนังสือส่งตัวไปฝึกงานที่ ${rel.new_company_name} เรียบร้อย — ดาวน์โหลดได้ที่หน้า "คำร้องของฉัน"`,
         link: '/dashboard/my-requests', requestId: rel.internship_request_id
       })
     });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// สร้าง/ดึง one-time link สำหรับสถานประกอบการใหม่ตอบรับ (เปิด modal ซ้ำได้จนกว่าบริษัทจะตอบ)
+router.get('/:id/acceptance-link', authenticate, async (req, res) => {
+  try {
+    if (!adminOnly(req, res)) return;
+    await withTable(async () => {
+      const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE id = ?', [req.params.id]);
+      const rel = rows[0];
+      if (!rel) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+      if (rel.status !== 'waiting_company_acceptance') {
+        return res.status(409).json({ success: false, message: `ขั้นตอนนี้ใช้ได้เฉพาะตอนรอบริษัทใหม่ตอบรับ (สถานะ: ${STATUS_LABEL[rel.status] || rel.status})` });
+      }
+      let token = rel.acceptance_token;
+      if (!token) {
+        token = crypto.randomBytes(24).toString('hex');
+        await pool.query('UPDATE internship_relocation_requests SET acceptance_token = ? WHERE id = ?', [token, rel.id]);
+      }
+      res.json({ success: true, data: { token, acceptanceUrl: `/public/company-acceptance/${token}` } });
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// แอดมินกำหนดช่วงวันฝึกงาน ณ ที่ใหม่แยกต่างหาก (ใช้ได้ก่อนเสร็จสิ้น — prefill ให้หน้าตอบรับบริษัท)
+router.patch('/:id/training-dates', authenticate, async (req, res) => {
+  try {
+    if (!adminOnly(req, res)) return;
+    const { new_start_date, new_end_date } = req.body || {};
+    const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+    if (!isDate(new_start_date) || !isDate(new_end_date)) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุวันที่เริ่มและสิ้นสุดการฝึกงานให้ครบถ้วน' });
+    }
+    if (new Date(new_end_date) < new Date(new_start_date)) {
+      return res.status(400).json({ success: false, message: 'วันสิ้นสุดการฝึกงานต้องไม่ก่อนวันเริ่มต้น' });
+    }
+    const [rows] = await pool.query('SELECT id, status FROM internship_relocation_requests WHERE id = ?', [req.params.id]);
+    const rel = rows[0];
+    if (!rel) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+    if (['completed', 'rejected'].includes(rel.status)) {
+      return res.status(409).json({ success: false, message: 'คำร้องนี้สิ้นสุดแล้ว — แก้ไขวันฝึกงานไม่ได้' });
+    }
+    await pool.query(
+      'UPDATE internship_relocation_requests SET new_start_date = ?, new_end_date = ?, days_remaining = ? WHERE id = ?',
+      [new_start_date, new_end_date, countWorkDays(new_start_date, new_end_date), rel.id]);
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -584,6 +710,150 @@ publicRouter.post('/token/:token/approve', async (req, res) => {
       link: '/dashboard/my-requests', requestId: rel.internship_request_id
     });
     res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// GET สรุปคำร้องสำหรับคณบดีผ่าน dean token (ไม่ต้องล็อกอิน)
+publicRouter.get('/dean/:token', async (req, res) => {
+  try {
+    await ensureTable();
+    const [rows] = await pool.query(
+      `SELECT rr.id, rr.status, rr.reason, rr.new_company_name, rr.new_company_address,
+              rr.days_trained, rr.days_remaining, rr.advisor_comment, rr.return_letter_file, rr.return_letter_name,
+              r.studentId AS student_id, r.studentName AS student_name_th,
+              r.department AS major, r.company AS company_name,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.details, '$.studentPhoto.dataUrl')), p.avatar_url) AS student_avatar
+       FROM internship_relocation_requests rr
+       JOIN requests r ON r.id = rr.internship_request_id
+       LEFT JOIN profile p ON p.profile_id = r.studentId
+       WHERE rr.dean_token = ?`, [req.params.token]);
+    const rel = rows[0];
+    if (!rel) return res.status(404).json({ success: false, message: 'ลิงก์ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' });
+    const usable = rel.status === 'advisor_approved_waiting_admin';
+    res.json({ success: true, data: { ...rel, usable } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST คณบดีลงนามอนุญาต/ไม่อนุญาตผ่าน dean token — ใช้ได้ครั้งเดียว
+publicRouter.post('/dean/:token/approve', async (req, res) => {
+  try {
+    await ensureTable();
+    const { decision, signature_data_url, comment } = req.body || {};
+    if (!['allow', 'deny'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'กรุณาเลือกผลพิจารณา อนุญาต/ไม่อนุญาต' });
+    }
+    if (!/^data:image\/png;base64,/.test(signature_data_url || '')) {
+      return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัล (คณบดี)' });
+    }
+    const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE dean_token = ?', [req.params.token]);
+    const rel = rows[0];
+    if (!rel) return res.status(404).json({ success: false, message: 'ลิงก์ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' });
+    if (rel.status !== 'advisor_approved_waiting_admin') {
+      return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้วหรือคำร้องหมดอายุ' });
+    }
+    const nextStatus = decision === 'allow' ? 'admin_approved_generating_request_letter' : 'rejected';
+    const [r] = await pool.query(
+      `UPDATE internship_relocation_requests
+       SET status=?, dean_decision=?, dean_signature=?, dean_signed_at=?, admin_comment=?,
+           dean_token_used_at=?, dean_token=NULL
+       WHERE id=? AND status='advisor_approved_waiting_admin'`,
+      [nextStatus, decision, signature_data_url, new Date(), comment || null, new Date(), rel.id]);
+    if (!r.affectedRows) return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้ว' });
+    await notifyStudent(rel.student_id, {
+      type: 'relocation_status',
+      title: decision === 'allow' ? 'คณบดีอนุมัติคำร้องเปลี่ยนสถานที่ฝึกงาน' : 'คำร้องเปลี่ยนสถานที่ฝึกงานไม่ได้รับอนุญาต',
+      message: decision === 'allow'
+        ? `คำร้องย้ายไป ${rel.new_company_name} ได้รับอนุมัติ — กำลังออกหนังสือขอความอนุเคราะห์`
+        : 'คณบดีไม่อนุญาตให้เปลี่ยนสถานที่ฝึกงาน',
+      link: '/dashboard/my-requests', requestId: rel.internship_request_id
+    });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// GET สรุปคำร้องสำหรับสถานประกอบการใหม่ผ่าน acceptance token (ไม่ต้องล็อกอิน)
+publicRouter.get('/acceptance/:token', async (req, res) => {
+  try {
+    await ensureTable();
+    const [rows] = await pool.query(
+      `SELECT rr.id, rr.status, rr.reason, rr.new_company_name, rr.new_company_address,
+              rr.new_company_contact, rr.days_trained, rr.days_remaining,
+              rr.mentor_name, rr.mentor_position, rr.mentor_email, rr.mentor_phone,
+              rr.new_request_letter_file, rr.new_start_date, rr.new_end_date,
+              r.studentId AS student_id, r.studentName AS student_name_th,
+              r.department AS major, r.company AS company_name, r.position AS intern_position,
+              JSON_UNQUOTE(JSON_EXTRACT(r.details, '$.description')) AS intern_description,
+              JSON_UNQUOTE(JSON_EXTRACT(r.details, '$.skills')) AS intern_skills,
+              JSON_EXTRACT(r.details, '$.student_info') AS student_info,
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.details, '$.studentPhoto.dataUrl')), p.avatar_url) AS student_avatar
+       FROM internship_relocation_requests rr
+       JOIN requests r ON r.id = rr.internship_request_id
+       LEFT JOIN profile p ON p.profile_id = r.studentId
+       WHERE rr.acceptance_token = ?`, [req.params.token]);
+    const rel = rows[0];
+    if (!rel) return res.status(404).json({ success: false, message: 'ลิงก์ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' });
+    const usable = rel.status === 'waiting_company_acceptance';
+    res.json({ success: true, data: { ...rel, usable } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST สถานประกอบการใหม่ตอบรับ/ปฏิเสธผ่าน acceptance token — ใช้ได้ครั้งเดียว
+publicRouter.post('/acceptance/:token/respond', async (req, res) => {
+  try {
+    await ensureTable();
+    const { decision, signer_name, signer_position, signature_data_url, comment, acceptance_department, acceptance_allowance, acceptance_preparations, acceptance_evaluator_email } = req.body || {};
+    if (!['accept', 'decline'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'กรุณาเลือกผลตอบรับ รับนักศึกษา/ไม่รับ' });
+    }
+    if (!signer_name?.trim()) return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อ-นามสกุลผู้ลงนาม' });
+    const isAccept = decision === 'accept';
+    // รับ → บังคับลายเซ็น | ไม่รับ → บังคับเหตุผล (ไม่ต้องลงลายเซ็น)
+    if (isAccept && !/^data:image\/png;base64,/.test(signature_data_url || '')) {
+      return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัล' });
+    }
+    if (!isAccept && !comment?.trim()) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลที่ไม่สามารถรับนักศึกษาได้' });
+    }
+    if (acceptance_evaluator_email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acceptance_evaluator_email.trim())) {
+      return res.status(400).json({ success: false, message: 'รูปแบบอีเมลสำหรับรับแบบประเมินไม่ถูกต้อง' });
+    }
+    const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE acceptance_token = ?', [req.params.token]);
+    const rel = rows[0];
+    if (!rel) return res.status(404).json({ success: false, message: 'ลิงก์ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' });
+    if (rel.status !== 'waiting_company_acceptance') {
+      return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้วหรือคำร้องหมดอายุ' });
+    }
+    const accept = decision === 'accept';
+    const nextStatus = accept ? 'company_accepted_generating_dispatch_letter' : 'rejected';
+    const adminNote = accept
+      ? (comment || null)
+      : `สถานประกอบการใหม่ไม่รับนักศึกษา${comment ? `: ${comment}` : ''}`;
+    const [r] = await pool.query(
+      `UPDATE internship_relocation_requests
+       SET status=?, acceptance_signer_name=?, acceptance_signer_position=?, acceptance_signature=?, acceptance_signed_at=?,
+           acceptance_department=?, acceptance_allowance=?, acceptance_preparations=?, acceptance_evaluator_email=?,
+           admin_comment=?, acceptance_token_used_at=?, acceptance_token=NULL
+       WHERE id=? AND status='waiting_company_acceptance'`,
+      [nextStatus, signer_name.trim(), signer_position?.trim() || null, accept ? signature_data_url : null,
+       new Date(), accept ? (acceptance_department || null) : null, accept ? (acceptance_allowance || null) : null,
+       accept ? (acceptance_preparations?.trim() || null) : null, accept ? (acceptance_evaluator_email?.trim() || null) : null,
+       adminNote, new Date(), rel.id]);
+    if (!r.affectedRows) return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้ว' });
+    await notifyStudent(rel.student_id, {
+      type: 'relocation_status',
+      title: accept ? 'สถานประกอบการใหม่ตอบรับแล้ว' : 'สถานประกอบการใหม่ไม่รับนักศึกษา',
+      message: accept
+        ? `${rel.new_company_name} ตอบรับรับนักศึกษาแล้ว — กำลังออกหนังสือส่งตัวฉบับใหม่`
+        : `${rel.new_company_name} ไม่สามารถรับนักศึกษาได้ — กรุณาติดต่อสำนักงานคณบดี`,
+      link: '/dashboard/my-requests', requestId: rel.internship_request_id
+    });
+    await notifyAdmins({
+      type: 'relocation_status',
+      title: accept ? 'ที่ใหม่ตอบรับออนไลน์แล้ว' : 'ที่ใหม่ปฏิเสธรับนักศึกษา',
+      message: `${rel.new_company_name} ${accept ? `ตอบรับโดย ${signer_name.trim()}` : 'ไม่รับนักศึกษา'} — คำร้อง #${rel.id}`,
+      link: '/admin-dashboard/relocations'
+    });
+    res.json({ success: true, decision });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

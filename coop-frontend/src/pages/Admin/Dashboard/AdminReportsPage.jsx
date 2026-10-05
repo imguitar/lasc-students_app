@@ -33,6 +33,7 @@ import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatCard from '../../../components/StatCard';
 import { STAT_ICON } from '../../../utils/statIcons';
+import { ChevronDown, ChevronUp, Filter } from 'lucide-react';
 
 // Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
 const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
@@ -45,6 +46,9 @@ const AdminReportsPage = () => {
   const [endDate, setEndDate] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [companyFilter, setCompanyFilter] = useState('all');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  // จำนวนฟิลเตอร์ที่ใช้งานอยู่ — โชว์ badge บนแถบพับมือถือ
+  const activeFilterCount = [startDate, endDate, departmentFilter !== 'all' && departmentFilter, companyFilter !== 'all' && companyFilter].filter(Boolean).length;
   const [successDeptFilter, setSuccessDeptFilter] = useState('all');
   const [successYear, setSuccessYear] = useState('');
   const statusPieRef = useRef(null);
@@ -438,12 +442,48 @@ const AdminReportsPage = () => {
         </header>
 
         <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Filter ละเอียด</Typography>
+          {/* แถบหัวข้อ — มือถือเป็น accordion พับ/กาง, desktop เป็นหัวข้อเฉยๆ */}
+          <Box
+            onClick={() => setMobileFilterOpen((prev) => !prev)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              cursor: { xs: 'pointer', md: 'default' },
+              userSelect: 'none',
+              mb: { xs: mobileFilterOpen ? 1.5 : 0, md: 2 },
+              transition: 'margin 0.3s ease',
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.75, fontSize: { xs: '0.95rem', md: '1.25rem' } }}>
+              <Filter style={{ width: 16, height: 16 }} />
+              <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Filter ละเอียด</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', md: 'none' } }}>ตัวกรองข้อมูลขั้นสูง</Box>
+            </Typography>
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+              {activeFilterCount > 0 && (
+                <Chip size="small" color="primary" label={`ใช้งาน ${activeFilterCount} ตัวกรอง`} sx={{ height: 22, fontSize: '0.7rem', fontWeight: 700 }} />
+              )}
+              {mobileFilterOpen ? <ChevronUp style={{ width: 18, height: 18, color: '#64748b' }} /> : <ChevronDown style={{ width: 18, height: 18, color: '#64748b' }} />}
+            </Box>
+          </Box>
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(5, 1fr)' },
-              gap: 1.5,
+              gap: { xs: 1.25, md: 1.5 },
+              // มือถือ: accordion slide — พับเป็นค่าเริ่มต้น, desktop เห็นเสมอ
+              overflow: 'hidden',
+              // label ของช่อง date ลอยเหนือขอบ input — ต้องเผื่อที่ไว้ไม่ให้ overflow:hidden ตัด (มือถือเผื่อเฉพาะตอนกาง)
+              pt: { xs: mobileFilterOpen ? '10px' : 0, md: '10px' },
+              maxHeight: { xs: mobileFilterOpen ? 1200 : 0, md: 'none' },
+              opacity: { xs: mobileFilterOpen ? 1 : 0, md: 1 },
+              transition: 'max-height 0.35s ease, opacity 0.3s ease',
+              pointerEvents: { xs: mobileFilterOpen ? 'auto' : 'none', md: 'auto' },
+              // input กะทัดรัดบนมือถือ (~h-10), desktop ขนาดเดิม
+              '& .MuiOutlinedInput-input': { py: { xs: '8.5px', md: '16.5px' } },
+              '& .MuiInputLabel-outlined:not(.MuiInputLabel-shrink)': { transform: { xs: 'translate(14px, 8.5px) scale(1)', md: 'translate(14px, 16.5px) scale(1)' } },
             }}
           >
             <TextField
@@ -492,7 +532,7 @@ const AdminReportsPage = () => {
                 setDepartmentFilter('all');
                 setCompanyFilter('all');
               }}
-              sx={{ minHeight: 56 }}
+              sx={{ minHeight: { xs: 40, md: 56 } }}
             >
               ล้างตัวกรอง
             </Button>

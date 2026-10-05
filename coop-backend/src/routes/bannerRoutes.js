@@ -94,6 +94,16 @@ const saveBase64Image = (dataUrl) => {
   return writeImageFile(buffer, ext);
 };
 
+// self-heal: เพิ่มคอลัมน์รูปแยกอุปกรณ์ถ้ายังไม่มี (กัน env ที่ยังไม่รัน migration)
+let bannerColsReady = false;
+const ensureBannerColumns = async () => {
+  if (bannerColsReady) return;
+  await pool.query(`ALTER TABLE banners
+    ADD COLUMN IF NOT EXISTS image_url_tablet VARCHAR(500) NULL COMMENT 'รูปสำหรับแท็บเล็ต 768–1023px (แนะนำ 4:3)',
+    ADD COLUMN IF NOT EXISTS image_url_mobile VARCHAR(500) NULL COMMENT 'รูปสำหรับมือถือ <768px (แนะนำแนวตั้ง 3:4)'`);
+  bannerColsReady = true;
+};
+
 // ลบไฟล์รูปในเครื่อง (เฉพาะที่อยู่ใต้ /uploads/banners/ เท่านั้น)
 const removeLocalImage = (imageUrl) => {
   if (!imageUrl || !imageUrl.startsWith('/uploads/banners/')) return;
@@ -114,21 +124,33 @@ const sanitizeOpacity = (value) => {
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 75;
 };
 
+// แปลง input รูป 1 ช่อง (base64 > ดึง remote > URL ตรง) เป็น path/URL สุดท้าย
+const resolveImageInput = async ({ url, base64, fetchRemote }) => {
+  let final = url || null;
+  if (base64) {
+    final = saveBase64Image(base64);
+  } else if (fetchRemote && /^https?:\/\//.test(final || '')) {
+    // ดึงรูปจากลิงก์ภายนอก (เช่น Facebook CDN ที่ URL หมดอายุ) มาเก็บในระบบถาวร
+    const { buffer, contentType } = await fetchRemoteImage(final);
+    const ext = ALLOWED_MIME[contentType] || '.jpg';
+    if (buffer.length > MAX_IMAGE_BYTES) throw new Error('ไฟล์รูปภาพต้องไม่เกิน 5MB');
+    final = writeImageFile(buffer, ext);
+  }
+  return final;
+};
+
 const parseBody = async (req, { requireImage }) => {
-  const { title, subtitle, image_url, image_base64, fetch_remote_image, link_url, link_label, display_order, is_active, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode } = req.body;
+  const { title, subtitle, image_url, image_base64, fetch_remote_image, image_url_tablet, image_base64_tablet, image_url_mobile, image_base64_mobile, link_url, link_label, display_order, is_active, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode } = req.body;
   if (!title || !String(title).trim()) {
     throw new Error('กรุณาระบุหัวข้อแบนเนอร์');
   }
-  let finalImageUrl = image_url || null;
-  if (image_base64) {
-    finalImageUrl = saveBase64Image(image_base64);
-  } else if (fetch_remote_image && /^https?:\/\//.test(finalImageUrl || '')) {
-    // ดึงรูปจากลิงก์ภายนอก (เช่น Facebook CDN ที่ URL หมดอายุ) มาเก็บในระบบถาวร
-    const { buffer, contentType } = await fetchRemoteImage(finalImageUrl);
-    const ext = ALLOWED_MIME[contentType] || '.jpg';
-    if (buffer.length > MAX_IMAGE_BYTES) throw new Error('ไฟล์รูปภาพต้องไม่เกิน 5MB');
-    finalImageUrl = writeImageFile(buffer, ext);
-  }
+  const finalImageUrl = await resolveImageInput({ url: image_url, base64: image_base64, fetchRemote: fetch_remote_image });
+  // variant รูปแยกอุปกรณ์: undefined = client ไม่ได้ส่ง (คงค่าเดิมใน DB), '' / null = เคลียร์, base64/url = เซ็ตใหม่
+  const hasTabletInput = 'image_url_tablet' in req.body || 'image_base64_tablet' in req.body;
+  const hasMobileInput = 'image_url_mobile' in req.body || 'image_base64_mobile' in req.body;
+  // variant ลิงก์ภายนอกถูกดึงมาเก็บในระบบเสมอ (fetchRemote: true) — กันลิงก์หมดอายุเหมือนรูปหลัก
+  const finalTabletUrl = hasTabletInput ? await resolveImageInput({ url: image_url_tablet, base64: image_base64_tablet, fetchRemote: true }) : undefined;
+  const finalMobileUrl = hasMobileInput ? await resolveImageInput({ url: image_url_mobile, base64: image_base64_mobile, fetchRemote: true }) : undefined;
   if (requireImage && !finalImageUrl) {
     throw new Error('กรุณาอัปโหลดรูปภาพหรือระบุ URL รูปภาพ');
   }
@@ -136,6 +158,8 @@ const parseBody = async (req, { requireImage }) => {
     title: String(title).trim(),
     subtitle: subtitle ? String(subtitle).trim() : null,
     image_url: finalImageUrl,
+    image_url_tablet: finalTabletUrl,
+    image_url_mobile: finalMobileUrl,
     link_url: link_url ? String(link_url).trim() : null,
     link_label: link_label ? String(link_label).trim() : 'ดูรายละเอียด',
     display_order: Number.isFinite(Number(display_order)) ? Number(display_order) : 0,
@@ -153,8 +177,9 @@ const parseBody = async (req, { requireImage }) => {
 // GET /api/public/banners (no auth — Hero Carousel หน้าแรก)
 router.get('/public/banners', async (req, res) => {
   try {
+    await ensureBannerColumns();
     const [rows] = await pool.query(
-      'SELECT id, title, subtitle, image_url, link_url, link_label, display_order, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode FROM banners WHERE is_active = 1 ORDER BY display_order ASC, id ASC LIMIT 10'
+      'SELECT id, title, subtitle, image_url, image_url_tablet, image_url_mobile, link_url, link_label, display_order, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode FROM banners WHERE is_active = 1 ORDER BY display_order ASC, id ASC LIMIT 10'
     );
     res.json({ success: true, data: rows });
   } catch (error) {
@@ -184,6 +209,7 @@ router.get('/public/banners/proxy', async (req, res) => {
 // GET /api/banners (admin — all banners)
 router.get('/banners', authenticate, authorize('admin'), async (req, res) => {
   try {
+    await ensureBannerColumns();
     const [rows] = await pool.query('SELECT * FROM banners ORDER BY display_order ASC, id ASC');
     res.json({ success: true, data: rows });
   } catch (error) {
@@ -194,10 +220,11 @@ router.get('/banners', authenticate, authorize('admin'), async (req, res) => {
 // POST /api/banners (admin — create)
 router.post('/banners', authenticate, authorize('admin'), async (req, res) => {
   try {
+    await ensureBannerColumns();
     const b = await parseBody(req, { requireImage: true });
     const [result] = await pool.query(
-      'INSERT INTO banners (title, subtitle, image_url, link_url, link_label, display_order, is_active, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [b.title, b.subtitle, b.image_url, b.link_url, b.link_label, b.display_order, b.is_active, b.title_color, b.subtitle_color, b.show_text_overlay, b.overlay_style, b.overlay_color, b.overlay_opacity, b.content_mode]
+      'INSERT INTO banners (title, subtitle, image_url, image_url_tablet, image_url_mobile, link_url, link_label, display_order, is_active, title_color, subtitle_color, show_text_overlay, overlay_style, overlay_color, overlay_opacity, content_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [b.title, b.subtitle, b.image_url, b.image_url_tablet ?? null, b.image_url_mobile ?? null, b.link_url, b.link_label, b.display_order, b.is_active, b.title_color, b.subtitle_color, b.show_text_overlay, b.overlay_style, b.overlay_color, b.overlay_opacity, b.content_mode]
     );
     const [created] = await pool.query('SELECT * FROM banners WHERE id = ?', [result.insertId]);
     res.status(201).json({ success: true, message: 'สร้างแบนเนอร์สำเร็จ', data: created[0] });
@@ -211,14 +238,19 @@ router.put('/banners/:id', authenticate, authorize('admin'), async (req, res) =>
   try {
     const [existing] = await pool.query('SELECT * FROM banners WHERE id = ?', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ success: false, message: 'ไม่พบแบนเนอร์' });
-    const previousImage = existing[0].image_url;
+    await ensureBannerColumns();
+    const previousImages = [existing[0].image_url, existing[0].image_url_tablet, existing[0].image_url_mobile];
 
     const b = await parseBody(req, { requireImage: true });
+    const finalTablet = b.image_url_tablet === undefined ? existing[0].image_url_tablet : b.image_url_tablet;
+    const finalMobile = b.image_url_mobile === undefined ? existing[0].image_url_mobile : b.image_url_mobile;
     await pool.query(
-      'UPDATE banners SET title = ?, subtitle = ?, image_url = ?, link_url = ?, link_label = ?, display_order = ?, is_active = ?, title_color = ?, subtitle_color = ?, show_text_overlay = ?, overlay_style = ?, overlay_color = ?, overlay_opacity = ?, content_mode = ? WHERE id = ?',
-      [b.title, b.subtitle, b.image_url, b.link_url, b.link_label, b.display_order, b.is_active, b.title_color, b.subtitle_color, b.show_text_overlay, b.overlay_style, b.overlay_color, b.overlay_opacity, b.content_mode, req.params.id]
+      'UPDATE banners SET title = ?, subtitle = ?, image_url = ?, image_url_tablet = ?, image_url_mobile = ?, link_url = ?, link_label = ?, display_order = ?, is_active = ?, title_color = ?, subtitle_color = ?, show_text_overlay = ?, overlay_style = ?, overlay_color = ?, overlay_opacity = ?, content_mode = ? WHERE id = ?',
+      [b.title, b.subtitle, b.image_url, finalTablet, finalMobile, b.link_url, b.link_label, b.display_order, b.is_active, b.title_color, b.subtitle_color, b.show_text_overlay, b.overlay_style, b.overlay_color, b.overlay_opacity, b.content_mode, req.params.id]
     );
-    if (previousImage && previousImage !== b.image_url) removeLocalImage(previousImage);
+    [b.image_url, finalTablet, finalMobile].forEach((url, i) => {
+      if (previousImages[i] && previousImages[i] !== url) removeLocalImage(previousImages[i]);
+    });
     const [updated] = await pool.query('SELECT * FROM banners WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'อัปเดตแบนเนอร์สำเร็จ', data: updated[0] });
   } catch (error) {
@@ -260,10 +292,12 @@ router.patch('/banners/:id/toggle', authenticate, authorize('admin'), async (req
 // DELETE /api/banners/:id (admin — delete + remove local image file)
 router.delete('/banners/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT image_url FROM banners WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query('SELECT image_url, image_url_tablet, image_url_mobile FROM banners WHERE id = ?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบแบนเนอร์' });
     await pool.query('DELETE FROM banners WHERE id = ?', [req.params.id]);
     removeLocalImage(rows[0].image_url);
+    removeLocalImage(rows[0].image_url_tablet);
+    removeLocalImage(rows[0].image_url_mobile);
     res.json({ success: true, message: 'ลบแบนเนอร์สำเร็จ' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

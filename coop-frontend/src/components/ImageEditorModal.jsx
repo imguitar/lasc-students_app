@@ -39,12 +39,12 @@ const isDefaultFilters = (f) =>
 
 // aspect = width/height — undefined = ครอปอิสระ
 const ASPECT_PRESETS = [
-  { label: 'อิสระ', value: undefined },
-  { label: '21:9', value: 21 / 9 },
-  { label: '16:9', value: 16 / 9 },
-  { label: '3:1', value: 3 / 1 },
-  { label: '4:3', value: 4 / 3 },
-  { label: '1:1', value: 1 / 1 },
+  { label: 'อิสระ', value: undefined, hint: 'ครอปเองได้ทุกรูปแบบ — ระบบจะใช้สัดส่วนตามกรอบที่ลาก' },
+  { label: '21:9', value: 21 / 9, hint: 'แนะนำสำหรับแบนเนอร์หน้าแรก — พอดีจอคอม/แล็ปท็อปแบบกว้างพิเศษ' },
+  { label: '16:9', value: 16 / 9, hint: 'จอคอมและแล็ปท็อปทั่วไป — มาตรฐานวิดีโอ/การ์ดข่าว' },
+  { label: '3:1', value: 3 / 1, hint: 'แถบแบนเนอร์เตี้ยกว้างมาก — เหมาะกับพื้นที่สูงจำกัด' },
+  { label: '4:3', value: 4 / 3, hint: 'แท็บเล็ต/iPad แนวนอน — สมดุลระหว่างกว้างกับสูง' },
+  { label: '1:1', value: 1 / 1, hint: 'มือถือ/รูปโปรไฟล์/โพสต์โซเชียล — เห็นเต็มทุกอุปกรณ์' },
 ];
 
 const ImageEditorModal = ({ open, onClose, imageSrc, onSave, title = 'รายละเอียดรูปภาพ', defaultAspect }) => {
@@ -234,6 +234,7 @@ const ImageEditorModal = ({ open, onClose, imageSrc, onSave, title = 'ราย�
                     key={p.label}
                     size="small"
                     onClick={() => applyAspect(p.value)}
+                    title={p.hint}
                     sx={{
                       textTransform: 'none',
                       borderRadius: 999,
@@ -250,6 +251,9 @@ const ImageEditorModal = ({ open, onClose, imageSrc, onSave, title = 'ราย�
                   </Button>
                 ))}
               </Box>
+              <Typography sx={{ color: '#9ca3af', fontSize: '0.72rem', mt: -0.5 }}>
+                {ASPECT_PRESETS.find((p) => p.value === aspect)?.hint || 'เลือกสัดส่วนที่เหมาะกับหน้าจอเป้าหมาย'}
+              </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography sx={{ color: '#6b7280', minWidth: 52, flexShrink: 0, fontSize: '0.85rem' }}>หมุน</Typography>
                 <Slider

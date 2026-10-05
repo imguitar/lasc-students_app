@@ -62,7 +62,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
-  const [stats, setStats] = useState({ companies: 0, students: 0 });
+  const [stats, setStats] = useState({ companies: 0, activeStudents: 0, completedStudents: 0 });
   const [banners, setBanners] = useState([DEFAULT_BANNER]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isHeroHovered, setIsHeroHovered] = useState(false);
@@ -120,12 +120,13 @@ const HomePage = () => {
       .then(res => setAnnouncements(res.data.data || []))
       .catch(() => setAnnouncements([]));
 
-    api.get('/public/companies')
+    api.get('/public/stats')
       .then(res => {
-        const list = res.data.data || [];
+        const d = res.data.data || {};
         setStats({
-          companies: list.length,
-          students: list.reduce((sum, c) => sum + (c.studentCount || 0), 0),
+          companies: d.companies || 0,
+          activeStudents: d.activeStudents || 0,
+          completedStudents: d.completedStudents || 0,
         });
       })
       .catch(() => {});
@@ -282,7 +283,7 @@ const HomePage = () => {
       {/* Hero Banner Carousel — สไลด์ประชาสัมพันธ์จากระบบ (fallback = อาคารจุฬาภรณวลัยลักษณ์) */}
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
         <div
-          className="relative aspect-[16/10] md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden shadow-md md:shadow-2xl border border-purple-100/50 bg-slate-100"
+          className="relative h-[calc(100svh-255px)] min-h-[320px] md:h-auto md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden shadow-md md:shadow-2xl border border-purple-100/50 bg-slate-100"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -291,15 +292,23 @@ const HomePage = () => {
             const isPoster = banner.content_mode === 'poster';
             const showText = !isPoster && banner.show_text_overlay !== 0 && banner.show_text_overlay !== false;
             const bannerImage = (
-              <img
-                src={resolveBannerSrc(banner.image_url, sskruBg)}
-                referrerPolicy="no-referrer"
-                alt={banner.title || 'แบนเนอร์ประชาสัมพันธ์'}
-                onError={(e) => {
-                  if (e.currentTarget.src !== sskruBg) e.currentTarget.src = sskruBg;
-                }}
-                className="w-full h-full object-cover object-center transition-transform duration-700"
-              />
+              <picture className="block w-full h-full">
+                {banner.image_url_mobile && (
+                  <source media="(max-width: 767px)" srcSet={resolveBannerSrc(banner.image_url_mobile, '')} />
+                )}
+                {banner.image_url_tablet && (
+                  <source media="(min-width: 768px) and (max-width: 1023px)" srcSet={resolveBannerSrc(banner.image_url_tablet, '')} />
+                )}
+                <img
+                  src={resolveBannerSrc(banner.image_url, sskruBg)}
+                  referrerPolicy="no-referrer"
+                  alt={banner.title || 'แบนเนอร์ประชาสัมพันธ์'}
+                  onError={(e) => {
+                    if (e.currentTarget.src !== sskruBg) e.currentTarget.src = sskruBg;
+                  }}
+                  className="w-full h-full object-cover object-center transition-transform duration-700"
+                />
+              </picture>
             );
             return (
             <div
@@ -316,22 +325,26 @@ const HomePage = () => {
               {showText && (
                 <div className="absolute inset-0" style={{ background: bannerOverlayBackground(banner) }} />
               )}
+              {/* เงาดำจางด้านล่าง — ให้อ่านตัวหนังสือชัดโดยไม่ต้องขยายฟอนต์ */}
               {showText && (
-                <div className="absolute bottom-5 sm:bottom-6 left-6 sm:left-8 right-6 sm:right-8 text-white">
+                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
+              )}
+              {showText && (
+                <div className="absolute inset-x-0 bottom-0 p-4 pb-8 md:p-8 md:pb-10 text-white">
                   <h1
-                    className="text-2xl sm:text-4xl font-extrabold tracking-tight drop-shadow-sm text-white m-0"
+                    className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight leading-snug sm:leading-tight drop-shadow-sm text-white m-0"
                     style={banner.title_color ? { color: banner.title_color } : undefined}
                   >
                     {banner.title}
                   </h1>
                   {index === 0 && banner.id === 'default' && (
-                    <p className="mt-2 text-purple-100/90 text-sm sm:text-base max-w-2xl font-light leading-relaxed m-0">
+                    <p className="mt-1.5 text-purple-100/90 text-xs sm:text-sm md:text-base max-w-2xl font-light leading-relaxed m-0">
                       เชื่อมโยงนักศึกษา อาจารย์ และสถานประกอบการชั้นนำ ยกระดับทักษะสู่วิชาชีพในอนาคต
                     </p>
                   )}
                   {banner.subtitle && (
                     <p
-                      className="mt-1.5 text-sm text-purple-100/80 max-w-2xl leading-relaxed m-0 drop-shadow-sm"
+                      className="mt-1 text-xs sm:text-sm md:text-base text-slate-100/90 max-w-2xl leading-relaxed m-0 drop-shadow-sm"
                       style={banner.subtitle_color ? { color: banner.subtitle_color } : undefined}
                     >
                       {banner.subtitle}
@@ -342,7 +355,7 @@ const HomePage = () => {
                       href={banner.link_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 mt-2.5 text-xs font-semibold text-white/90 hover:text-white underline underline-offset-4 transition no-underline drop-shadow-sm"
+                      className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-white/90 hover:text-white underline underline-offset-4 transition no-underline drop-shadow-sm"
                     >
                       {banner.link_label || 'ดูรายละเอียด'}
                       <ArrowRightIcon className="w-3.5 h-3.5" />
@@ -531,9 +544,12 @@ const HomePage = () => {
                 <AcademicCapIcon className="w-6 h-6" />
               </div>
               <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                {stats.students > 0 ? `${stats.students}+` : '200+'}
+                {stats.activeStudents > 0 ? `${stats.activeStudents}+` : '200+'}
               </div>
-              <div className="text-xs text-slate-500 font-medium mt-1">นักศึกษาที่สำเร็จการฝึกประสบการณ์</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">นักศึกษาที่กำลังฝึกประสบการณ์</div>
+              {stats.completedStudents > 0 && (
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">(สำเร็จการฝึกงานแล้วสะสม {stats.completedStudents} คน)</div>
+              )}
             </div>
 
             <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">

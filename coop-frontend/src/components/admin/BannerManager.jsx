@@ -10,7 +10,7 @@ import { resolveBannerSrc, isExternalImageUrl } from '../../utils/bannerImage';
 import ImageEditorModal from '../ImageEditorModal';
 import {
   PhotoIcon, XMarkIcon, ArrowUpIcon, ArrowDownIcon, PencilIcon,
-  LinkIcon, ArrowTopRightOnSquareIcon
+  LinkIcon, ArrowTopRightOnSquareIcon, ChevronDownIcon, DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline';
 
 const emptyForm = {
@@ -18,6 +18,10 @@ const emptyForm = {
   subtitle: '',
   image_url: '',
   image_base64: '',
+  image_url_tablet: '',
+  image_base64_tablet: '',
+  image_url_mobile: '',
+  image_base64_mobile: '',
   link_url: '',
   link_label: 'ดูรายละเอียด',
   display_order: 0,
@@ -72,6 +76,8 @@ const BannerManager = () => {
     const nextOrder = banners.length ? Math.max(...banners.map(b => b.display_order || 0)) + 1 : 1;
     setFormData({ ...emptyForm, display_order: nextOrder });
     setFetchRemote(true);
+    setVariantLinkOpen({ tablet: false, mobile: false });
+    setVariantSectionOpen(false);
     setFormDialog({ open: true, mode: 'create', data: null });
   };
 
@@ -81,6 +87,10 @@ const BannerManager = () => {
       subtitle: item.subtitle || '',
       image_url: item.image_url || '',
       image_base64: '',
+      image_url_tablet: item.image_url_tablet || '',
+      image_base64_tablet: '',
+      image_url_mobile: item.image_url_mobile || '',
+      image_base64_mobile: '',
       link_url: item.link_url || '',
       link_label: item.link_label || 'ดูรายละเอียด',
       display_order: item.display_order ?? 0,
@@ -94,6 +104,10 @@ const BannerManager = () => {
       content_mode: item.content_mode || 'standard',
     });
     setFetchRemote(true);
+    // ถ้ารูปแยกอุปกรณ์เป็นลิงก์ภายนอกอยู่แล้ว ให้เปิดช่องลิงก์ไว้เลย
+    setVariantLinkOpen({ tablet: isExternalImageUrl(item.image_url_tablet), mobile: isExternalImageUrl(item.image_url_mobile) });
+    // มี variant อยู่แล้ว → กางกล่องออกมาให้เห็นเลย
+    setVariantSectionOpen(!!(item.image_url_tablet || item.image_url_mobile));
     setFormDialog({ open: true, mode: 'edit', data: item });
   };
 
@@ -104,7 +118,15 @@ const BannerManager = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageUpload = (e) => {
+  const [editorTarget, setEditorTarget] = useState('main'); // 'main' | 'tablet' | 'mobile'
+  const [variantLinkOpen, setVariantLinkOpen] = useState({ tablet: false, mobile: false }); // ช่องวางลิงก์รูปแยกอุปกรณ์
+  const [variantSectionOpen, setVariantSectionOpen] = useState(false); // กล่องรูปแยกอุปกรณ์ — default พับเก็บ
+
+  // variant = ช่องรูปแยกอุปกรณ์ ('tablet' | 'mobile') — ค่าเริ่มต้นคือรูปหลัก
+  const variantField = (variant) => (variant ? `image_base64_${variant}` : 'image_base64');
+  const variantUrlField = (variant) => (variant ? `image_url_${variant}` : 'image_url');
+
+  const handleImageUpload = (e, variant = '') => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -112,12 +134,19 @@ const BannerManager = () => {
       return;
     }
     const reader = new FileReader();
-    reader.onloadend = () => setFormData(prev => ({ ...prev, image_base64: reader.result }));
+    reader.onloadend = () => setFormData(prev => ({ ...prev, [variantField(variant)]: reader.result }));
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const previewSrc = formData.image_base64 || resolveBannerSrc(formData.image_url, '');
+  const variantPreview = (variant) => formData[variantField(variant)] || resolveBannerSrc(formData[variantUrlField(variant)], '');
+
+  const clearVariant = (variant) =>
+    setFormData(prev => ({ ...prev, [variantField(variant)]: '', [variantUrlField(variant)]: '' }));
+
+  const previewSrc = variantPreview('');
+  const editorPreviewSrc = variantPreview(editorTarget === 'main' ? '' : editorTarget);
+  const editorAspect = { main: 21 / 9, tablet: 21 / 9, mobile: 2 / 3 }[editorTarget];
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) {
@@ -133,6 +162,11 @@ const BannerManager = () => {
       subtitle: formData.subtitle,
       image_url: formData.image_base64 ? null : formData.image_url,
       image_base64: formData.image_base64 || undefined,
+      // รูปแยกอุปกรณ์ — ส่ง key เสมอเพื่อให้ล้างค่าได้ (backend เก็บเฉพาะช่องที่ส่งมา)
+      image_url_tablet: formData.image_base64_tablet ? null : (formData.image_url_tablet || null),
+      image_base64_tablet: formData.image_base64_tablet || undefined,
+      image_url_mobile: formData.image_base64_mobile ? null : (formData.image_url_mobile || null),
+      image_base64_mobile: formData.image_base64_mobile || undefined,
       fetch_remote_image: !formData.image_base64 && fetchRemote && isExternalImageUrl(formData.image_url),
       link_url: formData.link_url,
       link_label: formData.link_label,
@@ -342,15 +376,15 @@ const BannerManager = () => {
       </Paper>
 
       {/* Create / Edit Dialog */}
-      <Dialog open={formDialog.open} onClose={handleCloseDialog} fullWidth maxWidth="sm" TransitionComponent={Zoom} PaperProps={{ sx: { borderRadius: 4, boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' } }}>
+      <Dialog open={formDialog.open} onClose={handleCloseDialog} fullWidth maxWidth="sm" TransitionComponent={Zoom} PaperProps={{ sx: { borderRadius: { xs: 3, sm: 4 }, boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)', m: { xs: 2, sm: 4 }, maxHeight: { xs: '85vh', sm: 'calc(100% - 64px)' } } }}>
         <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', borderBottom: '1px solid #f3f4f6', py: 2, color: '#111' }}>
           {formDialog.mode === 'create' ? 'เพิ่มแบนเนอร์ใหม่' : 'แก้ไขแบนเนอร์'}
           <IconButton onClick={handleCloseDialog} sx={{ position: 'absolute', right: 16, top: 12, bgcolor: '#f3f4f6', '&:hover': { bgcolor: '#e5e7eb' } }}>
             <XMarkIcon style={{ width: 20, height: 20, color: '#4b5563' }} />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        <DialogContent sx={{ pt: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 } }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* รูปภาพแบนเนอร์ */}
             <Box>
               <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#374151', mb: 1 }}>รูปภาพแบนเนอร์ *</Typography>
@@ -361,7 +395,7 @@ const BannerManager = () => {
                     <Button
                       variant="contained"
                       size="small"
-                      onClick={() => setEditorOpen(true)}
+                      onClick={() => { setEditorTarget('main'); setEditorOpen(true); }}
                       startIcon={<PencilIcon style={{ width: 14, height: 14 }} />}
                       sx={{ bgcolor: 'rgba(255,255,255,0.92)', color: '#111', '&:hover': { bgcolor: '#fff' }, boxShadow: '0 2px 4px rgba(0,0,0,0.15)', borderRadius: 2, fontWeight: 600, textTransform: 'none' }}
                     >
@@ -419,6 +453,110 @@ const BannerManager = () => {
                   </Typography>
                 </Box>
               )}
+
+              {/* รูปแยกตามอุปกรณ์ — ไม่บังคับ พับเก็บได้ (default ปิด ประหยัดพื้นที่บนมือถือ) */}
+              <Box sx={{ mt: 1.5, border: '1px dashed #d8b4fe', borderRadius: 2, bgcolor: '#fdfaff', overflow: 'hidden' }}>
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => setVariantSectionOpen(prev => !prev)}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', px: 1.5, py: 1.25, border: 'none', bgcolor: variantSectionOpen ? '#f8f4ff' : 'transparent', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <DevicePhoneMobileIcon style={{ width: 18, height: 18, color: '#7c3aed', flexShrink: 0 }} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', color: '#6d28d9' }}>
+                      ตั้งค่ารูปเฉพาะจอ แท็บเล็ต / มือถือ (ไม่บังคับ)
+                    </Typography>
+                    {!variantSectionOpen && ['tablet', 'mobile'].filter(k => variantPreview(k)).length > 0 && (
+                      <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                        ตั้งค่าแล้ว {['tablet', 'mobile'].filter(k => variantPreview(k)).length}/2
+                      </Typography>
+                    )}
+                  </Box>
+                  <ChevronDownIcon style={{ width: 16, height: 16, color: '#7c3aed', flexShrink: 0, transition: 'transform .2s', transform: variantSectionOpen ? 'rotate(180deg)' : 'none' }} />
+                </Box>
+                {variantSectionOpen && (
+                  <Box sx={{ px: 1.5, pb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mb: 0.5 }}>
+                      อัปโหลดรูปเฉพาะจอ — ถ้าเว้นว่างระบบจะใช้รูปหลัก (ด้านบน) แทนอัตโนมัติ
+                    </Typography>
+                    {[
+                      { key: 'tablet', label: 'แท็บเล็ต (768–1023px)', suggest: 'แนะนำ 21:9 (เฟรมเดียวกับจอคอม)' },
+                      { key: 'mobile', label: 'มือถือ (<768px)', suggest: 'แนะนำแนวตั้ง 2:3 (เฟรมเต็มจอ)' },
+                    ].map((v) => {
+                      const own = variantPreview(v.key);          // รูปเฉพาะอุปกรณ์ที่ตั้งเอง
+                      const src = own || previewSrc;              // fallback → รูปหลัก
+                      const linkOpen = variantLinkOpen[v.key];
+                      return (
+                        <Box key={v.key} sx={{ py: 1, borderTop: '1px solid #f3e8ff' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                            <Box sx={{ width: 64, height: 64, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #e5e7eb', bgcolor: '#f8fafc', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {src
+                                ? <img src={src} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                : <PhotoIcon style={{ width: 20, height: 20, color: '#cbd5e1' }} />}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151' }}>{v.label}</Typography>
+                              <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block' }}>
+                                {v.suggest}
+                                {!own && src && <Box component="span" sx={{ color: '#a78bfa' }}> — ใช้รูปหลักอัตโนมัติ</Box>}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1, flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              startIcon={<LinkIcon style={{ width: 13, height: 13 }} />}
+                              onClick={() => setVariantLinkOpen(prev => ({ ...prev, [v.key]: !prev[v.key] }))}
+                              sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', px: 1.25, py: 0.5, borderRadius: 1.5, minWidth: 0, bgcolor: linkOpen ? '#ede9fe' : '#f1f5f9', color: linkOpen ? '#6d28d9' : '#475569', '&:hover': { bgcolor: linkOpen ? '#ddd6fe' : '#e2e8f0' } }}
+                            >
+                              ลิงก์
+                            </Button>
+                            <Button
+                              component="label"
+                              size="small"
+                              startIcon={<PhotoIcon style={{ width: 13, height: 13 }} />}
+                              sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', px: 1.25, py: 0.5, borderRadius: 1.5, minWidth: 0, bgcolor: '#f1f5f9', color: '#475569', '&:hover': { bgcolor: '#e2e8f0' } }}
+                            >
+                              {own ? 'เปลี่ยนรูป' : 'อัปโหลด'}
+                              <input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => handleImageUpload(e, v.key)} />
+                            </Button>
+                            {own && (
+                              <Button
+                                size="small"
+                                startIcon={<PencilIcon style={{ width: 13, height: 13 }} />}
+                                onClick={() => { setEditorTarget(v.key); setEditorOpen(true); }}
+                                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', px: 1.25, py: 0.5, borderRadius: 1.5, minWidth: 0, bgcolor: '#f1f5f9', color: '#475569', '&:hover': { bgcolor: '#e2e8f0' } }}
+                              >
+                                ครอป
+                              </Button>
+                            )}
+                            {own && (
+                              <IconButton size="small" title="ลบรูปนี้" onClick={() => clearVariant(v.key)} sx={{ ml: 'auto', color: '#f43f5e', bgcolor: '#fff1f2', '&:hover': { bgcolor: '#ffe4e6' }, p: 0.75 }}>
+                                <XMarkIcon style={{ width: 14, height: 14 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                          {linkOpen && (
+                            <TextField
+                              label={`ลิงก์รูปสำหรับ${v.label}`}
+                              name={variantUrlField(v.key)}
+                              value={formData[variantUrlField(v.key)]}
+                              onChange={handleFormChange}
+                              size="small"
+                              fullWidth
+                              disabled={!!formData[variantField(v.key)]}
+                              placeholder="https://example.com/banner.jpg"
+                              helperText="ลิงก์ภายนอกจะถูกดึงมาเก็บในระบบถาวรตอนกดบันทึก"
+                              sx={{ mt: 1 }}
+                            />
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+              </Box>
             </Box>
 
             <TextField label="หัวข้อแบนเนอร์ *" name="title" value={formData.title} onChange={handleFormChange} size="small" fullWidth />
@@ -602,7 +740,7 @@ const BannerManager = () => {
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
+        <DialogActions sx={{ p: { xs: 1.5, sm: 2.5 }, position: 'sticky', bottom: 0, bgcolor: '#fff', borderTop: '1px solid #f3f4f6' }}>
           <Button onClick={handleCloseDialog} sx={{ textTransform: 'none' }}>ยกเลิก</Button>
           <Button
             variant="contained"
@@ -616,15 +754,15 @@ const BannerManager = () => {
       </Dialog>
 
       {/* Image Editor — ครอป/หมุน/ปรับสี ก่อนบันทึก */}
-      {previewSrc && (
+      {editorPreviewSrc && (
         <ImageEditorModal
           open={editorOpen}
           onClose={() => setEditorOpen(false)}
-          imageSrc={previewSrc}
-          title="แก้ไขรูปแบนเนอร์"
-          defaultAspect={21 / 9}
+          imageSrc={editorPreviewSrc}
+          title={editorTarget === 'main' ? 'แก้ไขรูปแบนเนอร์' : editorTarget === 'tablet' ? 'แก้ไขรูปสำหรับแท็บเล็ต' : 'แก้ไขรูปสำหรับมือถือ'}
+          defaultAspect={editorAspect}
           onSave={({ image }) => {
-            setFormData(prev => ({ ...prev, image_base64: image }));
+            setFormData(prev => ({ ...prev, [variantField(editorTarget === 'main' ? '' : editorTarget)]: image }));
             setEditorOpen(false);
           }}
         />

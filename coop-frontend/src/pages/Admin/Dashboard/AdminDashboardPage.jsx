@@ -46,6 +46,31 @@ import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
 import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
 import AdminInternshipRoundsModal from './AdminInternshipRoundsModal';
+import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
+
+// โทนสี badge ตามขั้นตอนคำร้องเปลี่ยนสถานที่ฝึกงาน
+const RELOC_BADGE = {
+  submitted_waiting_company: 'bg-amber-50 text-amber-600 border-amber-200',
+  company_approved_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
+  submitted_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
+  advisor_approved_waiting_admin: 'bg-sky-50 text-sky-600 border-sky-200',
+  admin_approved_generating_request_letter: 'bg-violet-50 text-violet-600 border-violet-200',
+  waiting_company_acceptance: 'bg-blue-50 text-blue-600 border-blue-200',
+  company_accepted_generating_dispatch_letter: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  completed: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  rejected: 'bg-red-50 text-red-500 border-red-200',
+};
+const RELOC_BADGE_DOT = {
+  submitted_waiting_company: 'bg-amber-400',
+  company_approved_waiting_advisor: 'bg-amber-400',
+  submitted_waiting_advisor: 'bg-amber-400',
+  advisor_approved_waiting_admin: 'bg-sky-400',
+  admin_approved_generating_request_letter: 'bg-violet-400',
+  waiting_company_acceptance: 'bg-blue-400',
+  company_accepted_generating_dispatch_letter: 'bg-indigo-400',
+  completed: 'bg-emerald-400',
+  rejected: 'bg-red-400',
+};
 
 // Palette ไล่เฉด ฟ้า-น้ำเงิน-ม่วง-ชมพู-ทอง สำหรับพายชาร์ตสถานะ
 const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba59cf', '#d958b9', '#dca55c'];
@@ -175,6 +200,7 @@ const AdminDashboardPage = () => {
   const [filter, setFilter] = useState('all');
   const [adminName, setAdminName] = useState('');
   const [allRequests, setAllRequests] = useState([]);
+  const [relocations, setRelocations] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState({
     open: false,
@@ -284,6 +310,11 @@ const AdminDashboardPage = () => {
         // Hide 'ฝึกงานเสร็จแล้ว' from Dashboard
         setAllRequests(requests.filter(req => req.status !== 'ฝึกงานเสร็จแล้ว'));
       }).catch(err => console.error('Failed to load requests:', err));
+
+      // คำร้องขอเปลี่ยนสถานที่ฝึกงาน — รวมเข้าสถิติ/กราฟแดชบอร์ด
+      api.get('/relocations').then(res => {
+        setRelocations(res.data.data || []);
+      }).catch(err => console.error('Failed to load relocations:', err));
     } else {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
@@ -332,6 +363,32 @@ const AdminDashboardPage = () => {
     return String(va).localeCompare(String(vb), 'th-TH', { numeric: true }) * (sortDir === 'asc' ? 1 : -1);
   });
 
+  // สถิติคำร้องเปลี่ยนสถานที่ฝึกงาน — group by status เป็น 4 บัคเก็ต (ต้องประกาศก่อน summaryCards)
+  const relocationStats = useMemo(() => {
+    const c = { total: relocations.length, pending: 0, inProgress: 0, completed: 0, rejected: 0 };
+    relocations.forEach((r) => {
+      const s = String(r.status || '');
+      if (s === 'completed') c.completed++;
+      else if (s === 'rejected') c.rejected++;
+      else if (['admin_approved_generating_request_letter', 'waiting_company_acceptance', 'company_accepted_generating_dispatch_letter'].includes(s)) c.inProgress++;
+      else c.pending++; // submitted_waiting_company / *_waiting_advisor / advisor_approved_waiting_admin
+    });
+    return c;
+  }, [relocations]);
+
+  const relocationGroups = useMemo(() => ([
+    { key: 'pending', label: 'รอดำเนินการ', value: relocationStats.pending, color: '#f59e0b' },
+    { key: 'inProgress', label: 'กำลังออกเอกสาร / รอตอบรับ', value: relocationStats.inProgress, color: '#8b5cf6' },
+    { key: 'completed', label: 'เสร็จสิ้น', value: relocationStats.completed, color: '#10b981' },
+    { key: 'rejected', label: 'ไม่อนุมัติ', value: relocationStats.rejected, color: '#f43f5e' },
+  ].filter((g) => g.value > 0)), [relocationStats]);
+
+  const latestRelocations = useMemo(() =>
+    [...relocations]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5),
+    [relocations]);
+
   const statusCounts = useMemo(() => {
     // จัดกลุ่มด้วย includes() — ชื่อสถานะจริงในระบบหลากหลายกว่าที่ hardcode ไว้
     // (เช่น 'รออาจารย์ที่ปรึกษาอนุมัติ' เคยไม่เข้า bucket ไหนเลย → กราฟว่างทั้งที่มีคำร้อง)
@@ -354,7 +411,8 @@ const AdminDashboardPage = () => {
     { key: 'waitingCompany', label: 'รอสถานประกอบการ', value: statusCounts.waitingCompany, color: '#6366f1', icon: STAT_ICON.PENDING },
     { key: 'approved', label: 'อนุมัติแล้ว', value: statusCounts.approved, color: '#10b981', icon: STAT_ICON.APPROVED },
     { key: 'rejected', label: 'ไม่อนุมัติ', value: statusCounts.rejected, color: '#f43f5e', icon: STAT_ICON.REJECTED },
-  ]), [statusCounts]);
+    { key: 'relocations', label: 'คำร้องขอย้ายสถานที่', value: relocationStats.total, color: '#0ea5e9', icon: STAT_ICON.INTERNING },
+  ]), [statusCounts, relocationStats]);
 
   const statusChartData = useMemo(() => ([
     { category: 'รอผู้ดูแลตรวจสอบ', value: statusCounts.pendingAdmin },
@@ -1292,19 +1350,27 @@ const AdminDashboardPage = () => {
           </div>
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             <Button
-              variant="contained"
+              variant="outlined"
               onClick={() => setInternshipRoundsModalOpen(true)}
-              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl inline-flex items-center gap-1.5 shadow-sm"
-              sx={{ fontWeight: 600, px: 2.5, py: 1, boxShadow: 'none', textTransform: 'none' }}
+              className="rounded-xl inline-flex items-center gap-1.5"
+              sx={{
+                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
+                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
+                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
+              }}
             >
               <Calendar className="w-4 h-4 mr-1" />
               กำหนดรอบปฏิทินฝึกงาน
             </Button>
             <Button
-              variant="contained"
+              variant="outlined"
               onClick={() => setEvalRoundsModalOpen(true)}
-              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl inline-flex items-center gap-1.5 shadow-sm"
-              sx={{ fontWeight: 600, px: 2.5, py: 1, boxShadow: 'none', textTransform: 'none' }}
+              className="rounded-xl inline-flex items-center gap-1.5"
+              sx={{
+                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
+                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
+                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
+              }}
             >
               <Calendar className="w-4 h-4 mr-1" />
               กำหนดรอบการประเมิน นศ.
@@ -1315,7 +1381,7 @@ const AdminDashboardPage = () => {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' },
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(6, 1fr)' },
             gap: 2,
             mb: 3,
           }}
@@ -1452,7 +1518,9 @@ const AdminDashboardPage = () => {
                 ดูคำร้องทั้งหมด &gt;
               </Button>
             </Box>
-          <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white">
+          {/* Desktop: ตาราง */}
+          <TableContainer component={Box} className="compact-table rounded-xl overflow-hidden border border-slate-100 bg-white"
+            sx={{ display: { xs: 'none', sm: 'block' } }}>
             <Table size="small">
               <TableHead className="bg-slate-50/80 border-b border-slate-100">
                 <TableRow>
@@ -1485,8 +1553,114 @@ const AdminDashboardPage = () => {
               </TableBody>
             </Table>
           </TableContainer>
+
+          {/* Mobile: Card List */}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 1.5 }}>
+            {latestRequests.map((request) => (
+              <Box key={`recent-mobile-${request.id}`} sx={{ p: 2, borderRadius: '0.875rem', border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.75 }}>
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {request.studentName}
+                  </Typography>
+                  <StatusBadge status={getEffectiveInternshipStatus(request)} />
+                </Box>
+                <Typography sx={{ fontSize: '0.72rem', color: '#64748b', mb: 0.25 }}>
+                  {request.studentId} · {new Date(request.submittedDate).toLocaleDateString('th-TH')}
+                </Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: '#475569', wordBreak: 'break-word' }}>
+                  {request.company}
+                </Typography>
+              </Box>
+            ))}
+            {latestRequests.length === 0 && (
+              <Box sx={{ py: 4, textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>ไม่มีข้อมูล</Box>
+            )}
+          </Box>
         </Paper>
         </Box>
+
+        {/* คำร้องขอเปลี่ยนสถานที่ฝึกงาน — สรุปสถานะ + รายการล่าสุด */}
+        <Paper
+          elevation={0}
+          className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] p-6"
+          sx={{ bgcolor: '#ffffff', borderRadius: '1rem', border: '1px solid #f1f5f9', boxShadow: '0 2px 15px -3px rgba(0,0,0,0.04)', mb: 3 }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+            <div>
+              <Typography
+                variant="h6"
+                className="text-slate-900 font-extrabold text-lg md:text-xl tracking-tight"
+                sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.025em', mb: 0.5 }}
+              >
+                คำร้องขอเปลี่ยนสถานที่ฝึกงาน
+              </Typography>
+              <Typography variant="caption" className="text-slate-400 text-xs" sx={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                {relocationStats.total} คำร้อง — รอดำเนินการ {relocationStats.pending} · กำลังออกเอกสาร {relocationStats.inProgress} · สำเร็จ {relocationStats.completed}
+              </Typography>
+            </div>
+            <Button
+              component={Link}
+              to="/admin-dashboard/relocations"
+              size="small"
+              sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#7c3aed', textTransform: 'none', whiteSpace: 'nowrap' }}
+            >
+              จัดการคำร้องย้าย &gt;
+            </Button>
+          </Box>
+
+          {relocationStats.total > 0 && (
+            <>
+              {/* Stacked bar สัดส่วนสถานะ */}
+              <Box sx={{ display: 'flex', height: 10, borderRadius: '999px', overflow: 'hidden', mb: 1.5, bgcolor: '#f1f5f9' }}>
+                {relocationGroups.map((g) => (
+                  <Box key={g.key} sx={{ width: `${(g.value / relocationStats.total) * 100}%`, bgcolor: g.color, minWidth: g.value > 0 ? 6 : 0 }} />
+                ))}
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+                {relocationGroups.map((g) => (
+                  <Box key={g.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>
+                    <Box component="span" sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: g.color, flexShrink: 0 }} />
+                    {g.label} <span style={{ color: '#0f172a', fontWeight: 700 }}>{g.value}</span>
+                  </Box>
+                ))}
+              </Box>
+            </>
+          )}
+
+          {/* รายการคำร้องย้ายล่าสุด */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {latestRelocations.map((r) => (
+              <Box
+                key={`reloc-${r.id}`}
+                component={Link}
+                to={`/admin-dashboard/relocations/${r.id}`}
+                sx={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+                  p: 1.5, borderRadius: '0.875rem', border: '1px solid #f1f5f9', textDecoration: 'none',
+                  transition: 'background-color 0.15s', '&:hover': { bgcolor: 'rgba(245,243,255,0.5)' },
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.studentName} <span style={{ fontWeight: 500, color: '#94a3b8' }}>({r.student_id})</span>
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.72rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.old_company || '—'} → {r.new_company_name}
+                  </Typography>
+                </Box>
+                <span className={`shrink-0 px-2.5 py-1 text-xs font-semibold rounded-full border inline-flex items-center gap-1.5 ${RELOC_BADGE[r.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${RELOC_BADGE_DOT[r.status] || 'bg-slate-400'}`} />
+                  {RELOCATION_STATUS_LABEL[r.status] || r.status}
+                </span>
+              </Box>
+            ))}
+            {latestRelocations.length === 0 && (
+              <Box sx={{ py: 4, textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', border: '1px dashed #e2e8f0', borderRadius: '0.875rem' }}>
+                ยังไม่มีคำร้องขอเปลี่ยนสถานที่ฝึกงาน
+              </Box>
+            )}
+          </Box>
+        </Paper>
 
       </main>
 
