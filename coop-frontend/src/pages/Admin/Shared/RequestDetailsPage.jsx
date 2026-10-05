@@ -516,8 +516,9 @@ const RequestDetailsPage = () => {
         ? 'ภาคฤดูร้อน'
         : (details.internshipTerm || '');
 
-  // ค่าปัจจุบันหลังเปลี่ยนสถานที่ฝึกงาน (relocations sort เก่า→ใหม่ ตัวท้ายคือล่าสุด)
-  const latestReloc = relocations.length > 0 ? relocations[relocations.length - 1] : null;
+  // ค่าปัจจุบันหลังเปลี่ยนสถานที่ฝึกงาน — นับเฉพาะรอบที่ "เสร็จสิ้น" แล้ว (รอบที่กำลังดำเนินการยังไม่ใช่บริษัทปัจจุบัน)
+  const completedRelocs = relocations.filter((r) => r.status === 'completed');
+  const latestReloc = completedRelocs.length > 0 ? completedRelocs[completedRelocs.length - 1] : null;
   const effectiveStart = latestReloc?.new_start_date || request.internship_start_date || details.startDate;
   const effectiveEnd = latestReloc?.new_end_date || request.internship_end_date || details.endDate;
   const effectiveStatus = effectiveStatusBadge;
@@ -696,10 +697,13 @@ const RequestDetailsPage = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <div className="flex-1 min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
                       <p className="text-[10px] font-semibold text-slate-400 m-0">สถานประกอบการเดิม</p>
-                      <p className="text-xs font-bold text-slate-700 m-0 mt-0.5 truncate">{r.old_company || request.company || '—'}</p>
-                      {(request.internship_start_date || request.details?.startDate) && (
+                      {/* รอบถัดไป "ที่เดิม" คือบริษัทใหม่ของรอบก่อนหน้า */}
+                      <p className="text-xs font-bold text-slate-700 m-0 mt-0.5 truncate">
+                        {idx > 0 ? (relocations[idx - 1].new_company_name || r.old_company || request.company) : (r.old_company || request.company) || '—'}
+                      </p>
+                      {(relocations[idx - 1]?.new_start_date || request.internship_start_date || request.details?.startDate) && (
                         <p className="text-[10px] text-slate-500 m-0 mt-0.5">
-                          ฝึกช่วง {new Date(request.internship_start_date || request.details?.startDate).toLocaleDateString('th-TH')} – {new Date(r.created_at).toLocaleDateString('th-TH')}
+                          ฝึกช่วง {new Date(relocations[idx - 1]?.new_start_date || request.internship_start_date || request.details?.startDate).toLocaleDateString('th-TH')} – {new Date(r.created_at).toLocaleDateString('th-TH')}
                         </p>
                       )}
                       <p className="text-[10px] text-slate-400 m-0 mt-0.5">ฝึกสะสมแล้ว {r.days_trained || 0} วัน</p>

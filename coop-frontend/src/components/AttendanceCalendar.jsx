@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/outline';
 import SignatureCanvas from 'react-signature-canvas';
 import api from '../api/axios';
+import { getThaiHoliday } from '../utils/thaiHolidays';
 
 const AttendanceCalendar = ({
   entries = [],
@@ -136,6 +137,7 @@ const AttendanceCalendar = ({
       }
 
       const isSelectable = !isBeforeStart && isPastOrToday;
+      const publicHolidayName = getThaiHoliday(dateKey);
 
       days.push({
         type: 'day',
@@ -148,6 +150,7 @@ const AttendanceCalendar = ({
         isBeforeStart,
         isStartDate,
         isSelectable,
+        publicHolidayName,
         key: dateKey,
       });
     }
@@ -176,7 +179,7 @@ const AttendanceCalendar = ({
   const unsignedDaysInMonth = useMemo(() => {
     return selectableDaysInMonth.filter(d => {
       const entry = entriesMap[d.dateKey];
-      return entry && !(entry.supervisor_signature || entry.supervisorSignature);
+      return entry && !['holiday', 'sick', 'personal'].includes(entry.status) && !(entry.supervisor_signature || entry.supervisorSignature);
     });
   }, [selectableDaysInMonth, entriesMap]);
 
@@ -500,6 +503,22 @@ const AttendanceCalendar = ({
           <span>ขาด</span>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ec4899' }} />
+          <span>ลาป่วย</span>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#f97316' }} />
+          <span>ลากิจ</span>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#0ea5e9' }} />
+          <span>วันหยุด</span>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: '#faf5ff', border: '1px solid #e9d5ff' }} />
+          <span style={{ color: '#7e22ce' }}>วันหยุดนักขัตฤกษ์</span>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#94a3b8' }} />
           <span>ไม่ได้เช็คชื่อ</span>
         </Box>
@@ -588,6 +607,27 @@ const AttendanceCalendar = ({
             chipBg = '#fee2e2';
             chipColor = '#b91c1c';
             badgeText = 'ขาด';
+          } else if (item.status === 'sick') {
+            bgColor = '#fdf2f8';
+            textColor = '#9d174d';
+            borderColor = '#fbcfe8';
+            chipBg = '#fce7f3';
+            chipColor = '#be185d';
+            badgeText = 'ป่วย';
+          } else if (item.status === 'personal') {
+            bgColor = '#fff7ed';
+            textColor = '#9a3412';
+            borderColor = '#fed7aa';
+            chipBg = '#ffedd5';
+            chipColor = '#c2410c';
+            badgeText = 'กิจ';
+          } else if (item.status === 'holiday') {
+            bgColor = '#f0f9ff';
+            textColor = '#075985';
+            borderColor = '#bae6fd';
+            chipBg = '#e0f2fe';
+            chipColor = '#0369a1';
+            badgeText = 'หยุด';
           } else if (item.status === 'un-checked') {
             bgColor = '#f8fafc';
             textColor = '#64748b';
@@ -599,6 +639,13 @@ const AttendanceCalendar = ({
             bgColor = '#f8fafc';
             textColor = '#94a3b8';
             borderColor = '#f1f5f9';
+          }
+
+          // วันหยุดนักขัตฤกษ์ — tint ม่วงอ่อนถ้ายังไม่มีบันทึก
+          if (item.publicHolidayName && !item.entry) {
+            bgColor = '#faf5ff';
+            textColor = '#7e22ce';
+            borderColor = '#e9d5ff';
           }
 
           const isSelectedInBatch = selectedDates.includes(item.dateKey);
@@ -614,6 +661,9 @@ const AttendanceCalendar = ({
             tooltipTitle = 'ยังไม่ถึงกำหนดเริ่มฝึกงาน';
           } else if (item.status === 'un-checked') {
             tooltipTitle = 'ไม่ได้ส่งรายงานประจำวัน';
+          }
+          if (item.publicHolidayName) {
+            tooltipTitle = `${item.publicHolidayName}${tooltipTitle ? ' — ' + tooltipTitle : ''}`;
           }
 
           return (
@@ -832,7 +882,11 @@ const AttendanceCalendar = ({
               {selectedDay.status === 'present' && <Chip label="มา" color="success" size="small" sx={{ fontWeight: 700 }} />}
               {selectedDay.status === 'late' && <Chip label="สาย" color="warning" size="small" sx={{ fontWeight: 700 }} />}
               {selectedDay.status === 'absent' && <Chip label="ขาด" color="error" size="small" sx={{ fontWeight: 700 }} />}
+              {selectedDay.status === 'sick' && <Chip label="ลาป่วย" size="small" sx={{ bgcolor: '#fce7f3', color: '#be185d', fontWeight: 700 }} />}
+              {selectedDay.status === 'personal' && <Chip label="ลากิจ" size="small" sx={{ bgcolor: '#ffedd5', color: '#c2410c', fontWeight: 700 }} />}
+              {selectedDay.status === 'holiday' && <Chip label="วันหยุด" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1', fontWeight: 700 }} />}
               {selectedDay.status === 'un-checked' && <Chip label="ไม่ได้เช็คชื่อ" sx={{ bgcolor: '#94a3b8', color: '#fff', fontWeight: 700 }} size="small" />}
+              {selectedDay.publicHolidayName && <Chip label={selectedDay.publicHolidayName} size="small" sx={{ bgcolor: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', fontWeight: 700 }} />}
               {selectedDay.isBeforeStart && <Chip label="ก่อนเริ่มฝึกงาน" size="small" sx={{ bgcolor: '#f1f5f9', color: '#64748b' }} />}
             </Box>
 

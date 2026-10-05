@@ -29,7 +29,7 @@ import StudentDetailsPage from './pages/Admin/Shared/StudentDetailsPage';
 import StudentCheckInPage from './pages/Student/Dashboard/StudentCheckInPage';
 import StudentNotificationsPage from './pages/Student/Dashboard/StudentNotificationsPage';
 import AdminCheckInPage from './pages/Admin/Dashboard/AdminCheckInPage';
-import AdminAttendanceOverviewPage from './pages/Admin/Dashboard/AdminAttendanceOverviewPage';
+
 import PublicRequestPage from './pages/Public/PublicRequestPage';
 import PublicEvaluationPage from './pages/Public/PublicEvaluationPage';
 import PublicRelocationApprovalPage from './pages/Public/PublicRelocationApprovalPage';
@@ -69,7 +69,7 @@ function App() {
         <Route path="/admin-dashboard/users" element={<Navigate to="/admin-dashboard" replace />} />
         <Route path="/admin-dashboard/companies" element={<AdminCompanyManagementPage />} />
         <Route path="/admin-dashboard/checkins" element={<AdminCheckInPage />} />
-        <Route path="/admin-dashboard/attendance-overview" element={<AdminAttendanceOverviewPage />} />
+        <Route path="/admin-dashboard/attendance-overview" element={<Navigate to="/admin-dashboard/checkins" replace />} />
         <Route path="/admin-dashboard/reports" element={<AdminReportsPage />} />
         <Route path="/admin-dashboard/relocations" element={<AdminRelocationsPage />} />
         <Route path="/admin-dashboard/relocations/:id" element={<AdminRelocationDetailPage />} />

@@ -70,6 +70,40 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/checkins/overview — สรุปความคืบหน้าการส่งรายงานรายวัน ต่อนักศึกษา 1 คน (คำร้องล่าสุดที่ถึงช่วงฝึก)
+router.get('/overview', authenticate, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.id AS requestId, r.studentId, r.studentName, r.department, r.company, r.status,
+              DATE_FORMAT(r.internship_start_date, '%Y-%m-%d') AS startDate,
+              DATE_FORMAT(r.internship_end_date, '%Y-%m-%d') AS endDate,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId) AS submittedDays,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'present') AS presentCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'late') AS lateCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'absent') AS absentCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'sick') AS sickCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'personal') AS personalCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId AND dc.status = 'holiday') AS holidayCount,
+              (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId
+                 AND dc.status IN ('present','late','absent')
+                 AND (dc.supervisor_signature IS NULL OR dc.supervisor_signature = '')) AS pendingSignature,
+              (SELECT DATE_FORMAT(MAX(dc.date), '%Y-%m-%d') FROM daily_checkins dc WHERE dc.studentId = r.studentId) AS lastCheckinDate
+       FROM requests r
+       INNER JOIN (
+         SELECT studentId, MAX(id) AS latestId
+         FROM requests
+         WHERE status IN (${CHECKIN_STATUS_SQL})
+         GROUP BY studentId
+       ) latest ON latest.latestId = r.id
+       ORDER BY r.studentName ASC`,
+      CHECKIN_REQUEST_STATUSES
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/checkins/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {

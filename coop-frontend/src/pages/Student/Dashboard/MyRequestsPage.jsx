@@ -204,14 +204,22 @@ const MyRequestsPage = () => {
   const primaryRequest = myRequests.find((r) => activeHubStatuses.includes(String(r.status || '').trim())) || myRequests[0] || null;
   const primaryDetails = primaryRequest?.details || {};
 
-  // relocation ที่กำลังดำเนินการ (ไม่รวมตีกลับ) ต่อคำร้อง — โชว์ chip "ขอเปลี่ยนแหล่งฝึก" ตั้งแต่กดส่ง
+  // relocation ที่กำลังดำเนินการ (ไม่รวมรอบที่จบแล้ว) ต่อคำร้อง — โชว์ chip "ขอเปลี่ยนแหล่งฝึก" ตั้งแต่กดส่ง
   const activeRelocationFor = (requestId) => relocations
-    .filter((r) => Number(r.internship_request_id) === Number(requestId) && r.status !== 'rejected')
+    .filter((r) => Number(r.internship_request_id) === Number(requestId) && !['rejected', 'completed'].includes(r.status))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
   const relocationStatus = activeRelocationFor(primaryRequest?.id)?.status || null;
 
-  const internshipStart = primaryRequest?.internship_start_date || primaryDetails.startDate || null;
-  const internshipEnd = primaryRequest?.internship_end_date || primaryDetails.endDate || null;
+  // รอบย้ายที่เสร็จสิ้นล่าสุด = สถานประกอบการที่ฝึกอยู่ปัจจุบัน (รองรับย้ายหลายรอบ)
+  const latestCompletedReloc = relocations
+    .filter((r) => Number(r.internship_request_id) === Number(primaryRequest?.id) && r.status === 'completed')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
+  const currentCompanyName = latestCompletedReloc?.new_company_name || primaryRequest?.companyName;
+  const currentMentor = latestCompletedReloc?.mentor_name || primaryDetails.contactPerson || primaryDetails.evaluatorName || '-';
+  const currentMentorEmail = latestCompletedReloc?.mentor_email || primaryDetails.contactEmail || '-';
+
+  const internshipStart = latestCompletedReloc?.new_start_date || primaryRequest?.internship_start_date || primaryDetails.startDate || null;
+  const internshipEnd = latestCompletedReloc?.new_end_date || primaryRequest?.internship_end_date || primaryDetails.endDate || null;
 
   // รอบปฏิทินฝึกงานที่ตรงเทอมของคำร้อง — แสดงเป็นข้อมูลอ้างอิงตอนยังไม่มีวันทางการ
   const requestTerm = String(primaryDetails.internshipTerm || '');
@@ -308,7 +316,7 @@ const MyRequestsPage = () => {
                         <BuildingOffice2Icon className="w-6 h-6 text-purple-700" />
                       </div>
                       <div className="min-w-0">
-                        <h2 className="m-0 text-base sm:text-lg font-bold leading-tight truncate text-slate-800">{primaryRequest.companyName}</h2>
+                        <h2 className="m-0 text-base sm:text-lg font-bold leading-tight truncate text-slate-800">{currentCompanyName}</h2>
                         <p className="m-0 text-xs text-purple-700 font-semibold mt-0.5 truncate">{primaryRequest.position}</p>
                       </div>
                     </div>
@@ -322,8 +330,8 @@ const MyRequestsPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
                     <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5">
                       <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold flex items-center gap-1.5"><EnvelopeIcon className="w-3.5 h-3.5" /> พี่เลี้ยง / ผู้ประสานงาน</div>
-                      <div className="text-xs font-medium mt-1 truncate text-slate-800">{primaryDetails.contactPerson || primaryDetails.evaluatorName || '-'}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{primaryDetails.contactEmail || companyEmail || '-'}</div>
+                      <div className="text-xs font-medium mt-1 truncate text-slate-800">{currentMentor}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{currentMentorEmail}</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5">
                       <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold flex items-center gap-1.5"><CalendarDaysIcon className="w-3.5 h-3.5" /> ช่วงเวลาฝึกงาน</div>

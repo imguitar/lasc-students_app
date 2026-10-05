@@ -140,7 +140,8 @@ const ensureTable = async () => {
     'mentor_email VARCHAR(255) NULL',
     'mentor_phone VARCHAR(50) NULL',
     'new_start_date DATE NULL',
-    'new_end_date DATE NULL'
+    'new_end_date DATE NULL',
+    'relocation_round INT UNSIGNED DEFAULT 1'
   ];
   // MySQL 8 ไม่รองรับ ADD COLUMN IF NOT EXISTS — เช็ค information_schema ก่อนเพิ่ม (idempotent, ใช้ได้ทั้ง MySQL/MariaDB)
   const [colRows] = await pool.query(
@@ -270,12 +271,19 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     await withTable(async () => {
-      // ป้องกันยื่นซ้ำขณะที่ยังมีคำร้องค้างอยู่ (ยกเว้นที่ถูกตีกลับแล้ว)
+      // ป้องกันยื่นซ้ำเฉพาะตอนที่ยังมีคำร้องอยู่ระหว่างดำเนินการ — รอบที่ "เสร็จสิ้น/ถูกปฏิเสธ" แล้วยื่นใหม่ได้
       const [dupes] = await pool.query(
-        "SELECT id FROM internship_relocation_requests WHERE internship_request_id = ? AND status != 'rejected' LIMIT 1",
+        "SELECT id FROM internship_relocation_requests WHERE internship_request_id = ? AND status NOT IN ('rejected','completed') LIMIT 1",
         [internship_request_id]
       );
       if (dupes[0]) throw Object.assign(new Error('มีคำร้องขอเปลี่ยนสถานที่ฝึกงานที่กำลังดำเนินการอยู่แล้ว'), { httpStatus: 409 });
+
+      // ลำดับรอบการย้าย (1, 2, 3...) ต่อ internship request นี้ — เก็บประวัติทุกรอบ
+      const [roundRows] = await pool.query(
+        'SELECT COALESCE(MAX(relocation_round), 0) + 1 AS nextRound FROM internship_relocation_requests WHERE internship_request_id = ?',
+        [internship_request_id]
+      );
+      const relocationRound = roundRows[0]?.nextRound || 1;
 
       // one-time token สำหรับลิงก์/QR ให้บริษัทเดิมลงนาม
       const companyToken = crypto.randomBytes(24).toString('hex');
@@ -298,8 +306,8 @@ router.post('/', authenticate, async (req, res) => {
           new_addr_house, new_addr_moo, new_addr_road, new_addr_tambon, new_addr_amphur,
           new_addr_province, new_addr_postal, new_addr_phone, new_addr_fax,
           semester, academic_year, student_phone,
-          mentor_name, mentor_position, mentor_email, mentor_phone)
-         VALUES (?,?,?,?,?,?,?,?,?,?, 'submitted_waiting_company', ?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          mentor_name, mentor_position, mentor_email, mentor_phone, relocation_round)
+         VALUES (?,?,?,?,?,?,?,?,?,?, 'submitted_waiting_company', ?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?)`,
         [internship_request_id, String(req.user.username), reason.trim(), returnLetterUrl,
          returnLetterUrl ? String(return_letter_name || 'หนังสือส่งตัวกลับ').slice(0, 255) : null,
          new_company_name.trim(), composedAddress, contactLine,
@@ -310,7 +318,7 @@ router.post('/', authenticate, async (req, res) => {
          new_addr_postal || null, contactPhone, new_addr_fax || null,
          semester || null, academic_year || null, student_phone || null,
          mentor_name?.trim() || null, mentor_position?.trim() || null,
-         mentor_email?.trim() || null, mentor_phone?.trim() || null]
+         mentor_email?.trim() || null, mentor_phone?.trim() || null, relocationRound]
       );
       res.status(201).json({ success: true, data: { id: result.insertId, company_token: companyToken } });
     });

@@ -16,6 +16,7 @@ import {
   CalendarCheck,
 } from 'lucide-react';
 import api from '../../../api/axios';
+import { getThaiHoliday } from '../../../utils/thaiHolidays';
 import './DashboardPage.css';
 import '../../Admin/Shared/CheckInPage.css';
 import StudentSidebar from '../../../components/StudentSidebar';
@@ -49,6 +50,13 @@ const STATUS_CHIP_CLASS = {
   sick: 'bg-sky-50 text-sky-700 border-sky-200',
   personal: 'bg-orange-50 text-orange-700 border-orange-200',
   holiday: 'bg-slate-100 text-slate-500 border-slate-200',
+};
+
+// สถานะที่ไม่ต้องกรอก "กิจกรรมที่ทำ" (ลา/วันหยุด) — ใส่ข้อความเริ่มต้นให้เอง
+const LEAVE_DEFAULT_TEXT = {
+  sick: 'ลาป่วย',
+  personal: 'ลากิจ',
+  holiday: 'วันหยุดสถานประกอบการ / วันหยุดประจำสัปดาห์',
 };
 
 const StudentCheckInPage = () => {
@@ -202,12 +210,14 @@ const StudentCheckInPage = () => {
     const isFuture = dateStr > todayDate;
     const beforeStart = internshipStartDate && dateStr < internshipStartDate;
     if (!entry && (isFuture || beforeStart)) return;
+    // วันหยุดนักขัตฤกษ์ → prefill สถานะวันหยุดให้เลย (เปลี่ยนกลับได้)
+    const holidayName = getThaiHoliday(dateStr);
     setDayModal({ open: true, date: dateStr });
     setShowSignature(false);
     setForm({
       date: dateStr,
-      status: 'present',
-      workExperience: '',
+      status: holidayName && !entry ? 'holiday' : 'present',
+      workExperience: holidayName && !entry ? holidayName : '',
       note: '',
     });
     setMessage('');
@@ -263,7 +273,8 @@ const StudentCheckInPage = () => {
         studentName,
         date: form.date,
         status: form.status,
-        workExperience: form.workExperience || '',
+        // วันหยุด/ลา — ใส่รายละเอียดอัตโนมัติถ้าเว้นว่าง (ไม่บังคับกรอกงานที่ทำ)
+        workExperience: form.workExperience || LEAVE_DEFAULT_TEXT[form.status] || '',
         note: form.note || '',
         supervisorSignature,
       });
@@ -631,6 +642,11 @@ const StudentCheckInPage = () => {
                   <p className="text-[11px] text-slate-400 mt-1 m-0 leading-relaxed">
                     {formatDateLong(dayModal.date)}
                   </p>
+                  {getThaiHoliday(dayModal.date) && (
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-violet-50 border border-violet-100 text-[10px] font-bold text-violet-700">
+                      {getThaiHoliday(dayModal.date)}
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -720,13 +736,14 @@ const StudentCheckInPage = () => {
 
                 <div>
                   <label className="text-xs font-medium text-slate-600 mb-1.5 block">
-                    กิจกรรมที่ทำในวันนี้ <span className="text-rose-500">*</span>
+                    กิจกรรมที่ทำในวันนี้ {!LEAVE_DEFAULT_TEXT[form.status] && <span className="text-rose-500">*</span>}
+                    {LEAVE_DEFAULT_TEXT[form.status] && <span className="text-slate-400 font-normal">(ไม่บังคับ — เว้นว่างได้)</span>}
                   </label>
                   <textarea
                     value={form.workExperience}
                     onChange={(e) => setForm({ ...form, workExperience: e.target.value })}
-                    placeholder="ระบุรายละเอียดงานหรือประสบการณ์ที่ได้รับการฝึกปฏิบัติในวันนี้..."
-                    required
+                    placeholder={form.status === 'holiday' ? 'เช่น วันหยุดนักขัตฤกษ์, วันหยุดสถานประกอบการ... (เว้นว่างได้)' : 'ระบุรายละเอียดงานหรือประสบการณ์ที่ได้รับการฝึกปฏิบัติในวันนี้...'}
+                    required={!LEAVE_DEFAULT_TEXT[form.status]}
                     className="w-full box-border rounded-2xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-500 resize-none h-24 text-slate-800 bg-slate-50/50 focus:bg-white transition"
                   />
                 </div>

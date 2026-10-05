@@ -333,7 +333,7 @@ CREATE TABLE IF NOT EXISTS `daily_checkins` (
   `studentId` VARCHAR(50) NOT NULL,
   `studentName` VARCHAR(255) DEFAULT NULL,
   `date` DATE NOT NULL,
-  `status` ENUM('present','late','absent') DEFAULT 'present',
+  `status` ENUM('present','late','absent','sick','personal','holiday') DEFAULT 'present',
   `note` TEXT DEFAULT NULL,
   `work_experience` TEXT DEFAULT NULL,
   `supervisor_signature` LONGTEXT DEFAULT NULL,

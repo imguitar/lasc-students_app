@@ -18,6 +18,7 @@ const RelocationRequestPage = () => {
   const [request, setRequest] = useState(null);
   const [daysTrained, setDaysTrained] = useState(0);
   const [existing, setExisting] = useState(null);
+  const [latestCompleted, setLatestCompleted] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -54,18 +55,29 @@ const RelocationRequestPage = () => {
       const primary = reqs.find((r) => INTERNING_STATUSES.includes(String(r.status || '').trim())) || null;
       setRequest(primary ? { ...primary, companyName: primary.companyName || primary.company } : null);
       setDaysTrained(checkins.filter((c) => ['present', 'late'].includes(c.status)).length);
-      // มี relocation ค้างอยู่ให้ดู stepper ได้แม้สถานะจะเปลี่ยนไปแล้ว
+      // มี relocation "กำลังดำเนินการ" ค้างอยู่เท่านั้นที่บล็อกฟอร์ม — รอบที่เสร็จสิ้น/ถูกปฏิเสธยื่นรอบใหม่ได้
       const mine = primary
         ? relos.filter((r) => Number(r.internship_request_id) === Number(primary.id))
         : relos;
-      setExisting(mine.find((r) => r.status !== 'rejected') || null);
+      setExisting(mine.find((r) => !['rejected', 'completed'].includes(r.status)) || null);
+      // รอบที่เสร็จสิ้นล่าสุด = บริษัทที่ฝึกอยู่ปัจจุบัน (สำหรับยื่นรอบถัดไป)
+      setLatestCompleted(mine.find((r) => r.status === 'completed') || null);
       setLoading(false);
     });
   }, [navigate]);
 
   // ===== ข้อมูล auto-fill ตามแบบบันทึกข้อความ =====
   const info = request?.details?.student_info || {};
-  const oldAddr = request?.details?.companyAddress || {};
+  // สถานประกอบการปัจจุบัน: ถ้าเคยย้ายสำเร็จ → ใช้ที่ใหม่ล่าสุดเป็น "สถานที่เดิม" ของรอบนี้
+  const currentCompany = latestCompleted?.new_company_name || request?.companyName || request?.company || '—';
+  const oldAddr = latestCompleted
+    ? {
+        house: latestCompleted.new_addr_house || '', moo: latestCompleted.new_addr_moo || '',
+        road: latestCompleted.new_addr_road || '', tambon: latestCompleted.new_addr_tambon || '',
+        amphur: latestCompleted.new_addr_amphur || '', province: latestCompleted.new_addr_province || '',
+        postal: latestCompleted.new_addr_postal || '', detail: latestCompleted.new_company_address || '',
+      }
+    : (request?.details?.companyAddress || {});
   const studentTitle = info.title || 'นาย/นางสาว';
   const studentName = request?.studentName || info.name || '-';
   const studentId2 = request?.studentId || info.studentId || '-';
@@ -349,7 +361,7 @@ const RelocationRequestPage = () => {
                 {/* 2. สถานที่ฝึกงานเดิม */}
                 <section className="ui-card p-6 sm:p-8">
                   <SectionHead n="2" title="สถานที่ฝึกงานเดิม" hint="ข้อมูลจากคำร้องฝึกงานที่ได้รับอนุมัติ" />
-                  <p className="text-base font-semibold text-slate-900 m-0 mb-4 leading-relaxed">{request.companyName || request.company || '—'}</p>
+                  <p className="text-base font-semibold text-slate-900 m-0 mb-4 leading-relaxed">{currentCompany}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
                     <InfoItem label="ที่อยู่ เลขที่" value={oldAddr.house} />
                     <InfoItem label="หมู่ที่" value={oldAddr.moo} />
