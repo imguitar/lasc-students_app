@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import SignaturePad from '../../components/SignaturePad';
 import { getUploadUrl } from '../../utils/fileUrl';
-import { ArrowRightLeft, Building2, CheckCircle2, FileText, Loader2, MapPin, PenLine, ShieldCheck, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, FileText, Loader2, PenLine, ShieldCheck, Trash2, Upload, XCircle } from 'lucide-react';
 
 const fileUrl = getUploadUrl;
 
@@ -16,6 +16,7 @@ const PublicRelocationApprovalPage = () => {
   const [signerName, setSignerName] = useState('');
   const [signerPosition, setSignerPosition] = useState('');
   const [signature, setSignature] = useState('');
+  const [releaseFile, setReleaseFile] = useState(null); // {fileName, dataUrl, size, mime}
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -27,7 +28,24 @@ const PublicRelocationApprovalPage = () => {
       .finally(() => setLoading(false));
   }, [token]);
 
+  // บังคับลงลายเซ็นยินยอม + ชื่อผู้ลงนาม | ไฟล์หนังสือส่งตัวกลับแนบเพิ่มได้ (ไม่บังคับ)
   const canSubmit = signerName.trim() && signature && !submitting;
+
+  const ACCEPT_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+  const fmtBytes = (n) => (n ? `${(n / 1048576).toFixed(1)} MB` : '');
+  const onPickReleaseDoc = async (file) => {
+    if (!file) return;
+    setError('');
+    if (!ACCEPT_DOC_TYPES.includes(file.type)) return setError('รองรับเฉพาะไฟล์ PDF, PNG, JPG เท่านั้น');
+    if (file.size > 10 * 1024 * 1024) return setError('ไฟล์ต้องมีขนาดไม่เกิน 10MB');
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    setReleaseFile({ fileName: file.name, dataUrl, size: file.size, mime: file.type });
+  };
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -37,7 +55,8 @@ const PublicRelocationApprovalPage = () => {
       await api.post(`/public/relocations/token/${token}/approve`, {
         signer_name: signerName,
         signer_position: signerPosition,
-        signature_data_url: signature
+        signature_data_url: signature || undefined,
+        return_letter_document: releaseFile ? { fileName: releaseFile.fileName, dataUrl: releaseFile.dataUrl } : undefined
       });
       setDone(true);
     } catch (e) {
@@ -107,7 +126,6 @@ const PublicRelocationApprovalPage = () => {
                 {field('สาขาวิชา', data.major)}
                 {field('ฝึกงานอยู่ที่', data.company_name)}
                 {field('ฝึกสะสมแล้ว', `${data.days_trained} วัน (คงเหลือ ${data.days_remaining} วัน)`)}
-                {field('ย้ายไป', data.new_company_name)}
                 {field('เหตุผล', data.reason)}
                 {data.return_letter_file && (
                   <div className="py-2">
@@ -118,22 +136,6 @@ const PublicRelocationApprovalPage = () => {
                     </a>
                   </div>
                 )}
-
-                {/* ปลายทาง */}
-                <div className="mt-3 rounded-xl bg-violet-50/70 border border-violet-100 p-3">
-                  <p className="text-[10px] font-bold text-violet-800 m-0 flex items-center gap-1.5">
-                    <Building2 style={{ width: 12, height: 12 }} /> สถานประกอบการแห่งใหม่
-                  </p>
-                  <p className="text-[11px] text-violet-900 font-semibold mt-1 m-0">{data.new_company_name}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 m-0 flex items-start gap-1 leading-relaxed">
-                    <MapPin style={{ width: 11, height: 11 }} className="mt-0.5 shrink-0" />{data.new_company_address}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 m-0">
-                    {data.mentor_name
-                      ? `หัวหน้าหน่วยงาน: ${data.mentor_name}${data.mentor_position ? ` (${data.mentor_position})` : ''}`
-                      : `ผู้ประสานงาน: ${data.new_company_contact}`}
-                  </p>
-                </div>
 
                 {/* ผู้ลงนาม */}
                 <div className="mt-4 space-y-3">
@@ -156,6 +158,40 @@ const PublicRelocationApprovalPage = () => {
                       <PenLine style={{ width: 12, height: 12 }} /> ลายมือชื่อผู้ลงนาม *
                     </label>
                     <SignaturePad onChange={(d) => setSignature(d || '')} height={150} />
+                    <p className="text-[10px] text-slate-400 mt-1 m-0">จำเป็นต้องลงลายเซ็นเพื่อยืนยันการยินยอม</p>
+                  </div>
+
+                  {/* แนบไฟล์หนังสือส่งตัวกลับ — สลับกับลายเซ็นได้ */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
+                      แนบไฟล์หนังสือส่งตัวกลับ / เอกสารยินยอมจากสถานประกอบการ (ถ้ามี - ไม่บังคับ)
+                    </label>
+                    {!releaseFile ? (
+                      <label
+                        className="block cursor-pointer border-2 border-dashed border-slate-300 rounded-xl p-5 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-colors"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => { e.preventDefault(); onPickReleaseDoc(e.dataTransfer.files?.[0]); }}>
+                        <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden"
+                          onChange={(e) => { onPickReleaseDoc(e.target.files?.[0]); e.target.value = ''; }} />
+                        <Upload className="w-6 h-6 mx-auto mb-1.5 text-slate-400" />
+                        <span className="block text-[11px] font-semibold text-slate-500">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</span>
+                        <span className="block text-[10px] text-slate-400 mt-0.5">(PDF/PNG/JPG ขนาดไม่เกิน 10MB)</span>
+                      </label>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-emerald-800 m-0 truncate">{releaseFile.fileName}</p>
+                            <p className="text-[10px] text-emerald-600 m-0">{fmtBytes(releaseFile.size)}</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setReleaseFile(null)} aria-label="ลบไฟล์แนบ"
+                          className="shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 cursor-pointer flex items-center justify-center transition">
+                          <Trash2 style={{ width: 14, height: 14 }} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {error && <p className="text-[11px] font-semibold text-red-500 m-0">{error}</p>}
                 </div>

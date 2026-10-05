@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Box, Paper, Typography, Chip, CircularProgress, Button, Dialog, Alert } from '@mui/material';
+import { Box, Paper, Typography, Chip, CircularProgress, Dialog, Alert } from '@mui/material';
 import api from '../../api/axios';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { CheckCircle2, RotateCcw, PenTool, FileText, Mail, X, XCircle } from 'lucide-react';
 import { formatAddress } from '../../utils/formatters';
+import { getUploadUrl } from '../../utils/fileUrl';
 import { openDocumentInNewTab, downloadDocument } from '../../utils/documentViewer';
 
 const PublicRequestPage = () => {
@@ -18,13 +19,11 @@ const PublicRequestPage = () => {
   const [updating, setUpdating] = useState(false);
   const [feedback, setFeedback] = useState({ message: '', severity: '' });
   const [rejectDialog, setRejectDialog] = useState({ open: false, reason: '' });
-  const [acceptDialog, setAcceptDialog] = useState({
-    open: false,
+  const [acceptForm, setAcceptForm] = useState({
     companyEmail: '',
     studentPreparation: '',
     signerName: '',
     signerPosition: '',
-    evaluatorEmail: '',
     error: ''
   });
   const [hasSignature, setHasSignature] = useState(false);
@@ -51,6 +50,7 @@ const PublicRequestPage = () => {
       .then((res) => {
         if (res.data.data) {
           setRequest(res.data.data);
+          setAcceptForm(buildAcceptFormDefaults(res.data.data));
         } else {
           setError('ไม่พบข้อมูลคำร้อง');
         }
@@ -104,7 +104,7 @@ const PublicRequestPage = () => {
 
   const canRespond = request.status === 'รอสถานประกอบการตอบรับ';
 
-  const handleViewFile = (fileDataUrl, customFileName) => {
+  const handleViewFile = (fileDataUrl) => {
     if (!fileDataUrl) return;
     // เปิดผ่าน Blob URL ในแท็บใหม่ทั้ง Desktop/Mobile — data: URL ถูกบล็อกบนเบราว์เซอร์มือถือ
     openDocumentInNewTab(fileDataUrl);
@@ -159,49 +159,30 @@ const PublicRequestPage = () => {
     setHasSignature(false);
   };
 
-  const handleAcceptOpen = () => {
-    const defaultCompanyEmail = (
-      request.company_email ||
-      request.details?.companyEmail ||
-      request.details?.contactEmail ||
-      request.details?.contact_email ||
-      request.details?.supervisorEmail ||
-      ''
-    );
-
-    setAcceptDialog({
-      open: true,
-      companyEmail: defaultCompanyEmail,
-      studentPreparation: '',
-      signerName: request.details?.supervisor || request.details?.contactPerson || '',
-      signerPosition: request.details?.supervisorPosition || request.details?.contactPosition || '',
-      evaluatorEmail: request.evaluator_email || request.details?.evaluatorEmail || defaultCompanyEmail || '',
-      error: ''
-    });
-    setHasSignature(false);
+  const resetAcceptForm = () => {
+    setAcceptForm(buildAcceptFormDefaults(request));
+    clearSignature();
   };
 
   const handleAcceptConfirm = async () => {
-    const compEmail = (acceptDialog.companyEmail || '').trim();
+    const compEmail = (acceptForm.companyEmail || '').trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!compEmail) {
-      setAcceptDialog(prev => ({ ...prev, error: 'กรุณากรอกอีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน' }));
+      setAcceptForm(prev => ({ ...prev, error: 'กรุณากรอกอีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน' }));
       return;
     }
     if (!emailRegex.test(compEmail)) {
-      setAcceptDialog(prev => ({ ...prev, error: 'รูปแบบอีเมลติดต่อของสถานประกอบการไม่ถูกต้อง (ตัวอย่าง: hr@company.com)' }));
+      setAcceptForm(prev => ({ ...prev, error: 'รูปแบบอีเมลติดต่อของสถานประกอบการไม่ถูกต้อง (ตัวอย่าง: hr@company.com)' }));
       return;
     }
 
-    const evalEmail = (acceptDialog.evaluatorEmail || '').trim();
-    if (evalEmail && !emailRegex.test(evalEmail)) {
-      setAcceptDialog(prev => ({ ...prev, error: 'รูปแบบอีเมลสำหรับรับแบบประเมินไม่ถูกต้อง (ตัวอย่าง: supervisor@company.com)' }));
+    if (!acceptForm.signerName.trim()) {
+      setAcceptForm(prev => ({ ...prev, error: 'กรุณากรอกชื่อ-นามสกุลผู้ลงนาม' }));
       return;
     }
-
-    if (!hasSignature) {
-      setAcceptDialog(prev => ({ ...prev, error: 'กรุณาเซ็นลายมือชื่อในกรอบลายเซ็นก่อนยืนยันการตอบรับ' }));
+    if (!acceptForm.signerPosition.trim()) {
+      setAcceptForm(prev => ({ ...prev, error: 'กรุณากรอกตำแหน่งผู้ลงนาม' }));
       return;
     }
 
@@ -218,24 +199,24 @@ const PublicRequestPage = () => {
         statusCode: 'COMPANY_ACCEPTED',
         company_email: compEmail,
         companyEmail: compEmail,
-        company_comment: acceptDialog.studentPreparation.trim() || undefined,
-        studentPreparation: acceptDialog.studentPreparation.trim() || undefined,
+        company_comment: acceptForm.studentPreparation.trim() || undefined,
+        studentPreparation: acceptForm.studentPreparation.trim() || undefined,
         signature: signatureDataUrl,
-        signerName: acceptDialog.signerName.trim() || undefined,
-        signerPosition: acceptDialog.signerPosition.trim() || undefined,
-        evaluatorEmail: evalEmail || compEmail,
-        evaluatorName: acceptDialog.signerName.trim() || undefined,
-        evaluatorPosition: acceptDialog.signerPosition.trim() || undefined,
+        signerName: acceptForm.signerName.trim() || undefined,
+        signerPosition: acceptForm.signerPosition.trim() || undefined,
+        evaluatorEmail: compEmail,
+        evaluatorName: acceptForm.signerName.trim() || undefined,
+        evaluatorPosition: acceptForm.signerPosition.trim() || undefined,
         companyResponse: {
           accepted: true,
           status: 'COMPANY_ACCEPTED',
           company_email: compEmail,
           companyEmail: compEmail,
-          studentPreparation: acceptDialog.studentPreparation.trim() || '',
+          studentPreparation: acceptForm.studentPreparation.trim() || '',
           signature: signatureDataUrl,
-          signerName: acceptDialog.signerName.trim() || '',
-          signerPosition: acceptDialog.signerPosition.trim() || '',
-          evaluatorEmail: evalEmail || compEmail,
+          signerName: acceptForm.signerName.trim() || '',
+          signerPosition: acceptForm.signerPosition.trim() || '',
+          evaluatorEmail: compEmail,
           respondedAt: new Date().toISOString()
         }
       };
@@ -245,7 +226,7 @@ const PublicRequestPage = () => {
         ...request,
         status: companyAcceptedStatus,
         company_email: compEmail,
-        evaluator_email: evalEmail || compEmail,
+        evaluator_email: compEmail,
         details: {
           ...(request.details || {}),
           ...payload,
@@ -253,7 +234,6 @@ const PublicRequestPage = () => {
           companyResponse: payload.companyResponse
         }
       });
-      setAcceptDialog(prev => ({ ...prev, open: false }));
       setFeedback({ message: 'ยืนยันการตอบรับนักศึกษาเข้าฝึกงานเรียบร้อยแล้ว ขอบคุณที่ให้ความอนุเคราะห์แก่นักศึกษา', severity: 'success' });
     } catch (err) {
       setFeedback({ message: 'เกิดข้อผิดพลาด: ' + (err.response?.data?.message || err.message), severity: 'error' });
@@ -445,31 +425,164 @@ const PublicRequestPage = () => {
           </Alert>
         )}
 
-        {/* Accept / Reject Buttons */}
+        {/* Accept Form — In-page Card แสดงถาวรเมื่อรอการตอบรับ */}
         {canRespond && (
-          <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs text-center">
-            <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0 mb-5">ตอบรับนักศึกษาเข้าฝึกงาน</h3>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Button
-                variant="contained"
-                color="error"
-                size="large"
-                disabled={updating}
+          <section className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6 mt-6">
+            {/* Card Header */}
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 text-emerald-600 rounded-full p-2 shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight m-0">
+                  ยืนยันการตอบรับนักศึกษาเข้าฝึกประสบการณ์
+                </h3>
+                <p className="text-slate-500 text-sm m-0 mt-0.5">
+                  {request.studentName} {request.studentId ? `(${request.studentId})` : ''}
+                </p>
+              </div>
+            </div>
+
+            {acceptForm.error && (
+              <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl font-medium">
+                {acceptForm.error}
+              </div>
+            )}
+
+            {/* ส่วนที่ 1: อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน */}
+            <div className="bg-violet-50/40 border border-violet-100/80 rounded-2xl p-3">
+              <label className="block text-xs font-semibold text-slate-800 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-violet-600" />
+                  <span>อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน</span>
+                  <span className="text-rose-500 font-bold">*</span>
+                </span>
+                <span className="text-[10px] font-medium text-violet-600 bg-violet-100/60 px-2 py-0.5 rounded-full">
+                  ตรวจสอบหรือแก้ไขได้
+                </span>
+              </label>
+              <input
+                type="email"
+                value={acceptForm.companyEmail}
+                onChange={(e) => setAcceptForm(prev => ({ ...prev, companyEmail: e.target.value, error: '' }))}
+                placeholder="เช่น hr@company.com หรือ contact@company.com"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800 placeholder:text-slate-400"
+                required
+              />
+              <p className="text-[11px] text-slate-400 mt-1.5 mb-0">
+                * ระบบจะใช้อีเมลนี้ในการส่งหนังสือส่งตัว เอกสารประสานงาน และแบบประเมินผลการฝึกงานอัตโนมัติ
+              </p>
+            </div>
+
+            {/* ส่วนที่ 2: สิ่งที่ต้องการให้นักศึกษาเตรียมตัว */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                สิ่งที่อยากให้นักศึกษาเตรียมตัว / เอกสารหรืออุปกรณ์ที่ต้องนำมา (ถ้ามี)
+              </label>
+              <textarea
+                rows={3}
+                value={acceptForm.studentPreparation}
+                onChange={(e) => setAcceptForm(prev => ({ ...prev, studentPreparation: e.target.value }))}
+                placeholder="เช่น โน้ตบุ๊กส่วนตัว, สำเนาบัตรประชาชน, ชุดสุภาพ ฯลฯ"
+                className="w-full rounded-2xl border border-slate-200 p-3 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none transition resize-none placeholder:text-slate-400 text-slate-800"
+              />
+            </div>
+
+            {/* ส่วนที่ 3: ลงนามลายมือชื่อ */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  ลงนามลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน <span className="text-slate-400 font-normal">(ไม่บังคับ)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  className="text-[11px] font-medium text-slate-400 hover:text-rose-600 flex items-center gap-1 transition cursor-pointer bg-transparent border-none p-0"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>ล้างลายมือชื่อ (Clear)</span>
+                </button>
+              </div>
+
+              <div className="w-full h-40 border border-dashed border-violet-200 rounded-2xl bg-violet-50/20 relative overflow-hidden flex items-center justify-center">
+                <canvas
+                  ref={signatureCanvasRef}
+                  width={500}
+                  height={160}
+                  className="w-full h-full cursor-crosshair"
+                  style={{ touchAction: 'none' }}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                />
+                {!hasSignature && (
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-300 gap-1.5">
+                    <PenTool className="w-5 h-5 text-slate-300 stroke-[1.5]" />
+                    <span className="text-xs">วาดลายเซ็นสดลงในช่องนี้ (เซ็นด้วยเมาส์หรือนิ้วมือ)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ส่วนที่ 4: ข้อมูลผู้ลงนาม */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  ชื่อ-นามสกุล ผู้ลงนาม <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={acceptForm.signerName}
+                  onChange={(e) => setAcceptForm(prev => ({ ...prev, signerName: e.target.value }))}
+                  placeholder="เช่น นายสมศักดิ์ มั่นคง"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  ตำแหน่งผู้ลงนาม <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={acceptForm.signerPosition}
+                  onChange={(e) => setAcceptForm(prev => ({ ...prev, signerPosition: e.target.value }))}
+                  placeholder="เช่น ผู้จัดการฝ่ายบุคคล / พี่เลี้ยงฝึกงาน"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
                 onClick={handleRejectOpen}
-                sx={{ minWidth: 160, fontWeight: 700, borderRadius: 3, padding: '12px 24px' }}
-              >
-                ปฏิเสธ
-              </Button>
-              <Button
-                variant="contained"
-                color="success"
-                size="large"
                 disabled={updating}
-                onClick={handleAcceptOpen}
-                sx={{ minWidth: 160, fontWeight: 700, borderRadius: 3, padding: '12px 24px' }}
+                className="mr-auto text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-4 py-2.5 rounded-xl transition cursor-pointer border-none bg-transparent disabled:opacity-50"
               >
-                ตอบรับ
-              </Button>
+                ปฏิเสธคำร้อง
+              </button>
+              <button
+                type="button"
+                onClick={resetAcceptForm}
+                disabled={updating}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition cursor-pointer bg-white disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleAcceptConfirm}
+                disabled={updating}
+                className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium shadow-sm shadow-violet-500/20 transition cursor-pointer border-none flex items-center gap-1.5 disabled:opacity-50"
+                style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}
+              >
+                {updating ? 'กำลังบันทึก...' : 'ยืนยันการตอบรับและส่งข้อมูล'}
+              </button>
             </div>
           </section>
         )}
@@ -484,7 +597,7 @@ const PublicRequestPage = () => {
         )}
 
         {/* Company Response Info Display */}
-        {(details.studentPreparation || details.signature) && (
+        {(details.studentPreparation || details.signature || details.acceptanceDocument) && (
           <section className="bg-white rounded-[24px] p-6 sm:p-8 border border-slate-100 shadow-xs space-y-5">
             <h3 className="border-l-4 border-violet-600 pl-3 text-base font-bold text-slate-800 m-0">ข้อมูลการตอบรับจากสถานประกอบการ</h3>
             <div className="space-y-4">
@@ -504,203 +617,29 @@ const PublicRequestPage = () => {
                   </div>
                 </div>
               )}
+              {details.acceptanceDocument?.url && (
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50/70 border border-slate-100">
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-slate-800 truncate">{details.acceptanceDocument.fileName || 'เอกสารตอบรับ'}</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">เอกสารยืนยันการตอบรับจากสถานประกอบการ</div>
+                  </div>
+                  <a
+                    href={getUploadUrl(details.acceptanceDocument.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-semibold transition no-underline shrink-0"
+                  >
+                    เปิดดูเอกสาร
+                  </a>
+                </div>
+              )}
             </div>
           </section>
         )}
       </div>
-
-      {/* Reject Reason Dialog */}
-      {/* Accept Confirmation Modal */}
-      <Dialog
-        open={acceptDialog.open}
-        onClose={() => !updating && setAcceptDialog(prev => ({ ...prev, open: false }))}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{
-          className: "rounded-[28px] bg-white p-6 max-w-lg w-full mx-auto shadow-[0_20px_50px_rgba(124,58,237,0.12)] border border-violet-100 max-h-[90vh] overflow-y-auto",
-          sx: {
-            borderRadius: '28px',
-            bgcolor: '#ffffff',
-            boxShadow: '0 20px 50px rgba(124,58,237,0.12)',
-            border: '1px solid #ede9fe',
-            maxWidth: '32rem',
-            width: '100%',
-            p: { xs: 2.5, sm: 3 },
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }
-        }}
-      >
-        <div>
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight m-0">
-                ยืนยันการตอบรับนักศึกษาเข้าฝึกประสบการณ์
-              </h3>
-              <p className="text-xs text-slate-500 m-0 mt-0.5">
-                {request.studentName} {request.studentId ? `(${request.studentId})` : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-100 my-3" />
-
-          {acceptDialog.error && (
-            <div className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl font-medium">
-              {acceptDialog.error}
-            </div>
-          )}
-
-          {/* ส่วนที่ 1: อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน */}
-          <div className="mb-4 bg-violet-50/40 border border-violet-100/80 rounded-2xl p-3">
-            <label className="block text-xs font-semibold text-slate-800 mb-1.5 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-violet-600" />
-                <span>อีเมลติดต่อของสถานประกอบการ / ผู้ประสานงาน</span>
-                <span className="text-rose-500 font-bold">*</span>
-              </span>
-              <span className="text-[10px] font-medium text-violet-600 bg-violet-100/60 px-2 py-0.5 rounded-full">
-                ตรวจสอบหรือแก้ไขได้
-              </span>
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                value={acceptDialog.companyEmail}
-                onChange={(e) => setAcceptDialog(prev => ({ ...prev, companyEmail: e.target.value, error: '' }))}
-                placeholder="เช่น hr@company.com หรือ contact@company.com"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800 placeholder:text-slate-400"
-                required
-              />
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1.5 mb-0">
-              * ระบบจะบันทึกและจดจำอีเมลนี้ เพื่อใช้ในการส่งเอกสารและประสานงานอัตโนมัติในครั้งต่อไป
-            </p>
-          </div>
-
-          {/* ส่วนที่ 2: สิ่งที่ต้องการให้นักศึกษาเตรียมตัวก่อนเริ่มฝึกงาน */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              สิ่งที่อยากให้นักศึกษาเตรียมตัว / เอกสารหรืออุปกรณ์ที่ต้องนำมา (ถ้ามี)
-            </label>
-            <textarea
-              rows={3}
-              value={acceptDialog.studentPreparation}
-              onChange={(e) => setAcceptDialog(prev => ({ ...prev, studentPreparation: e.target.value }))}
-              placeholder="เช่น โน้ตบุ๊กส่วนตัว, สำเนาบัตรประชาชน, ชุดสุภาพ ฯลฯ"
-              className="w-full rounded-2xl border border-slate-200 p-3 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none transition resize-none placeholder:text-slate-400 text-slate-800"
-            />
-          </div>
-
-          {/* ส่วนที่ 2: การลงนามลายมือชื่อเพื่อรับรอง (Digital Signature) */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-700">
-                ลงนามลายมือชื่อผู้มีอำนาจ / ผู้ดูแลการฝึกงาน <span className="text-rose-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={clearSignature}
-                className="text-[11px] font-medium text-slate-400 hover:text-rose-600 flex items-center gap-1 transition cursor-pointer bg-transparent border-none p-0"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>ล้างลายมือชื่อ (Clear)</span>
-              </button>
-            </div>
-
-            {/* Canvas Signature Pad */}
-            <div className="w-full h-40 border border-dashed border-violet-200 rounded-2xl bg-violet-50/20 relative overflow-hidden flex items-center justify-center">
-              <canvas
-                ref={signatureCanvasRef}
-                width={500}
-                height={160}
-                className="w-full h-full cursor-crosshair"
-                style={{ touchAction: 'none' }}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-              />
-              {!hasSignature && (
-                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-300 gap-1.5">
-                  <PenTool className="w-5 h-5 text-slate-300 stroke-[1.5]" />
-                  <span className="text-xs">วาดลายเซ็นสดลงในช่องนี้ (เซ็นด้วยเมาส์หรือนิ้วมือ)</span>
-                </div>
-              )}
-            </div>
-
-            {/* ช่องกรอกชื่อ-นามสกุล และตำแหน่งของผู้ลงนาม */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  ชื่อ-นามสกุล ผู้ลงนาม
-                </label>
-                <input
-                  type="text"
-                  value={acceptDialog.signerName}
-                  onChange={(e) => setAcceptDialog(prev => ({ ...prev, signerName: e.target.value }))}
-                  placeholder="เช่น นายสมศักดิ์ มั่นคง"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  ตำแหน่งผู้ลงนาม
-                </label>
-                <input
-                  type="text"
-                  value={acceptDialog.signerPosition}
-                  onChange={(e) => setAcceptDialog(prev => ({ ...prev, signerPosition: e.target.value }))}
-                  placeholder="เช่น ผู้จัดการฝ่ายบุคคล / พี่เลี้ยงฝึกงาน"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800"
-                />
-              </div>
-            </div>
-
-            {/* ช่องอีเมลสำหรับรับผลประเมิน */}
-            <div className="mt-2.5">
-              <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                อีเมลผู้ดูแล / สำหรับรับแบบประเมินนักศึกษา (ถ้ามี)
-              </label>
-              <input
-                type="email"
-                value={acceptDialog.evaluatorEmail}
-                onChange={(e) => setAcceptDialog(prev => ({ ...prev, evaluatorEmail: e.target.value }))}
-                placeholder="เช่น hr@company.com"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:ring-2 focus:ring-violet-100 focus:border-violet-500 outline-none text-slate-800"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 mt-5 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setAcceptDialog(prev => ({ ...prev, open: false }))}
-              disabled={updating}
-              className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer border-none bg-transparent"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              onClick={handleAcceptConfirm}
-              disabled={updating}
-              className="bg-violet-600 hover:bg-violet-700 text-white font-semibold py-2.5 px-5 rounded-xl text-xs shadow-xs transition cursor-pointer border-none flex items-center gap-1.5"
-              style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}
-            >
-              {updating ? 'กำลังบันทึก...' : 'ยืนยันการตอบรับและส่งข้อมูล'}
-            </button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Reject Reason Dialog */}
       <Dialog
@@ -788,6 +727,24 @@ const PublicRequestPage = () => {
       )}
     </div>
   );
+};
+
+const buildAcceptFormDefaults = (req) => {
+  const defaultCompanyEmail = (
+    req.company_email ||
+    req.details?.companyEmail ||
+    req.details?.contactEmail ||
+    req.details?.contact_email ||
+    req.details?.supervisorEmail ||
+    ''
+  );
+  return {
+    companyEmail: defaultCompanyEmail,
+    studentPreparation: '',
+    signerName: req.details?.supervisor || req.details?.contactPerson || '',
+    signerPosition: req.details?.supervisorPosition || req.details?.contactPosition || '',
+    error: ''
+  };
 };
 
 const InfoItem = ({ label, value }) => {

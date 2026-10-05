@@ -46,7 +46,7 @@ const getCheckinGuard = async (studentId) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { studentId, date, status, department, search } = req.query;
-    let sql = 'SELECT dc.* FROM daily_checkins dc WHERE 1=1';
+    let sql = "SELECT dc.*, DATE_FORMAT(dc.date, '%Y-%m-%d') AS date FROM daily_checkins dc WHERE 1=1";
     const params = [];
 
     if (studentId) { sql += ' AND dc.studentId = ?'; params.push(studentId); }
@@ -73,7 +73,7 @@ router.get('/', authenticate, async (req, res) => {
 // GET /api/checkins/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM daily_checkins WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query("SELECT *, DATE_FORMAT(date, '%Y-%m-%d') AS date FROM daily_checkins WHERE id = ?", [req.params.id]);
     if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลเช็คชื่อ' });
     res.json({ success: true, data: rows[0] });
   } catch (error) {
@@ -114,7 +114,7 @@ router.post('/', authenticate, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [studentId, studentName || null, date, status || 'present', note || null, workExperience || null, supervisorSignature || null, supervisorName || null, supervisorComment || null]
     );
-    const [rows] = await pool.query('SELECT * FROM daily_checkins WHERE studentId = ? AND date = ?', [studentId, date]);
+    const [rows] = await pool.query("SELECT *, DATE_FORMAT(date, '%Y-%m-%d') AS date FROM daily_checkins WHERE studentId = ? AND date = ?", [studentId, date]);
     res.status(201).json({ success: true, message: 'บันทึกการเช็คชื่อเรียบร้อยแล้ว', data: rows[0] || null });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -185,7 +185,7 @@ router.patch('/batch-sign', authenticate, async (req, res) => {
       }
     }
 
-    const [rows] = await pool.query('SELECT * FROM daily_checkins WHERE studentId = ? ORDER BY date DESC', [studentId]);
+    const [rows] = await pool.query("SELECT *, DATE_FORMAT(date, '%Y-%m-%d') AS date FROM daily_checkins WHERE studentId = ? ORDER BY date DESC", [studentId]);
     res.json({
       success: true,
       message: `บันทึกลายเซ็นพี่เลี้ยงรับรองเรียบร้อยแล้ว (${dates.length || checkinIds.length} วัน)`,

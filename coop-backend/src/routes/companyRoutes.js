@@ -101,6 +101,8 @@ router.get('/companies', async (req, res) => {
         addressRaw = [
           addressRaw.house ? `เลขที่ ${addressRaw.house}` : '',
           addressRaw.moo ? `หมู่ ${addressRaw.moo}` : '',
+          addressRaw.soi ? (/^(ซอย|ตรอก|ซ\.)/.test(addressRaw.soi) ? addressRaw.soi : `ซ.${addressRaw.soi}`) : '',
+          addressRaw.road ? (/^(ถนน|ถ\.)/.test(addressRaw.road) ? addressRaw.road : `ถ.${addressRaw.road}`) : '',
           addressRaw.tambon ? `ต.${addressRaw.tambon}` : '',
           addressRaw.amphur ? `อ.${addressRaw.amphur}` : '',
           addressRaw.province ? `จ.${addressRaw.province}` : '',

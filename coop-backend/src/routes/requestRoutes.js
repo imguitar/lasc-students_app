@@ -436,6 +436,26 @@ const updateStatusHandler = async (req, res) => {
       if (req.body.signerPosition !== undefined) details.signerPosition = req.body.signerPosition;
       if (req.body.companyResponse !== undefined) details.companyResponse = req.body.companyResponse;
 
+      // เอกสารแนบยืนยันการตอบรับ (ใช้แทน/ประกอบลายเซ็นได้) — เขียนไฟล์ลง uploads/acceptance/ แล้วเก็บ url ใน details
+      if (req.body.acceptanceDocument !== undefined) {
+        const doc = req.body.acceptanceDocument;
+        const parsed = parseDataUrl(doc?.dataUrl);
+        if (!parsed || !ACCEPTANCE_DOC_MIME[parsed.mime] || parsed.buffer.length > MAX_ACCEPTANCE_DOC_BYTES) {
+          return res.status(400).json({ success: false, message: 'ไฟล์หลักฐานการตอบรับไม่ถูกต้อง รองรับเฉพาะ PDF, JPG, PNG ขนาดไม่เกิน 10MB' });
+        }
+        fs.mkdirSync(ACCEPTANCE_DOC_DIR, { recursive: true });
+        const filename = `acceptance-${req.params.id}-${Date.now()}${ACCEPTANCE_DOC_MIME[parsed.mime]}`;
+        fs.writeFileSync(path.join(ACCEPTANCE_DOC_DIR, filename), parsed.buffer);
+        details.acceptanceDocument = {
+          fileName: String(doc.fileName || `เอกสารตอบรับ${ACCEPTANCE_DOC_MIME[parsed.mime]}`).slice(0, 255),
+          url: `/uploads/acceptance/${filename}`,
+          size: parsed.buffer.length,
+          mime: parsed.mime,
+          uploadedAt: new Date().toISOString()
+        };
+        if (details.companyResponse) details.companyResponse.acceptanceDocument = details.acceptanceDocument;
+      }
+
       if (
         publicTokenIssued ||
         startDate !== undefined ||
@@ -447,7 +467,8 @@ const updateStatusHandler = async (req, res) => {
         req.body.signature !== undefined ||
         req.body.signerName !== undefined ||
         req.body.signerPosition !== undefined ||
-        req.body.companyResponse !== undefined
+        req.body.companyResponse !== undefined ||
+        req.body.acceptanceDocument !== undefined
       ) {
         updates.push('details = ?');
         params.push(JSON.stringify(details));
@@ -730,6 +751,10 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
 });
 
 // ============ เอกสารการนิเทศ (Supervision Documents) ============
+const ACCEPTANCE_DOC_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
+const ACCEPTANCE_DOC_DIR = path.join(__dirname, '..', '..', 'uploads', 'acceptance');
+const MAX_ACCEPTANCE_DOC_BYTES = 10 * 1024 * 1024; // 10MB
+
 const SUPERVISION_DOC_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
 const SUPERVISION_DOC_DIR = path.join(__dirname, '..', '..', 'uploads', 'supervision');
 const MAX_SUPERVISION_DOC_BYTES = 10 * 1024 * 1024; // 10MB

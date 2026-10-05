@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import SignaturePad from '../../components/SignaturePad';
 import { getUploadUrl } from '../../utils/fileUrl';
-import { ArrowRightLeft, CheckCircle2, FileText, Loader2, UserRound, X, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, FileText, Loader2, Trash2, Upload, UserRound, X, XCircle } from 'lucide-react';
 
 const fileUrl = getUploadUrl;
 
@@ -20,6 +20,7 @@ const PublicCompanyAcceptancePage = () => {
   const [comment, setComment] = useState('');
   const [preparations, setPreparations] = useState('');
   const [evaluatorEmail, setEvaluatorEmail] = useState('');
+  const [acceptFile, setAcceptFile] = useState(null); // {fileName, dataUrl, size, mime}
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -39,8 +40,24 @@ const PublicCompanyAcceptancePage = () => {
   }, [token]);
 
   const isAccept = decision === 'accept';
-  // รับ → บังคับลายเซ็น | ไม่รับ → บังคับเหตุผล
-  const canSubmit = signerName.trim() && (isAccept ? !!signature : !!comment.trim()) && !submitting;
+  // รับ → บังคับแค่ชื่อผู้ลงนาม (ลายเซ็น/ไฟล์แนบไม่บังคับ) | ไม่รับ → บังคับเหตุผล
+  const canSubmit = signerName.trim() && (isAccept ? true : !!comment.trim()) && !submitting;
+
+  const ACCEPT_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+  const fmtBytes = (n) => (n ? `${(n / 1048576).toFixed(1)} MB` : '');
+  const onPickAcceptDoc = async (file) => {
+    if (!file) return;
+    setError('');
+    if (!ACCEPT_DOC_TYPES.includes(file.type)) return setError('รองรับเฉพาะไฟล์ PDF, PNG, JPG เท่านั้น');
+    if (file.size > 10 * 1024 * 1024) return setError('ไฟล์ต้องมีขนาดไม่เกิน 10MB');
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    setAcceptFile({ fileName: file.name, dataUrl, size: file.size, mime: file.type });
+  };
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -54,7 +71,8 @@ const PublicCompanyAcceptancePage = () => {
         signature_data_url: isAccept ? signature : undefined,
         comment,
         acceptance_preparations: isAccept ? preparations.trim() || undefined : undefined,
-        acceptance_evaluator_email: isAccept ? evaluatorEmail.trim() || undefined : undefined
+        acceptance_evaluator_email: isAccept ? evaluatorEmail.trim() || undefined : undefined,
+        acceptance_document: isAccept && acceptFile ? { fileName: acceptFile.fileName, dataUrl: acceptFile.dataUrl } : undefined
       });
       setDone(true);
     } catch (e) {
@@ -79,7 +97,8 @@ const PublicCompanyAcceptancePage = () => {
   const studentAddr = [
     saddr.house ? `บ้านเลขที่ ${saddr.house}` : '',
     saddr.moo ? `หมู่ ${saddr.moo}` : '',
-    saddr.road ? `ถนน${saddr.road}` : '',
+    saddr.soi ? (/^(ซอย|ตรอก|ซ\.)/.test(saddr.soi) ? saddr.soi : `ซอย${saddr.soi}`) : '',
+    saddr.road ? (/^(ถนน|ถ\.)/.test(saddr.road) ? saddr.road : `ถนน${saddr.road}`) : '',
     saddr.tambon ? `ต.${saddr.tambon}` : '',
     saddr.amphur ? `อ.${saddr.amphur}` : '',
     saddr.province ? `จ.${saddr.province}` : '',
@@ -251,12 +270,12 @@ const PublicCompanyAcceptancePage = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                {[['accept', 'รับนักศึกษาเข้าฝึกงาน', CheckCircle2], ['decline', 'ไม่สามารถรับได้', XCircle]].map(([val, label, Icon]) => (
+                {[['accept', 'รับนักศึกษาเข้าฝึกงาน', <CheckCircle2 key="i" style={{ width: 18, height: 18 }} className="shrink-0" />], ['decline', 'ไม่สามารถรับได้', <XCircle key="i" style={{ width: 18, height: 18 }} className="shrink-0" />]].map(([val, label, icon]) => (
                   <button key={val} type="button" onClick={() => setDecision(val)}
                     className={`min-h-[56px] py-2.5 px-3 rounded-2xl text-[13px] sm:text-sm font-bold border-2 cursor-pointer transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 leading-snug ${decision === val
                       ? val === 'accept' ? 'bg-emerald-600 text-white border-emerald-600 shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-red-600 text-white border-red-600 shadow-[0_4px_12px_rgba(225,29,72,0.3)]'
                       : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                    <Icon style={{ width: 18, height: 18 }} className="shrink-0" />
+                    {icon}
                     {label}
                   </button>
                 ))}
@@ -296,8 +315,43 @@ const PublicCompanyAcceptancePage = () => {
               </div>
               {isAccept && (
                 <div className="mt-4">
-                  <label className={labelCls}>ลายมือชื่อผู้ลงนาม<ReqStar /></label>
+                  <label className={labelCls}>ลายมือชื่อผู้ลงนาม <span className="text-xs font-normal text-slate-400">(ไม่บังคับ)</span></label>
                   <SignaturePad onChange={(d) => setSignature(d || '')} height={150} />
+                </div>
+              )}
+
+              {/* แนบไฟล์เอกสารตอบรับ — ไม่บังคับ */}
+              {isAccept && (
+                <div className="mt-4">
+                  <label className={labelCls}>
+                    แนบไฟล์หนังสือตอบรับ / เอกสารยืนยันจากสถานประกอบการ (ถ้ามี)
+                    <span className="block text-xs font-normal text-slate-400 mt-0.5">(PDF/PNG/JPG ขนาดไม่เกิน 10MB - ไม่บังคับ)</span>
+                  </label>
+                  {!acceptFile ? (
+                    <label
+                      className="block cursor-pointer border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-colors"
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={(e) => { e.preventDefault(); onPickAcceptDoc(e.dataTransfer.files?.[0]); }}>
+                      <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden"
+                        onChange={(e) => { onPickAcceptDoc(e.target.files?.[0]); e.target.value = ''; }} />
+                      <Upload className="w-7 h-7 mx-auto mb-2 text-slate-400" />
+                      <span className="block text-xs font-semibold text-slate-500">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</span>
+                    </label>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-emerald-800 m-0 truncate">{acceptFile.fileName}</p>
+                          <p className="text-[10px] text-emerald-600 m-0">{fmtBytes(acceptFile.size)}</p>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setAcceptFile(null)} aria-label="ลบไฟล์แนบ"
+                        className="shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 cursor-pointer flex items-center justify-center transition">
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mt-4">

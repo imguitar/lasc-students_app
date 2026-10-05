@@ -137,9 +137,11 @@ const AdvisorRelocationsPage = () => {
                                             <div className="text-xs text-slate-600" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.reason}</div>
                                         </TableCell>
                                         <TableCell>
-                                            <a href={fileUrl(r.return_letter_file)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 no-underline hover:text-violet-800">
-                                                <FileText style={{ width: 13, height: 13 }} /> หนังสือส่งตัวกลับ
-                                            </a>
+                                            {r.return_letter_file ? (
+                                                <a href={fileUrl(r.return_letter_file)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 no-underline hover:text-violet-800">
+                                                    <FileText style={{ width: 13, height: 13 }} /> หนังสือส่งตัวกลับ
+                                                </a>
+                                            ) : <span className="text-[11px] text-slate-400">-</span>}
                                         </TableCell>
                                         <TableCell>
                                             <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusColor(r.status)}`}>

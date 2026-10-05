@@ -109,7 +109,8 @@ const AdminCheckInPage = () => {
   };
 
   const filteredEntries = entries.filter((entry) => {
-    if (filters.date && entry.date !== filters.date) return false;
+    // mysql2 อาจคืน DATE เป็น ISO string "YYYY-MM-DDT00:00:00.000Z" — ตัดเวลาออกก่อนเทียบเสมอ
+    if (filters.date && String(entry.date || '').split('T')[0] !== filters.date) return false;
     if (filters.status !== 'all' && entry.status !== filters.status) return false;
     if (filters.department !== 'all' && getDepartment(entry) !== filters.department) return false;
     if (filters.search) {

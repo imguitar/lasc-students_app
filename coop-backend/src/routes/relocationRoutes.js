@@ -27,7 +27,7 @@ const ensureTable = async () => {
     internship_request_id INT UNSIGNED NOT NULL,
     student_id VARCHAR(50) NOT NULL,
     reason TEXT NOT NULL,
-    return_letter_file VARCHAR(255) NOT NULL,
+    return_letter_file VARCHAR(255) NULL,
     return_letter_name VARCHAR(255) NULL,
     new_company_name VARCHAR(255) NOT NULL,
     new_company_address TEXT NOT NULL,
@@ -68,6 +68,8 @@ const ensureTable = async () => {
     acceptance_allowance VARCHAR(255) NULL COMMENT 'เบี้ยเลี้ยงที่ให้ เช่น "ไม่มีเบี้ยเลี้ยง" หรือ "3,000 บาท/เดือน"',
     acceptance_preparations TEXT NULL COMMENT 'สิ่งของ/เอกสารที่ให้นักศึกษาเตรียม (สถานประกอบการใหม่ระบุตอนตอบรับ)',
     acceptance_evaluator_email VARCHAR(255) NULL COMMENT 'อีเมลสำหรับรับแบบประเมินอัตโนมัติ',
+    acceptance_proof_file VARCHAR(255) NULL COMMENT 'ไฟล์หลักฐาน/หนังสือตอบรับที่บริษัทใหม่แนบเองตอนตอบรับ (ไม่บังคับ)',
+    acceptance_proof_name VARCHAR(255) NULL,
     new_addr_house VARCHAR(50) NULL,
     new_addr_moo VARCHAR(50) NULL,
     new_addr_road VARCHAR(255) NULL,
@@ -92,6 +94,8 @@ const ensureTable = async () => {
 
   // ตารางเดิมที่มีอยู่แล้ว — เพิ่มคอลัมน์ลายเซ็น/token และขยาย enum (idempotent)
   await pool.query(`ALTER TABLE internship_relocation_requests MODIFY COLUMN status ${FULL_STATUS_ENUM} NOT NULL DEFAULT 'submitted_waiting_company'`).catch(() => {});
+  // หนังสือส่งตัวกลับไม่บังคับแล้ว — สถานประกอบการใหม่แนบเอกสารเองตอนตอบรับได้
+  await pool.query('ALTER TABLE internship_relocation_requests MODIFY COLUMN return_letter_file VARCHAR(255) NULL').catch(() => {});
   const addCols = [
     'student_signature LONGTEXT NULL',
     'company_token VARCHAR(64) NULL',
@@ -117,6 +121,8 @@ const ensureTable = async () => {
     'acceptance_allowance VARCHAR(255) NULL',
     'acceptance_preparations TEXT NULL',
     'acceptance_evaluator_email VARCHAR(255) NULL',
+    'acceptance_proof_file VARCHAR(255) NULL',
+    'acceptance_proof_name VARCHAR(255) NULL',
     'new_addr_house VARCHAR(50) NULL',
     'new_addr_moo VARCHAR(50) NULL',
     'new_addr_road VARCHAR(255) NULL',
@@ -206,6 +212,14 @@ const notifyStudent = async (studentId, payload) => {
   } catch (e) { console.error('[Relocation] notify student fail:', e.message); }
 };
 
+// ระบบไม่ได้ผูกอาจารย์ที่ปรึกษากับนักศึกษารายคน — แจ้งอาจารย์ทุกคน (หน้า list กรองตามภาควิชาอยู่แล้ว)
+const notifyAdvisors = async (payload) => {
+  try {
+    const advisorIds = await findUserIdsByRole('advisor');
+    await Promise.all((advisorIds || []).map((id) => createNotification({ userId: id, ...payload })));
+  } catch (e) { console.error('[Relocation] notify advisors fail:', e.message); }
+};
+
 // ==================== STUDENT: ยื่นคำร้อง ====================
 router.post('/', authenticate, async (req, res) => {
   try {
@@ -234,9 +248,6 @@ router.post('/', authenticate, async (req, res) => {
     }
     // เบอร์ติดต่อที่ใหม่: ฟอร์มไม่ถามเบอร์บริษัทแล้ว — ใช้เบอร์หัวหน้าหน่วยงานแทนถ้ามี
     const contactPhone = (new_addr_phone || '').trim() || (mentor_phone || '').trim() || null;
-    if (!return_letter_data_url) {
-      return res.status(400).json({ success: false, message: 'กรุณาแนบหนังสือส่งตัวกลับจากสถานประกอบการเดิม' });
-    }
     if (!/^data:image\/png;base64,/.test(student_signature_data_url || '')) {
       return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัลก่อนยื่นคำร้อง' });
     }
@@ -250,8 +261,13 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ขอเปลี่ยนสถานที่ได้เฉพาะช่วงที่ออกฝึกงานแล้วเท่านั้น' });
     }
 
-    const saved = await saveDataUrlFile(return_letter_data_url, `return-${internship_request_id}`);
-    if (saved.error) return res.status(400).json({ success: false, message: saved.error });
+    // หนังสือส่งตัวกลับเป็นตัวเลือก (สถานประกอบการใหม่แนบเอกสารเองได้ตอนตอบรับ)
+    let returnLetterUrl = null;
+    if (return_letter_data_url) {
+      const saved = await saveDataUrlFile(return_letter_data_url, `return-${internship_request_id}`);
+      if (saved.error) return res.status(400).json({ success: false, message: saved.error });
+      returnLetterUrl = saved.url;
+    }
 
     await withTable(async () => {
       // ป้องกันยื่นซ้ำขณะที่ยังมีคำร้องค้างอยู่ (ยกเว้นที่ถูกตีกลับแล้ว)
@@ -284,8 +300,8 @@ router.post('/', authenticate, async (req, res) => {
           semester, academic_year, student_phone,
           mentor_name, mentor_position, mentor_email, mentor_phone)
          VALUES (?,?,?,?,?,?,?,?,?,?, 'submitted_waiting_company', ?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [internship_request_id, String(req.user.username), reason.trim(), saved.url,
-         String(return_letter_name || 'หนังสือส่งตัวกลับ').slice(0, 255),
+        [internship_request_id, String(req.user.username), reason.trim(), returnLetterUrl,
+         returnLetterUrl ? String(return_letter_name || 'หนังสือส่งตัวกลับ').slice(0, 255) : null,
          new_company_name.trim(), composedAddress, contactLine,
          Number(days_trained) || 0, Number(days_remaining) || 0,
          student_signature_data_url, companyToken,
@@ -686,10 +702,13 @@ publicRouter.get('/token/:token', async (req, res) => {
 publicRouter.post('/token/:token/approve', async (req, res) => {
   try {
     await ensureTable();
-    const { signer_name, signer_position, signature_data_url } = req.body || {};
+    const { signer_name, signer_position, signature_data_url, return_letter_document } = req.body || {};
     if (!signer_name?.trim()) return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อ-ตำแหน่งผู้ลงนาม' });
-    if (!/^data:image\/png;base64,/.test(signature_data_url || '')) {
-      return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัล' });
+    // บังคับลายเซ็นยินยอม | ไฟล์หนังสือส่งตัวกลับแนบเพิ่มเติมได้ (ไม่บังคับ)
+    const hasSignature = /^data:image\/png;base64,/.test(signature_data_url || '');
+    const hasDoc = !!return_letter_document?.dataUrl;
+    if (!hasSignature) {
+      return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัลเพื่อยืนยันการยินยอม' });
     }
     const [rows] = await pool.query('SELECT * FROM internship_relocation_requests WHERE company_token = ?', [req.params.token]);
     const rel = rows[0];
@@ -697,17 +716,35 @@ publicRouter.post('/token/:token/approve', async (req, res) => {
     if (rel.status !== 'submitted_waiting_company') {
       return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้วหรือคำร้องหมดอายุ' });
     }
+    // บริษัทเดิมแนบหนังสือส่งตัวกลับเองตอนลงนาม → เก็บลง return_letter_file
+    let letterUrl = null;
+    let letterName = null;
+    if (hasDoc) {
+      const saved = await saveDataUrlFile(return_letter_document.dataUrl, `return-letter-${rel.id}`);
+      if (saved.error) return res.status(400).json({ success: false, message: saved.error });
+      letterUrl = saved.url;
+      letterName = String(return_letter_document.fileName || 'หนังสือส่งตัวกลับ').slice(0, 255);
+    }
     const [r] = await pool.query(
       `UPDATE internship_relocation_requests
        SET status='company_approved_waiting_advisor', company_signer_name=?, company_signer_position=?,
-           company_signature=?, company_signed_at=?, company_token_used_at=?, company_token=NULL
+           company_signature=?, company_signed_at=?,
+           return_letter_file=COALESCE(?, return_letter_file), return_letter_name=COALESCE(?, return_letter_name),
+           company_token_used_at=?, company_token=NULL
        WHERE id=? AND status='submitted_waiting_company'`,
-      [signer_name.trim(), signer_position?.trim() || null, signature_data_url, new Date(), new Date(), rel.id]);
+      [signer_name.trim(), signer_position?.trim() || null, hasSignature ? signature_data_url : null, new Date(),
+       letterUrl, letterName, new Date(), rel.id]);
     if (!r.affectedRows) return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้ว' });
     await notifyStudent(rel.student_id, {
       type: 'relocation_status', title: 'บริษัทเดิมลงนามยินยอมแล้ว',
       message: `สถานประกอบการเดิมยินยอมให้ย้ายไป ${rel.new_company_name} — รออาจารย์ที่ปรึกษาพิจารณา`,
       link: '/dashboard/my-requests', requestId: rel.internship_request_id
+    });
+    // แจ้งอาจารย์ให้มาพิจารณาคำร้องเปลี่ยนสถานที่ฝึกงาน
+    await notifyAdvisors({
+      type: 'relocation_review', title: 'มีคำร้องขอเปลี่ยนสถานที่ฝึกงานรอพิจารณา',
+      message: `นักศึกษารหัส ${rel.student_id} ขอเปลี่ยนสถานที่ฝึกงาน (บริษัทเดิมลงนามยินยอมแล้ว) — โปรดตรวจสอบและพิจารณา`,
+      link: '/advisor-dashboard/relocations', requestId: rel.internship_request_id
     });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -801,15 +838,15 @@ publicRouter.get('/acceptance/:token', async (req, res) => {
 publicRouter.post('/acceptance/:token/respond', async (req, res) => {
   try {
     await ensureTable();
-    const { decision, signer_name, signer_position, signature_data_url, comment, acceptance_department, acceptance_allowance, acceptance_preparations, acceptance_evaluator_email } = req.body || {};
+    const { decision, signer_name, signer_position, signature_data_url, comment, acceptance_department, acceptance_allowance, acceptance_preparations, acceptance_evaluator_email, acceptance_document } = req.body || {};
     if (!['accept', 'decline'].includes(decision)) {
       return res.status(400).json({ success: false, message: 'กรุณาเลือกผลตอบรับ รับนักศึกษา/ไม่รับ' });
     }
     if (!signer_name?.trim()) return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อ-นามสกุลผู้ลงนาม' });
     const isAccept = decision === 'accept';
-    // รับ → บังคับลายเซ็น | ไม่รับ → บังคับเหตุผล (ไม่ต้องลงลายเซ็น)
-    if (isAccept && !/^data:image\/png;base64,/.test(signature_data_url || '')) {
-      return res.status(400).json({ success: false, message: 'กรุณาลงลายมือชื่อดิจิทัล' });
+    // ลายเซ็น/ไฟล์แนบเป็น optional — ถ้าส่งมาก็ต้องถูกรูปแบบ
+    if (signature_data_url && !/^data:image\/png;base64,/.test(signature_data_url)) {
+      return res.status(400).json({ success: false, message: 'รูปแบบลายมือชื่อไม่ถูกต้อง' });
     }
     if (!isAccept && !comment?.trim()) {
       return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลที่ไม่สามารถรับนักศึกษาได้' });
@@ -828,15 +865,26 @@ publicRouter.post('/acceptance/:token/respond', async (req, res) => {
     const adminNote = accept
       ? (comment || null)
       : `สถานประกอบการใหม่ไม่รับนักศึกษา${comment ? `: ${comment}` : ''}`;
+    // ไฟล์หลักฐานตอบรับที่บริษัทแนบเอง (optional) — เขียนลง uploads/relocations/
+    let proofUrl = null;
+    let proofName = null;
+    if (accept && acceptance_document?.dataUrl) {
+      const savedProof = await saveDataUrlFile(acceptance_document.dataUrl, `acceptance-proof-${rel.id}`);
+      if (savedProof.error) return res.status(400).json({ success: false, message: savedProof.error });
+      proofUrl = savedProof.url;
+      proofName = String(acceptance_document.fileName || 'เอกสารตอบรับ').slice(0, 255);
+    }
     const [r] = await pool.query(
       `UPDATE internship_relocation_requests
        SET status=?, acceptance_signer_name=?, acceptance_signer_position=?, acceptance_signature=?, acceptance_signed_at=?,
            acceptance_department=?, acceptance_allowance=?, acceptance_preparations=?, acceptance_evaluator_email=?,
+           acceptance_proof_file=?, acceptance_proof_name=?,
            admin_comment=?, acceptance_token_used_at=?, acceptance_token=NULL
        WHERE id=? AND status='waiting_company_acceptance'`,
-      [nextStatus, signer_name.trim(), signer_position?.trim() || null, accept ? signature_data_url : null,
+      [nextStatus, signer_name.trim(), signer_position?.trim() || null, accept ? (signature_data_url || null) : null,
        new Date(), accept ? (acceptance_department || null) : null, accept ? (acceptance_allowance || null) : null,
        accept ? (acceptance_preparations?.trim() || null) : null, accept ? (acceptance_evaluator_email?.trim() || null) : null,
+       proofUrl, proofName,
        adminNote, new Date(), rel.id]);
     if (!r.affectedRows) return res.status(409).json({ success: false, message: 'ลิงก์นี้ถูกใช้งานไปแล้ว' });
     await notifyStudent(rel.student_id, {

@@ -6,7 +6,7 @@ import { getProvinces, getAmphoes, getDistricts, getZipcode, isBangkok } from '.
 import SignaturePad from '../../components/SignaturePad';
 import RelocationStepper from '../../components/RelocationStepper';
 import { getUploadUrl } from '../../utils/fileUrl';
-import { AlertTriangle, ArrowLeft, Building2, CalendarDays, CheckCircle2, Circle, Clock, FileText, Loader2, Search, Upload, User, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Building2, CalendarDays, CheckCircle2, Circle, Clock, FileText, Loader2, Search, User, X } from 'lucide-react';
 
 // ยื่นคำร้องได้เฉพาะช่วงที่ "ออกฝึกงานแล้ว" เท่านั้น (สถานะชุดเดียวกับ backend)
 const INTERNING_STATUSES = ['ออกฝึกงาน', 'กำลังออกฝึกงาน'];
@@ -32,7 +32,7 @@ const RelocationRequestPage = () => {
     mentor_name: '', mentor_position: '', mentor_email: '', mentor_phone: '',
     addr_house: '', addr_moo: '', addr_road: '', addr_tambon: '',
     addr_amphur: '', addr_province: '', addr_postal: '',
-    fileName: '', dataUrl: '', signature: ''
+    signature: ''
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -197,20 +197,10 @@ const RelocationRequestPage = () => {
     setPickerSearch('');
   };
 
-  const onPickFile = (file) => {
-    if (!file) return;
-    if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) { setError('รองรับเฉพาะไฟล์ PDF, PNG, JPG'); return; }
-    if (file.size > 10 * 1024 * 1024) { setError('ไฟล์ต้องมีขนาดไม่เกิน 10MB'); return; }
-    setError('');
-    const reader = new FileReader();
-    reader.onload = () => setForm((p) => ({ ...p, fileName: file.name, dataUrl: reader.result }));
-    reader.readAsDataURL(file);
-  };
-
   const mentorEmailValid = !form.mentor_email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.mentor_email.trim());
   const canSubmit = form.reason.trim() && form.new_company_name.trim()
     && form.mentor_name.trim() && mentorEmailValid
-    && form.dataUrl && form.signature && !submitting;
+    && form.signature && !submitting;
 
   const submit = async () => {
     if (!canSubmit || !request) return;
@@ -225,8 +215,6 @@ const RelocationRequestPage = () => {
         mentor_email: form.mentor_email, mentor_phone: form.mentor_phone,
         days_trained: daysTrained,
         days_remaining: computedRemaining ?? 0,
-        return_letter_name: form.fileName,
-        return_letter_data_url: form.dataUrl,
         student_signature_data_url: form.signature,
         new_addr_house: form.addr_house, new_addr_moo: form.addr_moo,
         new_addr_road: form.addr_road, new_addr_tambon: form.addr_tambon,
@@ -521,27 +509,6 @@ const RelocationRequestPage = () => {
                   </div>
                 </div>
 
-                {/* เอกสารแนบ */}
-                <div className="ui-card p-6">
-                  <h3 className="ty-section-title m-0 mb-1">เอกสารแนบ <span className="text-rose-500 ml-1">*</span></h3>
-                  <p className="ty-caption m-0 mb-4">หนังสือส่งตัวกลับจากสถานประกอบการเดิม (PDF/PNG/JPG ไม่เกิน 10MB)</p>
-                  <label className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-7 text-center cursor-pointer transition ${form.dataUrl ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-300 bg-slate-50/60 hover:border-purple-400 hover:bg-purple-50/40'}`}>
-                    <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0])} />
-                    {form.dataUrl ? (
-                      <>
-                        <FileText className="text-emerald-600" style={{ width: 22, height: 22 }} />
-                        <span className="text-sm font-medium text-emerald-700 truncate max-w-full">{form.fileName}</span>
-                        <span className="ty-caption">คลิกเพื่อเปลี่ยนไฟล์</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="text-slate-400" style={{ width: 22, height: 22 }} />
-                        <span className="text-sm font-medium text-slate-600">คลิกเพื่อแนบไฟล์</span>
-                      </>
-                    )}
-                  </label>
-                </div>
-
                 {/* เงื่อนไข */}
                 <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5">
                   <p className="text-sm font-semibold text-amber-900 m-0 flex items-center gap-2">
@@ -550,7 +517,7 @@ const RelocationRequestPage = () => {
                   </p>
                   <ul className="mt-2 mb-0 pl-5 space-y-1.5 list-disc text-[13px] text-amber-800 leading-relaxed">
                     <li>ขอเปลี่ยนได้เฉพาะกรณีจำเป็นตามเกณฑ์คณะ เช่น บาดเจ็บ/ไม่ปลอดภัย หรือสถานประกอบการขอยุติ</li>
-                    <li><strong>ต้องแนบหนังสือส่งตัวกลับจากที่เดิมทุกครั้ง</strong></li>
+                    <li>สถานประกอบการใหม่สามารถแนบหนังสือตอบรับเองได้ตอนตอบรับ (ไม่บังคับแนบตอนยื่น)</li>
                   </ul>
                 </div>
 
@@ -563,8 +530,7 @@ const RelocationRequestPage = () => {
                       ['ชื่อบริษัทใหม่', !!form.new_company_name.trim()],
                       ['ที่อยู่ใหม่ (จังหวัด/อำเภอ/ตำบล)', !!(form.addr_province && form.addr_amphur && form.addr_tambon)],
                       ['หัวหน้าหน่วยงาน/ผู้ดูแล', !!form.mentor_name.trim()],
-                      ['ลายมือชื่อนักศึกษา', !!form.signature],
-                      ['หนังสือส่งตัวกลับ', !!form.dataUrl]
+                      ['ลายมือชื่อนักศึกษา', !!form.signature]
                     ].map(([label, ok]) => (
                       <li key={label} className="flex items-center gap-2.5 text-sm">
                         {ok

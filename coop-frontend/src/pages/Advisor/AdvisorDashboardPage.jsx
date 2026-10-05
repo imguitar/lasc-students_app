@@ -30,7 +30,7 @@ import {
 import { STAT_ICON } from '../../utils/statIcons';
 import '../Admin/Dashboard/AdminDashboardPage.css'; // Reuse Admin styles
 import { ClockIcon, MapPinIcon } from '@heroicons/react/24/outline';
-import { MoreVertical, Eye, Check, X, BadgeCheck } from 'lucide-react';
+import { MoreVertical, Eye, Check, X, BadgeCheck, ArrowRightLeft } from 'lucide-react';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
 import NotificationBell from '../../components/NotificationBell';
@@ -45,6 +45,7 @@ const AdvisorDashboardPage = () => {
   const [advisorName, setAdvisorName] = useState('');
   const [advisorDepartment, setAdvisorDepartment] = useState('');
   const [allRequests, setAllRequests] = useState([]);
+  const [pendingRelocations, setPendingRelocations] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [rejectModal, setRejectModal] = useState({
     open: false,
@@ -124,6 +125,11 @@ const AdvisorDashboardPage = () => {
       api.get('/requests').then(res => {
         setAllRequests(res.data.data || []);
       }).catch(err => console.error('Failed to load requests:', err));
+
+      // ดึงคำร้องขอเปลี่ยนสถานที่ฝึกงานที่ถึงขั้นอาจารย์ — ใช้แสดง badge บนแถวคำร้องหลัก
+      api.get('/relocations').then(res => {
+        setPendingRelocations(res.data.data || []);
+      }).catch(() => setPendingRelocations([]));
     } else {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
@@ -139,6 +145,14 @@ const AdvisorDashboardPage = () => {
     if (!advisorDepartment) return true;
     return dept === advisorDepartment;
   });
+
+  // แมพคำร้องเปลี่ยนสถานที่ฝึกงานที่รออาจารย์ → หาเร็วด้วย internship_request_id
+  const relocByRequestId = new Map(
+    pendingRelocations.map((r) => [String(r.internship_request_id), r])
+  );
+  const relocPendingCount = pendingRelocations.filter((r) =>
+    ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status)
+  ).length;
 
   const filteredRequests = departmentFilteredRequests.filter(req => {
     if (filter === 'all') return true;
@@ -372,6 +386,25 @@ const AdvisorDashboardPage = () => {
         </Box>
 
         <Paper className="content-section" elevation={0} sx={{ width: '100%' }}>
+          {relocPendingCount > 0 && (
+            <Alert
+              severity="warning"
+              sx={{ mb: 2, borderRadius: 2, alignItems: 'center' }}
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => navigate('/advisor-dashboard/relocations')}
+                  sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  ดูรายการ
+                </Button>
+              }
+            >
+              มีคำร้องขอเปลี่ยนสถานที่ฝึกงานรออาจารย์พิจารณา {relocPendingCount} รายการ
+            </Alert>
+          )}
+
           <div className="section-header">
             <h2>รายการคำร้องที่ต้องตรวจสอบ</h2>
             <TextField
@@ -484,6 +517,16 @@ const AdvisorDashboardPage = () => {
                       <TableCell>{request.position}</TableCell>
                       <TableCell>
                         <StatusBadge status={normalizedStatus} />
+                        {relocByRequestId.has(String(request.id)) && (
+                          <Link
+                            to="/advisor-dashboard/relocations"
+                            title="มีคำร้องขอเปลี่ยนสถานที่ฝึกงานรอพิจารณา"
+                            className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-bold no-underline hover:bg-violet-100 transition"
+                          >
+                            <ArrowRightLeft style={{ width: 10, height: 10 }} />
+                            ขอเปลี่ยนที่ฝึกงาน
+                          </Link>
+                        )}
                       </TableCell>
                       <TableCell align="center">
                         <button

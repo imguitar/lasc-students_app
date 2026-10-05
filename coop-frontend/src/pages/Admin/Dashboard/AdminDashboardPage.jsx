@@ -260,6 +260,8 @@ const AdminDashboardPage = () => {
       internship_end_date: '',
       companyHouse: '',
       companyMoo: '',
+      companySoi: '',
+      companyRoad: '',
       companyTambon: '',
       companyAmphur: '',
       companyProvince: '',
@@ -1003,6 +1005,8 @@ const AdminDashboardPage = () => {
         internship_end_date: target.internship_end_date || details.endDate || '',
         companyHouse: companyAddress.house || '',
         companyMoo: companyAddress.moo || '',
+        companySoi: companyAddress.soi || '',
+        companyRoad: companyAddress.road || '',
         companyTambon: companyAddress.tambon || '',
         companyAmphur: companyAddress.amphur || '',
         companyProvince: companyAddress.province || '',
@@ -1060,6 +1064,8 @@ const AdminDashboardPage = () => {
           ...((originalDetails && originalDetails.companyAddress) || {}),
           house: formData.companyHouse?.trim() || '',
           moo: formData.companyMoo?.trim() || '',
+          soi: formData.companySoi?.trim() || '',
+          road: formData.companyRoad?.trim() || '',
           tambon: formData.companyTambon?.trim() || '',
           amphur: formData.companyAmphur?.trim() || '',
           province: formData.companyProvince?.trim() || '',
@@ -1796,6 +1802,20 @@ const AdminDashboardPage = () => {
               />
               <TextField
                 size="small"
+                label="ซอย/ตรอก"
+                value={editModal.formData.companySoi}
+                onChange={(e) => handleEditModalChange('companySoi', e.target.value)}
+              />
+              <TextField
+                size="small"
+                label="ถนน"
+                value={editModal.formData.companyRoad}
+                onChange={(e) => handleEditModalChange('companyRoad', e.target.value)}
+              />
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+              <TextField
+                size="small"
                 label="ตำบล/แขวง"
                 value={editModal.formData.companyTambon}
                 onChange={(e) => handleEditModalChange('companyTambon', e.target.value)}
@@ -1806,8 +1826,6 @@ const AdminDashboardPage = () => {
                 value={editModal.formData.companyAmphur}
                 onChange={(e) => handleEditModalChange('companyAmphur', e.target.value)}
               />
-            </Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1.5fr 1fr' }, gap: 1.5 }}>
               <TextField
                 size="small"
                 label="จังหวัด"

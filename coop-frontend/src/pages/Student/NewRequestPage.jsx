@@ -177,6 +177,8 @@ const NewRequestPage = () => {
             studentMajor: studentInfo.major || reqData.department || '',
             homeHouse: studentInfo.address?.house || '',
             homeMoo: studentInfo.address?.moo || '',
+            homeSoi: studentInfo.address?.soi || '',
+            homeRoad: studentInfo.address?.road || '',
             homeTambon: studentInfo.address?.tambon || '',
             homeAmphur: studentInfo.address?.amphur || '',
             homeProvince: studentInfo.address?.province || '',
@@ -186,6 +188,8 @@ const NewRequestPage = () => {
             companyName: details.companyName || reqData.company || '',
             companyHouse: companyAddress.house || '',
             companyMoo: companyAddress.moo || '',
+            companySoi: companyAddress.soi || '',
+            companyRoad: companyAddress.road || '',
             companyTambon: companyAddress.tambon || '',
             companyAmphur: companyAddress.amphur || '',
             companyProvince: companyAddress.province || '',
@@ -273,6 +277,8 @@ const NewRequestPage = () => {
     // Company address fields
     companyHouse: '',
     companyMoo: '',
+    companySoi: '',
+    companyRoad: '',
     companyProvince: '',
     companyAmphur: '',
     companyTambon: '',
@@ -288,6 +294,8 @@ const NewRequestPage = () => {
     studentMajor: '',
     homeHouse: '',
     homeMoo: '',
+    homeSoi: '',
+    homeRoad: '',
     homeTambon: '',
     homeAmphur: '',
     homeProvince: '',
@@ -507,6 +515,8 @@ const NewRequestPage = () => {
           address: {
             house: formData.homeHouse,
             moo: formData.homeMoo,
+            soi: formData.homeSoi,
+            road: formData.homeRoad,
             tambon: formData.homeTambon,
             amphur: formData.homeAmphur,
             province: formData.homeProvince,
@@ -517,6 +527,8 @@ const NewRequestPage = () => {
         companyAddress: {
           house: formData.companyHouse,
           moo: formData.companyMoo,
+          soi: formData.companySoi,
+          road: formData.companyRoad,
           tambon: formData.companyTambon,
           amphur: formData.companyAmphur,
           province: formData.companyProvince,
@@ -583,7 +595,7 @@ const NewRequestPage = () => {
 
   // แยกที่อยู่ไทยจากข้อความยาวก้อนเดียว → house/moo/tambon/amphur/province/postal/detail
   const parseThaiAddressText = (rawText) => {
-    const result = { house: '', moo: '', tambon: '', amphur: '', province: '', postal: '', detail: '' };
+    const result = { house: '', moo: '', soi: '', road: '', tambon: '', amphur: '', province: '', postal: '', detail: '' };
     let rest = ` ${String(rawText || '').replace(/\s+/g, ' ').trim()} `;
     if (rest.trim() === '') return result;
 
@@ -598,6 +610,8 @@ const NewRequestPage = () => {
     result.moo = cut(/(?:หมู่(?:ที่)?|หมู่บ้าน|ม\.)\s*(\d{1,3})/);
     result.tambon = cut(/(?:ตำบล|ต\.|แขวง)\s*([ก-๙A-Za-z]+)/);
     result.amphur = cut(/(?:อำเภอ|อ\.|เขต)\s*([ก-๙A-Za-z]+)/);
+    result.road = cut(/(?:ถนน|ถ\.)\s*([ก-๙A-Za-z0-9.-]+)/);
+    result.soi = cut(/(?:ซอย|ตรอก|ซ\.)\s*([ก-๙A-Za-z0-9.-]+(?:\s*\d+)?)/);
 
     // จังหวัด: เทียบชื่อจริงจากฐานข้อมูลก่อน (แม่นสุด) แล้วค่อย fallback รูปแบบ "จ./จังหวัด"
     const provinces = getProvinces();
@@ -633,6 +647,8 @@ const NewRequestPage = () => {
       const formatted = {
         house: rawAddress.house || rawAddress.no || '',
         moo: rawAddress.moo || rawAddress.village || '',
+        soi: rawAddress.soi || '',
+        road: rawAddress.road || '',
         tambon: rawAddress.tambon || rawAddress.subdistrict || '',
         amphur: rawAddress.amphur || rawAddress.district || '',
         province: rawAddress.province || rawAddress.city || '',
@@ -642,6 +658,8 @@ const NewRequestPage = () => {
       const fullText = [
         formatted.house,
         formatted.moo && `หมู่ ${formatted.moo}`,
+        formatted.soi && (/^(ซอย|ตรอก|ซ\.)/.test(formatted.soi) ? formatted.soi : `ซ.${formatted.soi}`),
+        formatted.road && (/^ถนน|^ถ\./.test(formatted.road) ? formatted.road : `ถ.${formatted.road}`),
         formatted.tambon && `ต.${formatted.tambon}`,
         formatted.amphur && `อ.${formatted.amphur}`,
         formatted.province && `จ.${formatted.province}`,
@@ -705,6 +723,8 @@ const NewRequestPage = () => {
       companyName: company.name || prev.companyName,
       companyHouse: normalized.house ?? '',
       companyMoo: normalized.moo ?? '',
+      companySoi: normalized.soi ?? '',
+      companyRoad: normalized.road ?? '',
       companyTambon: tamb,
       companyAmphur: amph,
       companyProvince: prov,
@@ -1020,6 +1040,11 @@ const NewRequestPage = () => {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        <TextField fullWidth size="small" type="text" id="homeSoi" name="homeSoi" value={formData.homeSoi} onChange={handleChange} placeholder="ซอย / ตรอก (เช่น ซอยสุขุมวิท 21)" />
+                        <TextField fullWidth size="small" type="text" id="homeRoad" name="homeRoad" value={formData.homeRoad} onChange={handleChange} placeholder="ถนน (เช่น ถนนอุบล ถนนวิภาวดีรังสิต)" />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                         {useManualAddress ? (
                           <>
                             <TextField fullWidth size="small" type="text" id="homeProvince" name="homeProvince" value={formData.homeProvince} onChange={handleChange} placeholder="จังหวัด" />
@@ -1267,6 +1292,11 @@ const NewRequestPage = () => {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        <TextField fullWidth size="small" type="text" id="companySoi" name="companySoi" value={formData.companySoi} onChange={handleChange} placeholder="ซอย / ตรอก (เช่น ซอยสุขุมวิท 21)" />
+                        <TextField fullWidth size="small" type="text" id="companyRoad" name="companyRoad" value={formData.companyRoad} onChange={handleChange} placeholder="ถนน (เช่น ถนนอุบล ถนนวิภาวดีรังสิต)" />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                         {useManualCompanyAddress ? (
                           <>
                             <TextField fullWidth size="small" type="text" id="companyProvince" name="companyProvince" value={formData.companyProvince} onChange={handleChange} placeholder="จังหวัด" required />
@@ -1372,7 +1402,7 @@ const NewRequestPage = () => {
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
-                      placeholder="เช่น อาคาร/ชั้น/ซอย"
+                      placeholder="รายละเอียดเพิ่มเติม (เช่น ชื่ออาคาร, ชั้น, จุดสังเกต)"
                       rows={2}
                     />
                   </div>

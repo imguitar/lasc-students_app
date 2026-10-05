@@ -12,6 +12,15 @@ export const formatAddress = (address) => {
   if (address.house) parts.push(`บ้านเลขที่ ${address.house}`);
   if (address.moo) parts.push(`หมู่ ${address.moo}`);
 
+  if (address.soi) {
+    const soi = String(address.soi).trim();
+    parts.push(/^(ซอย|ตรอก|ซ\.)/.test(soi) ? soi : `ซอย ${soi}`);
+  }
+  if (address.road) {
+    const road = String(address.road).trim();
+    parts.push(/^(ถนน|ถ\.)/.test(road) ? road : `ถนน ${road}`);
+  }
+
   if (address.tambon) {
     const prefix = isBkk ? 'แขวง' : 'ตำบล';
     const text = address.tambon.startsWith('แขวง') || address.tambon.startsWith('ตำบล') || address.tambon.startsWith('ต.')

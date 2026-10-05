@@ -27,13 +27,16 @@ const requireCompanyResponseToken = async (req, res, next) => {
 // GET /api/public/requests/:id — สถานประกอบการดูรายละเอียดคำร้อง (ต้องมีโทเค็น)
 router.get('/:id', requireCompanyResponseToken, handleGetSingleRequest);
 
-// ตอบรับต้องมีลายเซ็นเสมอ (บังคับฝั่ง server ด้วย กันยิง API ข้ามหน้าเว็บ)
-// ปฏิเสธไม่ต้องเซ็น
+// ตอบรับต้องระบุผู้ลงนามครบ หรือมีหลักฐาน (ลายเซ็น/ไฟล์แนบ) อย่างใดอย่างหนึ่ง — ปฏิเสธไม่ต้องเซ็น
 const requireSignatureForAccept = (req, res, next) => {
   const wantsAccept = req.body?.statusCode === 'COMPANY_ACCEPTED'
     || String(req.body?.status || '').includes('ตอบรับ');
-  if (wantsAccept && !req.body?.signature) {
-    return res.status(400).json({ success: false, message: 'กรุณาเซ็นลายมือชื่อก่อนยืนยันการตอบรับ' });
+  const hasProof = req.body?.signature
+    || req.body?.acceptanceDocument?.dataUrl
+    || req.body?.companyResponse?.acceptanceDocument?.dataUrl;
+  const hasSigner = Boolean(req.body?.signerName?.trim()) && Boolean(req.body?.signerPosition?.trim());
+  if (wantsAccept && !hasProof && !hasSigner) {
+    return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อ-ตำแหน่งผู้ลงนาม ลงนามลายมือชื่อ หรือแนบไฟล์เอกสารตอบรับจากสถานประกอบการ' });
   }
   next();
 };

@@ -364,6 +364,7 @@ const AdminRelocationDetailPage = () => {
                                             {docLink(r.return_letter_file, 'หนังสือส่งตัวกลับ (บริษัทเดิม)')}
                                             {docLink(r.new_request_letter_file, 'หนังสือขอความอนุเคราะห์')}
                                             {docLink(r.new_acceptance_letter_file, 'ใบตอบรับ (บริษัทใหม่)')}
+                                            {docLink(r.acceptance_proof_file, r.acceptance_proof_name ? `เอกสารแนบตอบรับ: ${r.acceptance_proof_name}` : 'เอกสารแนบตอบรับ (บริษัทใหม่)')}
                                             {docLink(r.new_dispatch_letter_file, 'หนังสือส่งตัวฉบับใหม่')}
                                         </div>
                                     </div>

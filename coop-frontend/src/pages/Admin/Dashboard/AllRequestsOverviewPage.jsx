@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
-import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download } from 'lucide-react';
+import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import AdminSidebar from '../../../components/AdminSidebar';
@@ -135,11 +135,14 @@ const AllRequestsOverviewPage = () => {
   useEffect(() => {
     if (!actionMenu.id) return undefined;
     const closeMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeMenu(); };
     window.addEventListener('scroll', closeMenu, true);
     window.addEventListener('resize', closeMenu);
+    window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('scroll', closeMenu, true);
       window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [actionMenu.id]);
 
@@ -151,11 +154,17 @@ const AllRequestsOverviewPage = () => {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuHeight = 340;
+    const MENU_WIDTH = 240;
+    const MENU_HEIGHT = 360;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow < menuHeight + 12 ? rect.top - menuHeight - 6 : rect.bottom + 6;
-    const left = Math.min(rect.right - 180, window.innerWidth - 196);
-    setActionMenu({ id: menuId, top: Math.max(8, top), left: Math.max(8, left) });
+    const openUp = spaceBelow < MENU_HEIGHT + 12 && rect.top > MENU_HEIGHT + 12;
+    const left = Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8));
+    setActionMenu({
+      id: menuId,
+      top: openUp ? rect.top - 6 : rect.bottom + 6,
+      left,
+      openUp
+    });
   };
 
   // id คำร้องที่เคยยื่นขอเปลี่ยนสถานที่ฝึกงาน
@@ -728,7 +737,7 @@ const AllRequestsOverviewPage = () => {
             <ToggleButtonGroup
               value={quickTab}
               exclusive
-              onChange={(_, v) => { if (v) { setQuickTab(v); setStatusFilter('all'); setSelectedIds([]); } }}
+              onChange={(_, v) => { if (v) { setQuickTab(v); setStatusFilter('all'); setSelectedIds([]); setActionMenu({ id: null, top: 0, left: 0 }); } }}
               size="small"
               sx={{
                 display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2,
@@ -747,8 +756,6 @@ const AllRequestsOverviewPage = () => {
               <ToggleButton value="all">ทั้งหมด</ToggleButton>
               <ToggleButton value="pending">รอตรวจสอบ / รอดำเนินการ</ToggleButton>
               <ToggleButton value="interning">กำลังออกฝึกงาน</ToggleButton>
-              <ToggleButton value="reloc">ขอเปลี่ยนสถานที่ฝึกงาน</ToggleButton>
-              <ToggleButton value="done">เสร็จสิ้น / ยุติการฝึกงาน</ToggleButton>
             </ToggleButtonGroup>
 
             {/* Filter Bar */}
@@ -803,40 +810,46 @@ const AllRequestsOverviewPage = () => {
             </div>
 
             {/* Batch Action Bar — จัดการคำร้องแบบกลุ่ม */}
-            {selectedIds.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-violet-50/80 border border-violet-200/70">
-                <span className="text-xs font-bold text-violet-800">เลือกแล้ว {selectedIds.length} รายการ</span>
-                <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+            {/* Floating Batch Dock — แคปซูลลอยกลางจอด้านล่างเมื่อมีการเลือกรายการ */}
+            <div
+              className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-out max-w-[calc(100vw-2rem)] ${selectedIds.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0 pointer-events-none'}`}
+            >
+              <div className="flex items-center gap-3 whitespace-nowrap rounded-full px-5 py-2.5 bg-slate-900/90 text-white backdrop-blur-md border border-slate-700 shadow-2xl shadow-slate-950/30 overflow-x-auto">
+                <span className="bg-purple-600 text-white text-xs px-2.5 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                  {selectedIds.length} รายการ
+                </span>
+                <button
+                  type="button" onClick={() => setSelectedIds([])}
+                  className="h-8 px-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-full text-xs font-medium inline-flex items-center gap-1 border-0 bg-transparent cursor-pointer transition-all"
+                >
+                  <X className="w-3.5 h-3.5" /> ยกเลิก
+                </button>
+                <div className="h-4 w-[1px] bg-slate-200/20 shrink-0" />
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button" onClick={runBatchApprove} disabled={batchBusy || !canApproveOrReject}
                     title={!canApproveOrReject ? 'อนุมัติได้เฉพาะคำร้องที่ยังรอตรวจสอบทั้งหมด' : ''}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-8 px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-full shadow-sm inline-flex items-center gap-1.5 border-0 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" /> อนุมัติพร้อมกัน
+                    <CheckCircle2 className="w-3.5 h-3.5" /> อนุมัติ
                   </button>
                   <button
                     type="button" onClick={() => setBatchScheduleModal({ open: true, startDate: '', endDate: '', submitting: false, error: '' })} disabled={batchBusy || !canSetDates}
                     title={!canSetDates ? 'ไม่สามารถกำหนดวันให้คำร้องที่ออกฝึกงานแล้ว' : ''}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold border-0 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-8 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-full shadow-sm inline-flex items-center gap-1.5 border-0 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <CalendarDays className="w-3.5 h-3.5" /> กำหนดวันฝึกงาน
                   </button>
                   <button
                     type="button" onClick={() => setBatchRejectModal({ open: true, reason: '', submitting: false, error: '' })} disabled={batchBusy || !canApproveOrReject}
                     title={!canApproveOrReject ? 'ตีกลับได้เฉพาะคำร้องที่ยังรอตรวจสอบทั้งหมด' : ''}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold border border-red-200 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-8 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-medium rounded-full inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    <XCircle className="w-3.5 h-3.5" /> ตีกลับพร้อมกัน
-                  </button>
-                  <button
-                    type="button" onClick={() => setSelectedIds([])}
-                    className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 text-[11px] font-semibold border-0 bg-transparent cursor-pointer transition"
-                  >
-                    ล้างการเลือก
+                    <XCircle className="w-3.5 h-3.5" /> ตีกลับ
                   </button>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Table (Tablet / Desktop) */}
             {loading ? (
@@ -847,7 +860,8 @@ const AllRequestsOverviewPage = () => {
             ) : (
               <>
                 <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full min-w-[860px] text-left border-collapse table-auto">
+                  {/* border-separate จำเป็น — sticky <td> หลุด/ไม่แสดงผลในบางแถวเมื่อ border-collapse: collapse (bug ของ Chrome/Safari) */}
+                  <table className="w-full min-w-[860px] text-left border-separate border-spacing-0 table-auto">
                   <thead>
                     <tr className="bg-slate-50/80">
                       <th className="px-3 py-2.5 border-b border-slate-100 w-9">
@@ -875,6 +889,7 @@ const AllRequestsOverviewPage = () => {
                             type="checkbox"
                             checked={selectedIds.includes(request.id)}
                             onChange={() => toggleSelect(request.id)}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-4 h-4 rounded accent-violet-600 cursor-pointer align-middle"
                             aria-label={`เลือกคำร้อง ${request.studentId}`}
                           />
@@ -932,6 +947,7 @@ const AllRequestsOverviewPage = () => {
                             type="checkbox"
                             checked={selectedIds.includes(request.id)}
                             onChange={() => toggleSelect(request.id)}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-4 h-4 rounded accent-violet-600 cursor-pointer"
                             aria-label={`เลือกคำร้อง ${request.studentId}`}
                           />
@@ -1004,7 +1020,7 @@ const AllRequestsOverviewPage = () => {
           <div
             ref={menuPanelRef}
             className="fixed z-[99] w-[240px] bg-white rounded-2xl border border-slate-100 shadow-xl py-1.5"
-            style={{ top: actionMenu.top, left: actionMenu.left }}
+            style={{ top: actionMenu.top, left: actionMenu.left, transform: actionMenu.openUp ? 'translateY(-100%)' : 'none' }}
           >
             <button type="button" onClick={(e) => { e.stopPropagation(); goDetail(); }} className={menuItemClass}>
               <Eye className="w-4 h-4 shrink-0" />

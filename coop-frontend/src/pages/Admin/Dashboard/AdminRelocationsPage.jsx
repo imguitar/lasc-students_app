@@ -369,6 +369,7 @@ const AdminRelocationsPage = () => {
                                                     {docLink(r.return_letter_file, 'ส่งตัวกลับ')}
                                                     {docLink(r.new_request_letter_file, 'ขอความอนุเคราะห์')}
                                                     {docLink(r.new_acceptance_letter_file, 'ใบตอบรับ')}
+                                                    {docLink(r.acceptance_proof_file, 'เอกสารแนบตอบรับ')}
                                                     {docLink(r.new_dispatch_letter_file, 'ส่งตัวใหม่')}
                                                 </div>
                                             </TableCell>
@@ -432,11 +433,12 @@ const AdminRelocationsPage = () => {
                                 <RelocationStepper status={r.status} />
 
                                 {/* เอกสารแนบ */}
-                                {(r.return_letter_file || r.new_request_letter_file || r.new_acceptance_letter_file || r.new_dispatch_letter_file) && (
+                                {(r.return_letter_file || r.new_request_letter_file || r.new_acceptance_letter_file || r.acceptance_proof_file || r.new_dispatch_letter_file) && (
                                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                                         {docLink(r.return_letter_file, 'ส่งตัวกลับ')}
                                         {docLink(r.new_request_letter_file, 'ขอความอนุเคราะห์')}
                                         {docLink(r.new_acceptance_letter_file, 'ใบตอบรับ')}
+                                        {docLink(r.acceptance_proof_file, 'เอกสารแนบตอบรับ')}
                                         {docLink(r.new_dispatch_letter_file, 'ส่งตัวใหม่')}
                                     </div>
                                 )}

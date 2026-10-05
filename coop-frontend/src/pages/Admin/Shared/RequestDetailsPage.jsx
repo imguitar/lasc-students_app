@@ -852,6 +852,52 @@ const RequestDetailsPage = () => {
          </section>
         )}
 
+        {/* ข้อมูลการตอบรับจากสถานประกอบการ (ลายเซ็น/เอกสารแนบ) — admin/advisor ตรวจดูได้ */}
+        {(userRole === 'admin' || userRole === 'advisor')
+          && (details.signature || details.signerName || details.studentPreparation || details.acceptanceDocument?.url) && (
+          <section className="detail-section" style={{ marginTop: '30px', padding: '24px', backgroundColor: '#faf5ff', borderRadius: '12px', border: '1px solid #e9d5ff' }}>
+            <h3 style={{ color: '#6d28d9', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 700, margin: '0 0 16px' }}>
+              <FileText size={20} /> ข้อมูลการตอบรับจากสถานประกอบการ
+            </h3>
+            <div className="detail-grid">
+              {(details.signerName || details.signerPosition) && (
+                <div className="detail-item">
+                  <span className="detail-label">ผู้ลงนาม / ตำแหน่ง</span>
+                  <span className="detail-value">
+                    {details.signerName || '-'}{details.signerPosition ? ` (${details.signerPosition})` : ''}
+                  </span>
+                </div>
+              )}
+              {details.studentPreparation && (
+                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="detail-label">สิ่งที่ให้นักศึกษาเตรียมตัว</span>
+                  <span className="detail-value" style={{ whiteSpace: 'pre-wrap' }}>{details.studentPreparation}</span>
+                </div>
+              )}
+              {details.signature && (
+                <div className="detail-item">
+                  <span className="detail-label">ลายมือชื่อ</span>
+                  <img src={details.signature} alt="ลายมือชื่อผู้ลงนาม" style={{ maxHeight: 72, display: 'block', marginTop: 6, background: '#fff', borderRadius: 8, border: '1px solid #e9d5ff', padding: 6 }} />
+                </div>
+              )}
+              {details.acceptanceDocument?.url && (
+                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="detail-label">เอกสารยืนยันการตอบรับ</span>
+                  <a
+                    href={getUploadUrl(details.acceptanceDocument.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '8px 14px', borderRadius: 10, background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#6d28d9', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    <DocumentTextIcon style={{ width: 16, height: 16 }} />
+                    {details.acceptanceDocument.fileName || 'เปิดดูเอกสารแนบ'}
+                  </a>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {evaluation && (userRole === 'admin' || userRole === 'advisor') && (
           <section className="detail-section" style={{ marginTop: '30px', padding: '24px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
