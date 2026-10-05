@@ -87,6 +87,24 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
       CHOKIDAR_USEPOLLING: "true"
+      # ===== Email Notification Service =====
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN:-}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI:-https://developers.google.com/oauthplayground}
+      GMAIL_FROM_NAME: ${GMAIL_FROM_NAME:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
     ports:
       - "${PROFILE_BACKEND_PORT:-5001}:5000"
     volumes:
@@ -146,6 +164,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN:-}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI:-https://developers.google.com/oauthplayground}
+      GMAIL_FROM_NAME: ${GMAIL_FROM_NAME:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       CHOKIDAR_USEPOLLING: "true"
     ports:
       - "${COOP_BACKEND_PORT:-5002}:5000"

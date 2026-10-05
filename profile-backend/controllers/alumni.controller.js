@@ -74,10 +74,11 @@ exports.getAllAlumni = async (req, res) => {
 
     const profiles = allProfiles.filter(p => {
       const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
-      if (match) {
-        return parseInt(match[1], 10) < 66;
-      }
-      return p.graduation_year !== null || userMap[p.profile_id]?.role === 'alumni' || (p.alumniEmployments && p.alumniEmployments.length > 0);
+      const isOlderBatch = match && parseInt(match[1], 10) < 66;
+      const isGraduated = p.student_status === 'graduated' || p.graduation_year !== null;
+      const isAlumniRole = userMap[p.profile_id]?.role === 'alumni';
+      const hasEmployment = p.alumniEmployments && p.alumniEmployments.length > 0;
+      return isOlderBatch || isGraduated || isAlumniRole || hasEmployment;
     });
 
     let alumniList = profiles.map(p => {

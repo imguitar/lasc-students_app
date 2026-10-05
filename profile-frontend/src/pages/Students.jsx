@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { studentService, departmentService, facultyService } from '../services';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +11,7 @@ import {
   Users, Search, Plus, Upload, Download, Edit2, Trash2, X, AlertCircle,
   FileText, CheckCircle2, ChevronDown, ChevronRight, Bot, GraduationCap,
   Building2, BookOpen, Layers, LayoutGrid, Table, ArrowLeft, ArrowRight, User,
-  Mail, Phone, Eye
+  Mail, Phone, Eye, ArrowUpCircle
 } from 'lucide-react';
 import AITrackModal from '../components/AITrackModal';
 import {
@@ -42,6 +43,7 @@ const FACULTIES_DEPARMENTS = {
 };
 
 const Students = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [students, setStudents] = useState([]);
@@ -557,6 +559,16 @@ const Students = () => {
             >
               <Bot size={16} />
               <span>AI Track</span>
+            </Button>
+
+            <Button
+              onClick={() => navigate('/student-promotion')}
+              variant="outline"
+              className="border-violet-300 text-violet-700 bg-violet-50/60 hover:bg-violet-100/80 rounded-xl flex items-center justify-center gap-1.5 h-10 shadow-sm text-xs sm:text-sm"
+              title="เลื่อนชั้นปีนักศึกษาแบบอัตโนมัติ"
+            >
+              <ArrowUpCircle size={16} className="text-violet-600" />
+              <span>เลื่อนชั้นปี</span>
             </Button>
 
             <Button

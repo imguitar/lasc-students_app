@@ -12,11 +12,21 @@ router.get('/code/:student_id', auth, studentController.getStudentByCode);
 // Resume endpoints
 router.get('/:id/resume', auth, studentController.getResume);
 router.put('/:id/resume', auth, studentController.updateResume);
+router.get('/:id/resume/works', auth, studentController.getResumeWorks);
+router.put('/:id/resume/works', auth, studentController.syncResumeWorks);
+router.post('/:id/resume/works', auth, studentController.addResumeWork);
+router.delete('/:id/resume/works/:workId', auth, studentController.removeResumeWork);
 
 // Student Skills
 router.get('/:id/skills', auth, studentController.getStudentSkills);
 router.post('/:id/skills', auth, studentController.addStudentSkill);
 router.delete('/:id/skills/:skillId', auth, studentController.deleteStudentSkill);
+
+// Student Educations
+router.get('/:id/educations', auth, studentController.getStudentEducations);
+router.post('/:id/educations', auth, studentController.createStudentEducation);
+router.put('/:id/educations/:educationId', auth, studentController.updateStudentEducation);
+router.delete('/:id/educations/:educationId', auth, studentController.deleteStudentEducation);
 
 // Student Internships
 router.get('/:id/internships', auth, studentController.getStudentInternships);

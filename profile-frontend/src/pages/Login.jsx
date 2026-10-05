@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { useToast } from '../components/ui/use-toast';
-import { GraduationCap, Lock, User, Eye, EyeOff, Shield, Users } from 'lucide-react';
+import { GraduationCap, Lock, User, Eye, EyeOff, Shield, Users, AlertCircle, X } from 'lucide-react';
 
 const tabs = [
   { id: 'student', label: 'นักศึกษา', icon: GraduationCap },
@@ -49,6 +49,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errorAlert, setErrorAlert] = useState('');
   const { login, logout } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -57,11 +58,13 @@ const Login = () => {
     setActiveTab(tabId);
     setUsername('');
     setPassword('');
+    setErrorAlert('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setErrorAlert('');
 
     try {
       const res = await login(username, password);
@@ -114,10 +117,23 @@ const Login = () => {
       window.location.replace(targetUrl);
     } catch (error) {
       setPassword('');
+      let errorMessage = 'กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน';
+
+      if (!error.response || error.code === 'ERR_NETWORK') {
+        errorMessage = 'ไม่สามารถเชื่อมต่อระบบได้ กรุณาตรวจสอบ Internet';
+      } else if (error.response?.status >= 500) {
+        errorMessage = error.response?.data?.message || 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setErrorAlert(errorMessage);
       toast({
         variant: "destructive",
         title: "เข้าสู่ระบบไม่สำเร็จ",
-        description: error.response?.data?.message || error.message || "กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน",
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
@@ -168,6 +184,25 @@ const Login = () => {
                 );
               })}
             </div>
+
+            {/* Error Alert Box */}
+            {errorAlert && (
+              <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-rose-800">เข้าสู่ระบบไม่สำเร็จ</p>
+                  <p className="mt-0.5 text-rose-700 leading-relaxed">{errorAlert}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorAlert('')}
+                  className="text-rose-400 hover:text-rose-700 p-0.5 rounded transition-colors"
+                  title="ปิด"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">

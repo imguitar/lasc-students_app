@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,7 +9,8 @@ import {
   User, Mail, Shield, Phone, Save, KeyRound, FileText, Download, Edit, 
   Plus, Trash2, Code2, Briefcase, FolderGit2, Award, ExternalLink, 
   CheckCircle2, BookOpen, Sparkles, Building2, Calendar, Layers, Star, 
-  Clock, Globe, ArrowRight, RefreshCw, X, AlertCircle, Camera, UploadCloud, Image as ImageIcon
+  Clock, Globe, ArrowRight, RefreshCw, X, AlertCircle, Camera, UploadCloud, Image as ImageIcon,
+  MapPin, School, GraduationCap, Paperclip, CheckSquare, Square, Check, Search, Filter, Printer
 } from 'lucide-react';
 import api from '../services/api';
 import { studentService, skillService, uploadService, projectService } from '../services';
@@ -32,6 +34,18 @@ const SKILL_CATEGORIES = [
   { id: 'other', label: 'ทักษะอื่นๆ (Other)' }
 ];
 
+const PORTFOLIO_CATEGORIES = [
+  'ผลงานระหว่างเทอม',
+  'โครงงาน / ปริญญานิพนธ์',
+  'กิจกรรม',
+  'การแข่งขัน',
+  'ใบประกาศ / Certificate',
+  'การฝึกงาน',
+  'ผลงานด้าน Programming',
+  'ผลงานด้าน AI',
+  'ผลงานอื่น ๆ'
+];
+
 const getFileUrl = (filePath) => {
   if (!filePath) return '';
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
@@ -40,7 +54,7 @@ const getFileUrl = (filePath) => {
 };
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef(null);
 
@@ -51,18 +65,27 @@ const Profile = () => {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const avatarInputRef = useRef(null);
 
-  const [activeTab, setActiveTab] = useState('overview'); // overview, skills, projects, internship, thesis
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview'); // overview, education, skills, projects, internship, thesis, resume
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeSubmitLoading, setResumeSubmitLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   // Resume full data from backend
   const [resumeData, setResumeData] = useState(null);
+  const [educationsList, setEducationsList] = useState([]);
   const [skillsList, setSkillsList] = useState([]);
   const [internshipsList, setInternshipsList] = useState([]);
   const [studentProjectsList, setStudentProjectsList] = useState([]);
   const [thesisProject, setThesisProject] = useState(null);
   const [masterSkills, setMasterSkills] = useState([]);
+
+  // Resume Portfolio Works Selection states (Requirement 1, 2, 3, 6, 7)
+  const [allPortfolioProjects, setAllPortfolioProjects] = useState([]);
+  const [selectedResumeProjectIds, setSelectedResumeProjectIds] = useState([]);
+  const [resumeWorksSaving, setResumeWorksSaving] = useState(false);
+  const [portfolioSearch, setPortfolioSearch] = useState('');
+  const [portfolioCategoryFilter, setPortfolioCategoryFilter] = useState('');
 
   // Dialog Controls
   const [isEditResumeOpen, setIsEditResumeOpen] = useState(false);
@@ -74,6 +97,11 @@ const Profile = () => {
   const [isEditThesisOpen, setIsEditThesisOpen] = useState(false);
   const [isResumeOpen, setIsResumeOpen] = useState(false);
 
+  // Education Dialog Controls
+  const [isAddEducationOpen, setIsAddEducationOpen] = useState(false);
+  const [isEditEducationOpen, setIsEditEducationOpen] = useState(false);
+  const [editingEducation, setEditingEducation] = useState(null);
+
   // Forms
   const [resumeForm, setResumeForm] = useState({
     phone: '',
@@ -82,7 +110,24 @@ const Profile = () => {
     bio: '',
     linkedin_url: '',
     github_url: '',
-    portfolio_url: ''
+    portfolio_url: '',
+    house_no: '',
+    village_no: '',
+    road: '',
+    subdistrict: '',
+    district: '',
+    province: '',
+    postal_code: ''
+  });
+
+  const [educationForm, setEducationForm] = useState({
+    level: 'ปริญญาตรี (Bachelor Degree)',
+    institution_name: 'มหาวิทยาลัยราชภัฏศรีสะเกษ',
+    major: 'สาขาวิชาวิศวกรรมซอฟต์แวร์',
+    start_year: '',
+    end_year: '',
+    gpa: '',
+    order_index: 0
   });
 
   const [skillForm, setSkillForm] = useState({
@@ -133,7 +178,9 @@ const Profile = () => {
     end_date: '',
     hours: '400',
     description: '',
-    evaluation_status: 'passed'
+    evaluation_status: 'passed',
+    project_outcome: '',
+    attachment_url: ''
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -166,19 +213,48 @@ const Profile = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   const fetchFullStudentData = async () => {
     if (!studentIdentifier) return;
     setResumeLoading(true);
     try {
-      const res = await studentService.getResume(studentIdentifier);
-      if (res.success && res.data) {
+      const [res, projectsRes] = await Promise.all([
+        studentService.getResume(studentIdentifier),
+        studentService.getProjects(studentIdentifier)
+      ]);
+
+      let allProjects = [];
+      if (projectsRes && projectsRes.success && Array.isArray(projectsRes.data)) {
+        allProjects = projectsRes.data;
+        setAllPortfolioProjects(allProjects);
+      }
+
+      if (res && res.success && res.data) {
         const data = res.data;
         setResumeData(data);
+        setEducationsList(data.educations || []);
         setSkillsList(data.skills || []);
         setInternshipsList(data.internships || []);
-        setStudentProjectsList(data.student_projects || []);
         setThesisProject(data.thesis_project || null);
 
+        // Selected portfolio work IDs
+        const selIds = data.selected_project_ids || (data.student_projects || []).map(p => p.id);
+        setSelectedResumeProjectIds(selIds);
+
+        // Selected works list for resume
+        setStudentProjectsList(data.student_projects || []);
+
+        if (allProjects.length === 0 && data.all_student_projects) {
+          setAllPortfolioProjects(data.all_student_projects);
+        }
+
+        const currentAddr = data.addresses?.current || data.address || {};
         setResumeForm(prev => ({
           ...prev,
           phone: data.profile?.phone || prev.phone,
@@ -187,7 +263,14 @@ const Profile = () => {
           bio: data.profile?.bio || prev.bio,
           linkedin_url: data.profile?.linkedin_url || prev.linkedin_url,
           github_url: data.profile?.github_url || prev.github_url,
-          portfolio_url: data.profile?.portfolio_url || prev.portfolio_url
+          portfolio_url: data.profile?.portfolio_url || prev.portfolio_url,
+          house_no: currentAddr.house_no || '',
+          village_no: currentAddr.village_no || '',
+          road: currentAddr.road || '',
+          subdistrict: currentAddr.subdistrict || '',
+          district: currentAddr.district || '',
+          province: currentAddr.province || '',
+          postal_code: currentAddr.postal_code || ''
         }));
       }
     } catch (error) {
@@ -196,6 +279,67 @@ const Profile = () => {
       setResumeLoading(false);
     }
   };
+
+  // Resume Portfolio Works Handlers
+  const handleToggleProjectForResume = (projectId) => {
+    setSelectedResumeProjectIds(prev => {
+      if (prev.includes(projectId)) {
+        return prev.filter(id => id !== projectId);
+      } else {
+        return [...prev, projectId];
+      }
+    });
+  };
+
+  const handleSelectAllProjects = () => {
+    const allFilteredIds = filteredPortfolioProjects.map(p => p.id);
+    setSelectedResumeProjectIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+  };
+
+  const handleDeselectAllProjects = () => {
+    setSelectedResumeProjectIds([]);
+  };
+
+  const handleSaveResumeWorks = async () => {
+    if (!studentIdentifier) return;
+    setResumeWorksSaving(true);
+    try {
+      const res = await studentService.updateResumeWorks(studentIdentifier, selectedResumeProjectIds);
+      if (res.success) {
+        toast({
+          title: "บันทึกผลงานลงเรซูเม่สำเร็จ",
+          description: `เลือกผลงานแสดงในเรซูเม่ทั้งหมด ${selectedResumeProjectIds.length} รายการ`,
+        });
+        // Refresh resume data so live preview & printable A4 are fully updated
+        const resumeRes = await studentService.getResume(studentIdentifier);
+        if (resumeRes.success && resumeRes.data) {
+          setResumeData(resumeRes.data);
+          setStudentProjectsList(resumeRes.data.student_projects || []);
+        }
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาด",
+        description: error.response?.data?.message || "ไม่สามารถบันทึกรายการผลงานสำหรับเรซูเม่ได้"
+      });
+    } finally {
+      setResumeWorksSaving(false);
+    }
+  };
+
+  const filteredPortfolioProjects = allPortfolioProjects.filter(p => {
+    const matchSearch = !portfolioSearch || 
+      (p.title && p.title.toLowerCase().includes(portfolioSearch.toLowerCase())) ||
+      (p.description && p.description.toLowerCase().includes(portfolioSearch.toLowerCase())) ||
+      (p.course_name && p.course_name.toLowerCase().includes(portfolioSearch.toLowerCase())) ||
+      (Array.isArray(p.technologies) && p.technologies.some(t => String(t).toLowerCase().includes(portfolioSearch.toLowerCase())));
+    const matchCategory = !portfolioCategoryFilter || p.category === portfolioCategoryFilter;
+    return matchSearch && matchCategory;
+  });
+
+  // Selected works calculated dynamically for live preview (Requirement 3 & 7)
+  const selectedResumeProjects = allPortfolioProjects.filter(p => selectedResumeProjectIds.includes(p.id));
 
   const fetchMasterSkills = async () => {
     try {
@@ -256,7 +400,23 @@ const Profile = () => {
         bio: resumeForm.bio,
         linkedin_url: resumeForm.linkedin_url,
         github_url: resumeForm.github_url,
-        portfolio_url: resumeForm.portfolio_url
+        portfolio_url: resumeForm.portfolio_url,
+        house_no: resumeForm.house_no,
+        village_no: resumeForm.village_no,
+        road: resumeForm.road,
+        subdistrict: resumeForm.subdistrict,
+        district: resumeForm.district,
+        province: resumeForm.province,
+        postal_code: resumeForm.postal_code,
+        current_address: {
+          house_no: resumeForm.house_no,
+          village_no: resumeForm.village_no,
+          road: resumeForm.road,
+          subdistrict: resumeForm.subdistrict,
+          district: resumeForm.district,
+          province: resumeForm.province,
+          postal_code: resumeForm.postal_code
+        }
       });
 
       if (response.success) {
@@ -275,6 +435,111 @@ const Profile = () => {
       });
     } finally {
       setResumeSubmitLoading(false);
+    }
+  };
+
+  // Education CRUD handlers
+  const handleAddEducation = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        level: educationForm.level,
+        institution_name: educationForm.institution_name,
+        major: educationForm.major,
+        start_year: educationForm.start_year ? parseInt(educationForm.start_year) : null,
+        end_year: educationForm.end_year ? parseInt(educationForm.end_year) : null,
+        gpa: educationForm.gpa ? parseFloat(educationForm.gpa) : null,
+        order_index: educationForm.order_index ? parseInt(educationForm.order_index) : 0
+      };
+
+      const res = await studentService.createEducation(studentIdentifier, payload);
+      if (res.success) {
+        toast({
+          title: "เพิ่มประวัติการศึกษาสำเร็จ",
+          description: "บันทึกประวัติการศึกษาเรียบร้อยแล้ว"
+        });
+        setIsAddEducationOpen(false);
+        setEducationForm({
+          level: 'ปริญญาตรี (Bachelor Degree)',
+          institution_name: 'มหาวิทยาลัยราชภัฏศรีสะเกษ',
+          major: 'สาขาวิชาวิศวกรรมซอฟต์แวร์',
+          start_year: '',
+          end_year: '',
+          gpa: '',
+          order_index: 0
+        });
+        fetchFullStudentData();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ไม่สามารถเพิ่มประวัติการศึกษาได้",
+        description: error.response?.data?.message || error.message
+      });
+    }
+  };
+
+  const handleOpenEditEducation = (item) => {
+    setEditingEducation(item);
+    setEducationForm({
+      level: item.level || 'ปริญญาตรี (Bachelor Degree)',
+      institution_name: item.institution_name || '',
+      major: item.major || '',
+      start_year: item.start_year || '',
+      end_year: item.end_year || '',
+      gpa: item.gpa !== null && item.gpa !== undefined ? item.gpa.toString() : '',
+      order_index: item.order_index || 0
+    });
+    setIsEditEducationOpen(true);
+  };
+
+  const handleUpdateEducation = async (e) => {
+    e.preventDefault();
+    if (!editingEducation) return;
+    try {
+      const payload = {
+        level: educationForm.level,
+        institution_name: educationForm.institution_name,
+        major: educationForm.major,
+        start_year: educationForm.start_year ? parseInt(educationForm.start_year) : null,
+        end_year: educationForm.end_year ? parseInt(educationForm.end_year) : null,
+        gpa: educationForm.gpa ? parseFloat(educationForm.gpa) : null,
+        order_index: educationForm.order_index ? parseInt(educationForm.order_index) : 0
+      };
+
+      const res = await studentService.updateEducation(studentIdentifier, editingEducation.id, payload);
+      if (res.success) {
+        toast({
+          title: "แก้ไขประวัติการศึกษาสำเร็จ",
+          description: "ปรับปรุงข้อมูลประวัติการศึกษาเรียบร้อยแล้ว"
+        });
+        setIsEditEducationOpen(false);
+        setEditingEducation(null);
+        fetchFullStudentData();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ไม่สามารถแก้ไขประวัติการศึกษาได้",
+        description: error.response?.data?.message || error.message
+      });
+    }
+  };
+
+  const handleDeleteEducation = async (id) => {
+    if (!window.confirm('คุณต้องการลบรายการประวัติการศึกษานี้ใช่หรือไม่?')) return;
+    try {
+      const res = await studentService.deleteEducation(studentIdentifier, id);
+      if (res.success) {
+        toast({ title: "ลบประวัติการศึกษาสำเร็จ" });
+        fetchFullStudentData();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "เกิดข้อผิดพลาดในการลบ",
+        description: error.response?.data?.message || error.message
+      });
     }
   };
 
@@ -534,7 +799,9 @@ const Profile = () => {
           end_date: '',
           hours: '400',
           description: '',
-          evaluation_status: 'passed'
+          evaluation_status: 'passed',
+          project_outcome: '',
+          attachment_url: ''
         });
         fetchFullStudentData();
       }
@@ -845,6 +1112,14 @@ const Profile = () => {
                   แก้ไขข้อมูล Bio
                 </Button>
                 <Button
+                  onClick={() => setActiveTab('resume')}
+                  variant="outline"
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-xl h-10 px-4 text-xs font-semibold backdrop-blur-sm"
+                >
+                  <FolderGit2 className="w-3.5 h-3.5 mr-1.5" />
+                  เลือกผลงานใน Resume
+                </Button>
+                <Button
                   onClick={() => setIsResumeOpen(true)}
                   className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 h-10 px-4 text-xs font-bold"
                 >
@@ -864,12 +1139,12 @@ const Profile = () => {
               <span className="text-xl font-bold text-white mt-1 block">{skillsList.length} ทักษะ</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-              <span className="text-purple-200/70 block">ผลงานระหว่างภาคเรียน</span>
-              <span className="text-xl font-bold text-white mt-1 block">{studentProjectsList.length} โครงการ</span>
+              <span className="text-purple-200/70 block">ผลงานใน Portfolio</span>
+              <span className="text-xl font-bold text-white mt-1 block">{allPortfolioProjects.length} โครงการ</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-              <span className="text-purple-200/70 block">ประวัติการฝึกงาน</span>
-              <span className="text-xl font-bold text-white mt-1 block">{internshipsList.length} แห่ง</span>
+              <span className="text-purple-200/70 block">ผลงานที่เลือกใน Resume</span>
+              <span className="text-xl font-bold text-white mt-1 block">{selectedResumeProjectIds.length} รายการ</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3">
               <span className="text-purple-200/70 block">โครงงานปริญญานิพนธ์</span>
@@ -896,6 +1171,28 @@ const Profile = () => {
             ข้อมูลส่วนตัว & รหัสผ่าน
           </button>
           <button
+            onClick={() => setActiveTab('resume')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'resume'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                : 'text-gray-600 hover:bg-purple-50'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            เรซูเม่ (Resume) {selectedResumeProjectIds.length > 0 && <span className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1">{selectedResumeProjectIds.length}</span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('education')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'education'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                : 'text-gray-600 hover:bg-purple-50'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            ประวัติการศึกษา ({educationsList.length})
+          </button>
+          <button
             onClick={() => setActiveTab('skills')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'skills'
@@ -915,7 +1212,7 @@ const Profile = () => {
             }`}
           >
             <FolderGit2 className="w-3.5 h-3.5" />
-            ผลงานระหว่างภาคเรียน ({studentProjectsList.length})
+            ผลงานระหว่างภาคเรียน ({allPortfolioProjects.length})
           </button>
           <button
             onClick={() => setActiveTab('internship')}
@@ -976,6 +1273,29 @@ const Profile = () => {
                     </a>
                   </div>
                 )}
+                {/* Granular Address Display */}
+                <div className="flex items-start text-gray-700 pt-2 border-t border-purple-50">
+                  <MapPin className="w-4 h-4 text-purple-600 mr-2.5 shrink-0 mt-0.5" />
+                  <div className="leading-snug">
+                    <span className="font-semibold text-gray-800 block text-[11px] mb-0.5">ที่อยู่ปัจจุบัน</span>
+                    <span className="text-gray-600 text-[11px]">
+                      {(() => {
+                        const cur = resumeData?.addresses?.current || resumeData?.address;
+                        if (!cur) return 'ยังไม่ได้ระบุที่อยู่';
+                        const parts = [
+                          cur.house_no ? `บ้านเลขที่ ${cur.house_no}` : '',
+                          cur.village_no ? `หมู่ ${cur.village_no}` : '',
+                          cur.road ? `ถ.${cur.road}` : '',
+                          cur.subdistrict ? `ต.${cur.subdistrict}` : '',
+                          cur.district ? `อ.${cur.district}` : '',
+                          cur.province ? `จ.${cur.province}` : '',
+                          cur.postal_code || ''
+                        ].filter(Boolean);
+                        return parts.length > 0 ? parts.join(' ') : (cur.address_line || 'ยังไม่ได้ระบุที่อยู่');
+                      })()}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1079,6 +1399,110 @@ const Profile = () => {
               </form>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Education History (Requirement 9) */}
+      {activeTab === 'education' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-purple-100/50 shadow-sm">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">ประวัติการศึกษา (Education History)</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                บันทึกประวัติการศึกษาตั้งแต่ระดับมัธยมศึกษา อาชีวศึกษา จนถึงระดับอุดมศึกษาเพื่อใช้ใน Resume
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setEducationForm({
+                  level: 'ปริญญาตรี (Bachelor Degree)',
+                  institution_name: 'มหาวิทยาลัยราชภัฏศรีสะเกษ',
+                  major: 'สาขาวิชาวิศวกรรมซอฟต์แวร์',
+                  start_year: '',
+                  end_year: '',
+                  gpa: '',
+                  order_index: educationsList.length
+                });
+                setIsAddEducationOpen(true);
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs h-9 px-4 flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>เพิ่มประวัติการศึกษา</span>
+            </Button>
+          </div>
+
+          {educationsList.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {educationsList.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="bg-white border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-0.5 rounded-lg">
+                        {item.level || 'การศึกษา'}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditEducation(item)}
+                          className="text-gray-400 hover:text-purple-600 transition-colors p-1 rounded-lg hover:bg-purple-50"
+                          title="แก้ไข"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEducation(item.id)}
+                          className="text-gray-300 hover:text-rose-600 transition-colors p-1 rounded-lg hover:bg-rose-50"
+                          title="ลบ"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 pt-1">
+                      <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 shrink-0 mt-0.5">
+                        <School className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-base text-gray-900 leading-snug">{item.institution_name}</h4>
+                        {item.major && (
+                          <p className="text-xs text-purple-700 font-semibold mt-0.5">
+                            สาขา: {item.major}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-purple-50">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                      <span>
+                        {item.start_year ? `พ.ศ. ${item.start_year}` : ''} 
+                        {item.end_year ? ` - พ.ศ. ${item.end_year}` : (item.start_year ? ' - ปัจจุบัน' : 'ไม่ระบุปี')}
+                      </span>
+                    </div>
+                    {item.gpa !== null && item.gpa !== undefined && (
+                      <span className="font-bold text-purple-900 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 text-[11px]">
+                        GPA: {Number(item.gpa).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-purple-50/30 border border-dashed border-purple-200 rounded-2xl p-12 text-center">
+              <GraduationCap className="w-10 h-10 text-purple-300 mx-auto mb-3" />
+              <h4 className="text-sm font-bold text-gray-700">ยังไม่มีประวัติการศึกษาในระบบ</h4>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                กดปุ่ม "เพิ่มประวัติการศึกษา" เพื่อบันทึกระดับการศึกษา สถาบัน และสาขาวิชาของคุณ
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1309,6 +1733,33 @@ const Profile = () => {
                         "{item.description}"
                       </p>
                     )}
+
+                    {item.project_outcome && (
+                      <div className="bg-purple-50/40 p-3 rounded-xl border border-purple-100/60 space-y-1">
+                        <span className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-purple-600" />
+                          ผลงานที่ทำ / ชิ้นงานที่ส่งมอบ (Project Outcome):
+                        </span>
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          {item.project_outcome}
+                        </p>
+                      </div>
+                    )}
+
+                    {item.attachment_url && (
+                      <div className="pt-1">
+                        <a
+                          href={item.attachment_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 font-semibold"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>ดูไฟล์ผลงาน / เอกสารรับรอง</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 self-end md:self-start">
@@ -1427,6 +1878,429 @@ const Profile = () => {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: Resume Portfolio Selection & Live Preview (Requirement 1, 2, 3, 6, 7) */}
+      {/* ========================================================================= */}
+      {activeTab === 'resume' && (
+        <div className="space-y-6">
+          {/* Header Action Banner */}
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-white/10 text-purple-200 backdrop-blur-sm border border-white/10 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-amber-300" />
+                  ระบบจัดการเรซูเม่และผลงาน
+                </span>
+                <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                  ผลงานที่ต้องการแสดงในเรซูเม่
+                </h3>
+                <p className="text-xs text-purple-200/80 mt-1 max-w-2xl leading-relaxed">
+                  เลือกผลงานที่เคยบันทึกไว้ในแฟ้มสะสมผลงาน (Portfolio) เพื่อนำมาจัดแสดงใน Resume ได้ทันทีโดยไม่ต้องกรอกข้อมูลซ้ำ ระบบจะบันทึกเฉพาะความสัมพันธ์และไม่กระทบข้อมูล Portfolio เดิม
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <Button
+                  onClick={handleSaveResumeWorks}
+                  disabled={resumeWorksSaving}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 h-10 px-4 text-xs font-bold flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {resumeWorksSaving ? 'กำลังบันทึก...' : 'บันทึกการเลือกผลงาน'}
+                </Button>
+                <Button
+                  onClick={() => setIsResumeOpen(true)}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 h-10 px-4 text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-4 h-4" />
+                  ดู & ส่งออก Resume
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Two-Column Grid: Left: Portfolio Selector, Right: Dynamic Live Preview */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* LEFT COLUMN: Section "ผลงานที่ต้องการแสดงในเรซูเม่" (Requirement 1, 6) */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm space-y-4">
+                {/* Control bar: title, counter */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-purple-50">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <FolderGit2 className="w-4 h-4 text-purple-600" />
+                      ผลงานจากแฟ้มสะสมผลงาน
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      คลิกเลือกผลงานที่ต้องการให้นายจ้างหรือผู้ตรวจเห็นใน Resume
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                      เลือกแล้ว {selectedResumeProjectIds.length} จาก {allPortfolioProjects.length} รายการ
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filter and Search toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                  <div className="sm:col-span-7 relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Input
+                      placeholder="ค้นหาชื่อผลงาน, วิชา, ทักษะ..."
+                      value={portfolioSearch}
+                      onChange={(e) => setPortfolioSearch(e.target.value)}
+                      className="rounded-xl border-purple-100 text-xs h-9 pl-8"
+                    />
+                  </div>
+                  <div className="sm:col-span-5">
+                    <select
+                      value={portfolioCategoryFilter}
+                      onChange={(e) => setPortfolioCategoryFilter(e.target.value)}
+                      className="flex h-9 w-full rounded-xl border border-purple-100 bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-700"
+                    >
+                      <option value="">ทุกหมวดหมู่ ({allPortfolioProjects.length})</option>
+                      {PORTFOLIO_CATEGORIES.map((cat, idx) => (
+                        <option key={idx} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bulk Action Buttons */}
+                <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllProjects}
+                      className="px-2.5 py-1 rounded-lg text-purple-700 hover:bg-purple-50 text-xs font-semibold transition-colors flex items-center gap-1"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      เลือกทั้งหมด
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllProjects}
+                      className="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 text-xs font-semibold transition-colors flex items-center gap-1"
+                    >
+                      <Square className="w-3.5 h-3.5" />
+                      ยกเลิกทั้งหมด
+                    </button>
+                  </div>
+                  {portfolioSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPortfolioSearch('')}
+                      className="text-[11px] text-purple-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" /> ล้างคำค้นหา
+                    </button>
+                  )}
+                </div>
+
+                {/* Works list / cards */}
+                <div className="space-y-3 pt-2 max-h-[680px] overflow-y-auto pr-1">
+                  {filteredPortfolioProjects.length > 0 ? (
+                    filteredPortfolioProjects.map((p) => {
+                      const isSelected = selectedResumeProjectIds.includes(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => handleToggleProjectForResume(p.id)}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer select-none relative ${
+                            isSelected
+                              ? 'border-purple-500 bg-purple-50/40 shadow-sm'
+                              : 'border-slate-200 hover:border-purple-300 hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3.5">
+                            {/* Checkbox */}
+                            <div className="pt-0.5 shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}} // handled by card onClick
+                                className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                              />
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <h5 className={`text-sm font-bold leading-snug ${isSelected ? 'text-purple-950 font-extrabold' : 'text-slate-900'}`}>
+                                  {p.title}
+                                </h5>
+                                {/* Status badge */}
+                                {isSelected ? (
+                                  <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    <Check className="w-3 h-3" /> แสดงในเรซูเม่แล้ว
+                                  </span>
+                                ) : (
+                                  <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                    ไม่ได้เลือก
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Category and Semester/Course */}
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                                {p.category && (
+                                  <span className="px-2 py-0.5 rounded bg-purple-100/70 text-purple-800 font-semibold text-[10px]">
+                                    {p.category}
+                                  </span>
+                                )}
+                                {p.course_name && (
+                                  <span className="text-purple-700 font-medium">
+                                    วิชา: {p.course_name}
+                                  </span>
+                                )}
+                                {(p.semester || p.academic_year) && (
+                                  <span className="text-slate-400">
+                                    • {p.semester ? `ภาค ${p.semester}` : ''}{p.academic_year ? `/${p.academic_year}` : ''}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Description */}
+                              {p.description && (
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                                  {p.description}
+                                </p>
+                              )}
+
+                              {/* Technologies / Skills */}
+                              {((Array.isArray(p.technologies) && p.technologies.length > 0) || (typeof p.technologies === 'string' && p.technologies.trim())) && (
+                                <div className="flex flex-wrap items-center gap-1 pt-1">
+                                  <span className="text-[10px] text-slate-400 font-medium mr-0.5">ทักษะ/เครื่องมือ:</span>
+                                  {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((tech, tidx) => (
+                                    <span
+                                      key={tidx}
+                                      className="bg-white border border-slate-200 text-slate-700 text-[10px] font-medium px-1.5 py-0.2 rounded"
+                                    >
+                                      {String(tech).trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Links & Attachments */}
+                              <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+                                {p.github_url && (
+                                  <a
+                                    href={p.github_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-purple-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <Globe className="w-3 h-3" /> GitHub
+                                  </a>
+                                )}
+                                {p.link_url && (
+                                  <a
+                                    href={p.link_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-blue-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <ExternalLink className="w-3 h-3" /> Demo / Link
+                                  </a>
+                                )}
+                                {p.image_url && (
+                                  <span className="flex items-center gap-1 text-slate-400">
+                                    <ImageIcon className="w-3 h-3" /> มีรูปภาพ
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-10 text-center">
+                      <FolderGit2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      {allPortfolioProjects.length === 0 ? (
+                        <>
+                          <h5 className="text-sm font-bold text-slate-700">ยังไม่มีผลงานในแฟ้มสะสมผลงาน (Portfolio)</h5>
+                          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                            เพิ่มผลงาน โครงงาน หรือใบประกาศนียบัตรในหน้า Portfolio ก่อน จึงจะสามารถเลือกมาแสดงในเรซูเม่ได้
+                          </p>
+                          <Link
+                            to="/portfolio"
+                            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            ไปยังหน้าแฟ้มสะสมผลงาน
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <h5 className="text-sm font-bold text-slate-700">ไม่พบผลงานที่ตรงตามเงื่อนไขค้นหา</h5>
+                          <p className="text-xs text-slate-400 mt-1">ลองล้างคำค้นหาหรือเปลี่ยนหมวดหมู่</p>
+                          <button
+                            type="button"
+                            onClick={() => { setPortfolioSearch(''); setPortfolioCategoryFilter(''); }}
+                            className="mt-3 text-xs text-purple-600 font-bold hover:underline"
+                          >
+                            ล้างตัวกรองทั้งหมด
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom save bar */}
+                <div className="pt-3 border-t border-purple-50 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    เลือกผลงานแล้ว: <strong className="text-purple-900">{selectedResumeProjectIds.length}</strong> รายการ
+                  </span>
+                  <Button
+                    onClick={handleSaveResumeWorks}
+                    disabled={resumeWorksSaving}
+                    className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md h-9 px-4 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {resumeWorksSaving ? 'กำลังบันทึก...' : 'บันทึกการเลือกผลงาน'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Section "Resume Preview" (Requirement 3, 7) */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm space-y-4 sticky top-6">
+                <div className="flex items-center justify-between pb-3 border-b border-purple-50">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      ตัวอย่างเรซูเม่ (Resume Preview)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      อัปเดตแบบเรียลไทม์ตามผลงานที่เลือก
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setIsResumeOpen(true)}
+                    variant="outline"
+                    className="h-8 px-3 rounded-lg text-xs font-bold border-purple-200 text-purple-700 hover:bg-purple-50 flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> พิมพ์ / PDF
+                  </Button>
+                </div>
+
+                {/* Miniature Resume Card */}
+                <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 text-xs space-y-3.5 max-h-[650px] overflow-y-auto">
+                  {/* Header */}
+                  <div className="border-b border-slate-200 pb-3 flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-sm flex items-center justify-center shrink-0 overflow-hidden">
+                      {currentAvatarUrl ? (
+                        <img src={getFileUrl(currentAvatarUrl)} alt={userFullName} className="w-full h-full object-cover" />
+                      ) : avatarInitials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h5 className="font-extrabold text-slate-900 text-sm truncate">{userFullName}</h5>
+                      <p className="text-[11px] text-purple-700 font-semibold">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
+                      <p className="text-[10px] text-slate-400">{resumeData?.education?.university || 'มหาวิทยาลัยราชภัฏศรีสะเกษ'}</p>
+                    </div>
+                  </div>
+
+                  {/* Career Objective */}
+                  <div className="space-y-1">
+                    <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">เป้าหมายในการทำงาน</h6>
+                    <p className="text-[11px] text-slate-600 leading-relaxed text-justify">
+                      {resumeData?.profile?.bio || 'มุ่งมั่นที่จะนำความรู้และทักษะด้านการพัฒนาซอฟต์แวร์มาสร้างสรรค์ผลงานที่มีคุณภาพ'}
+                    </p>
+                  </div>
+
+                  {/* Skills Summary */}
+                  <div className="space-y-1">
+                    <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">ทักษะความเชี่ยวชาญ</h6>
+                    <div className="flex flex-wrap gap-1">
+                      {skillsList.slice(0, 6).map((s, idx) => (
+                        <span key={idx} className="bg-white border border-purple-200 text-purple-900 text-[10px] font-semibold px-1.5 py-0.2 rounded">
+                          {s.name}
+                        </span>
+                      ))}
+                      {skillsList.length > 6 && (
+                        <span className="text-[10px] text-slate-400 self-center">+{skillsList.length - 6} อื่นๆ</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* SELECTED PORTFOLIO WORKS (Requirement 3, 7) */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-200/80">
+                    <div className="flex items-center justify-between">
+                      <h6 className="text-[11px] font-extrabold text-purple-950 uppercase tracking-wide flex items-center gap-1.5">
+                        <span className="w-1.5 h-2.5 bg-purple-600 rounded-full inline-block"></span>
+                        ผลงาน (Portfolio Works)
+                      </h6>
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.2 rounded-full">
+                        {selectedResumeProjects.length} ผลงาน
+                      </span>
+                    </div>
+
+                    {/* Preview list or warning text */}
+                    {selectedResumeProjects.length > 0 ? (
+                      <div className="space-y-2 pt-1">
+                        {selectedResumeProjects.map((p) => (
+                          <div key={p.id} className="p-2.5 rounded-lg bg-white border border-purple-100 shadow-2xs space-y-1">
+                            <div className="flex items-start justify-between gap-1.5">
+                              <span className="font-bold text-slate-900 text-xs leading-snug">{p.title}</span>
+                              <span className="text-[9px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded shrink-0">
+                                {p.category || 'ผลงาน'}
+                              </span>
+                            </div>
+                            {p.description && (
+                              <p className="text-[11px] text-slate-600 line-clamp-2">{p.description}</p>
+                            )}
+                            {p.technologies && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((tech, tidx) => (
+                                  <span key={tidx} className="bg-slate-100 text-slate-700 text-[9px] px-1.5 py-0.2 rounded font-medium">
+                                    {String(tech).trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-3 px-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs text-center font-medium my-1">
+                        ยังไม่ได้เลือกผลงานสำหรับแสดงในเรซูเม่
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Senior Thesis */}
+                  {thesisProject && (
+                    <div className="space-y-1 pt-1 border-t border-slate-200/80">
+                      <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">โครงงานปริญญานิพนธ์</h6>
+                      <p className="font-bold text-slate-800 text-[11px]">{thesisProject.title_th}</p>
+                      <p className="text-[10px] text-slate-500">ปีการศึกษา {thesisProject.year}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Open full modal button */}
+                <Button
+                  onClick={() => setIsResumeOpen(true)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold h-9 shadow-sm"
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                  เปิดเอกสาร Resume ฉบับเต็ม (A4)
+                </Button>
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
 
@@ -1950,14 +2824,37 @@ const Profile = () => {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="intDesc" className="text-xs text-gray-700 font-semibold">หน้าที่ความรับผิดชอบและผลงานที่ฝึกปฏิบัติ</Label>
+              <Label htmlFor="intDesc" className="text-xs text-gray-700 font-semibold">หน้าที่ความรับผิดชอบและลักษณะงาน</Label>
               <textarea
                 id="intDesc"
-                rows={3}
-                placeholder="ระบุโปรเจกต์ที่ได้รับมอบหมายหรือเทคโนโลยีที่ได้ฝึกปฏิบัติจริง..."
+                rows={2}
+                placeholder="ระบุงานที่ได้รับมอบหมายหรือเทคโนโลยีที่ได้ฝึกปฏิบัติจริง..."
                 value={internshipForm.description}
                 onChange={(e) => setInternshipForm({ ...internshipForm, description: e.target.value })}
                 className="flex w-full rounded-xl border border-purple-100 bg-white p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="intOutcome" className="text-xs text-gray-700 font-semibold">ผลงานที่ทำ / สิ่งที่ส่งมอบ (Project Outcome / Deliverable)</Label>
+              <textarea
+                id="intOutcome"
+                rows={2}
+                placeholder="เช่น ระบบจองห้องพักออนไลน์, เอกสารคู่มือผู้ใช้, สรุปผลการทดสอบระบบ..."
+                value={internshipForm.project_outcome}
+                onChange={(e) => setInternshipForm({ ...internshipForm, project_outcome: e.target.value })}
+                className="flex w-full rounded-xl border border-purple-100 bg-white p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="intAttachment" className="text-xs text-gray-700 font-semibold">ลิงก์ไฟล์ผลงานหรือเอกสารรับรอง (Attachment URL / Google Drive)</Label>
+              <Input
+                id="intAttachment"
+                placeholder="https://..."
+                value={internshipForm.attachment_url}
+                onChange={(e) => setInternshipForm({ ...internshipForm, attachment_url: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
               />
             </div>
 
@@ -1981,7 +2878,7 @@ const Profile = () => {
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-purple-950 flex items-center gap-2">
               <Edit className="w-4 h-4 text-purple-600" />
-              แก้ไขข้อมูลประวัติและช่องทางติดต่อสำหรับ Resume
+              แก้ไขข้อมูลประวัติ ที่อยู่ และช่องทางติดต่อสำหรับ Resume
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
               ข้อมูลเหล่านี้จะถูกแสดงบนหัวกระดาษเรซูเม่เพื่อการสมัครงาน
@@ -2045,11 +2942,93 @@ const Profile = () => {
               </div>
             </div>
 
+            {/* Detailed Granular Address (Requirement 8) */}
+            <div className="border-t border-purple-100 pt-3 space-y-3">
+              <h4 className="text-xs font-bold text-purple-900 flex items-center gap-1.5 uppercase">
+                <MapPin className="w-3.5 h-3.5 text-purple-600" />
+                ข้อมูลที่อยู่โดยละเอียด (Granular Address Details)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="resHouseNo" className="text-xs text-gray-700 font-semibold">บ้านเลขที่</Label>
+                  <Input
+                    id="resHouseNo"
+                    placeholder="เช่น 123/45"
+                    value={resumeForm.house_no}
+                    onChange={(e) => setResumeForm({ ...resumeForm, house_no: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="resVillageNo" className="text-xs text-gray-700 font-semibold">หมู่ที่</Label>
+                  <Input
+                    id="resVillageNo"
+                    placeholder="เช่น 5"
+                    value={resumeForm.village_no}
+                    onChange={(e) => setResumeForm({ ...resumeForm, village_no: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="resRoad" className="text-xs text-gray-700 font-semibold">ถนน / ซอย</Label>
+                  <Input
+                    id="resRoad"
+                    placeholder="เช่น ถ.กสิกรรมประชาสรรค์"
+                    value={resumeForm.road}
+                    onChange={(e) => setResumeForm({ ...resumeForm, road: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="resSubdistrict" className="text-xs text-gray-700 font-semibold">ตำบล / แขวง</Label>
+                  <Input
+                    id="resSubdistrict"
+                    placeholder="เช่น เมืองใต้"
+                    value={resumeForm.subdistrict}
+                    onChange={(e) => setResumeForm({ ...resumeForm, subdistrict: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="resDistrict" className="text-xs text-gray-700 font-semibold">อำเภอ / เขต</Label>
+                  <Input
+                    id="resDistrict"
+                    placeholder="เช่น เมืองศรีสะเกษ"
+                    value={resumeForm.district}
+                    onChange={(e) => setResumeForm({ ...resumeForm, district: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="resProvince" className="text-xs text-gray-700 font-semibold">จังหวัด</Label>
+                  <Input
+                    id="resProvince"
+                    placeholder="เช่น ศรีสะเกษ"
+                    value={resumeForm.province}
+                    onChange={(e) => setResumeForm({ ...resumeForm, province: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="resPostalCode" className="text-xs text-gray-700 font-semibold">รหัสไปรษณีย์</Label>
+                  <Input
+                    id="resPostalCode"
+                    placeholder="เช่น 33000"
+                    value={resumeForm.postal_code}
+                    onChange={(e) => setResumeForm({ ...resumeForm, postal_code: e.target.value })}
+                    className="rounded-xl border-purple-100 text-xs h-9"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="resBio" className="text-xs text-gray-700 font-semibold">เป้าหมายในการทำงาน / แนะนำตัวย่อ (Career Objective / Summary)</Label>
               <textarea
                 id="resBio"
-                rows={4}
+                rows={3}
                 placeholder="ระบุเป้าหมายในการทำงาน ความเชี่ยวชาญ และความมุ่งมั่นของคุณ..."
                 value={resumeForm.bio}
                 onChange={(e) => setResumeForm({ ...resumeForm, bio: e.target.value })}
@@ -2063,6 +3042,212 @@ const Profile = () => {
               </Button>
               <Button type="submit" disabled={resumeSubmitLoading} className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
                 {resumeSubmitLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 4.1: Add Education Dialog (Requirement 9) */}
+      {/* ========================================================================= */}
+      <Dialog open={isAddEducationOpen} onOpenChange={setIsAddEducationOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-purple-100 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-purple-950 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-purple-600" />
+              เพิ่มประวัติการศึกษา (Add Education)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              ระบุระดับการศึกษา สถาบันการศึกษา สาขาวิชา และช่วงปีการศึกษา
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddEducation} className="space-y-4 pt-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="eduLevel" className="text-xs text-gray-700 font-semibold">ระดับการศึกษา *</Label>
+              <select
+                id="eduLevel"
+                value={educationForm.level}
+                onChange={(e) => setEducationForm({ ...educationForm, level: e.target.value })}
+                className="flex w-full rounded-xl border border-purple-100 bg-white p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 h-9"
+                required
+              >
+                <option value="มัธยมศึกษาตอนปลาย (High School)">มัธยมศึกษาตอนปลาย (High School)</option>
+                <option value="ประกาศนียบัตรวิชาชีพ (ปวช.)">ประกาศนียบัตรวิชาชีพ (ปวช.)</option>
+                <option value="ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)">ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)</option>
+                <option value="ปริญญาตรี (Bachelor Degree)">ปริญญาตรี (Bachelor Degree)</option>
+                <option value="ปริญญาโท (Master Degree)">ปริญญาโท (Master Degree)</option>
+                <option value="ปริญญาเอก (Doctoral Degree)">ปริญญาเอก (Doctoral Degree)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="instName" className="text-xs text-gray-700 font-semibold">ชื่อสถาบันการศึกษา / มหาวิทยาลัย / โรงเรียน *</Label>
+              <Input
+                id="instName"
+                placeholder="เช่น มหาวิทยาลัยราชภัฏศรีสะเกษ..."
+                value={educationForm.institution_name}
+                onChange={(e) => setEducationForm({ ...educationForm, institution_name: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="majorName" className="text-xs text-gray-700 font-semibold">สาขาวิชา / แผนการเรียน</Label>
+              <Input
+                id="majorName"
+                placeholder="เช่น วิศวกรรมซอฟต์แวร์, วิทย์-คณิต..."
+                value={educationForm.major}
+                onChange={(e) => setEducationForm({ ...educationForm, major: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="startYr" className="text-xs text-gray-700 font-semibold">ปีที่เริ่ม (พ.ศ.)</Label>
+                <Input
+                  id="startYr"
+                  type="number"
+                  placeholder="เช่น 2564"
+                  value={educationForm.start_year}
+                  onChange={(e) => setEducationForm({ ...educationForm, start_year: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="endYr" className="text-xs text-gray-700 font-semibold">ปีที่จบ (พ.ศ.)</Label>
+                <Input
+                  id="endYr"
+                  type="number"
+                  placeholder="เช่น 2568"
+                  value={educationForm.end_year}
+                  onChange={(e) => setEducationForm({ ...educationForm, end_year: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="eduGpa" className="text-xs text-gray-700 font-semibold">เกรดเฉลี่ย (GPA)</Label>
+                <Input
+                  id="eduGpa"
+                  type="number"
+                  step="0.01"
+                  placeholder="เช่น 3.50"
+                  value={educationForm.gpa}
+                  onChange={(e) => setEducationForm({ ...educationForm, gpa: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button type="button" variant="ghost" onClick={() => setIsAddEducationOpen(false)} className="text-xs rounded-xl h-9">
+                ยกเลิก
+              </Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
+                บันทึกประวัติการศึกษา
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 4.2: Edit Education Dialog (Requirement 9) */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditEducationOpen} onOpenChange={setIsEditEducationOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-purple-100 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-purple-950 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-purple-600" />
+              แก้ไขประวัติการศึกษา (Edit Education)
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateEducation} className="space-y-4 pt-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editEduLevel" className="text-xs text-gray-700 font-semibold">ระดับการศึกษา *</Label>
+              <select
+                id="editEduLevel"
+                value={educationForm.level}
+                onChange={(e) => setEducationForm({ ...educationForm, level: e.target.value })}
+                className="flex w-full rounded-xl border border-purple-100 bg-white p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 h-9"
+                required
+              >
+                <option value="มัธยมศึกษาตอนปลาย (High School)">มัธยมศึกษาตอนปลาย (High School)</option>
+                <option value="ประกาศนียบัตรวิชาชีพ (ปวช.)">ประกาศนียบัตรวิชาชีพ (ปวช.)</option>
+                <option value="ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)">ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)</option>
+                <option value="ปริญญาตรี (Bachelor Degree)">ปริญญาตรี (Bachelor Degree)</option>
+                <option value="ปริญญาโท (Master Degree)">ปริญญาโท (Master Degree)</option>
+                <option value="ปริญญาเอก (Doctoral Degree)">ปริญญาเอก (Doctoral Degree)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editInstName" className="text-xs text-gray-700 font-semibold">ชื่อสถาบันการศึกษา *</Label>
+              <Input
+                id="editInstName"
+                placeholder="ชื่อสถาบัน..."
+                value={educationForm.institution_name}
+                onChange={(e) => setEducationForm({ ...educationForm, institution_name: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editMajorName" className="text-xs text-gray-700 font-semibold">สาขาวิชา</Label>
+              <Input
+                id="editMajorName"
+                placeholder="สาขาวิชา..."
+                value={educationForm.major}
+                onChange={(e) => setEducationForm({ ...educationForm, major: e.target.value })}
+                className="rounded-xl border-purple-100 text-xs h-9"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="editStartYr" className="text-xs text-gray-700 font-semibold">ปีที่เริ่ม (พ.ศ.)</Label>
+                <Input
+                  id="editStartYr"
+                  type="number"
+                  value={educationForm.start_year}
+                  onChange={(e) => setEducationForm({ ...educationForm, start_year: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editEndYr" className="text-xs text-gray-700 font-semibold">ปีที่จบ (พ.ศ.)</Label>
+                <Input
+                  id="editEndYr"
+                  type="number"
+                  value={educationForm.end_year}
+                  onChange={(e) => setEducationForm({ ...educationForm, end_year: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editEduGpa" className="text-xs text-gray-700 font-semibold">เกรดเฉลี่ย (GPA)</Label>
+                <Input
+                  id="editEduGpa"
+                  type="number"
+                  step="0.01"
+                  value={educationForm.gpa}
+                  onChange={(e) => setEducationForm({ ...educationForm, gpa: e.target.value })}
+                  className="rounded-xl border-purple-100 text-xs h-9"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button type="button" variant="ghost" onClick={() => setIsEditEducationOpen(false)} className="text-xs rounded-xl h-9">
+                ยกเลิก
+              </Button>
+              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl h-9">
+                บันทึกการแก้ไข
               </Button>
             </DialogFooter>
           </form>
@@ -2108,67 +3293,143 @@ const Profile = () => {
                 className="w-[210mm] min-h-[297mm] bg-white text-slate-800 p-[12mm_15mm] shadow-2xl flex flex-col justify-between text-xs leading-relaxed"
                 style={{ fontFamily: "'Sarabun', sans-serif" }}
               >
-                <div>
-                  {/* Header */}
+                <div className="space-y-4">
+                  {/* Header (Avatar + Identity + Contact) */}
                   <div className="border-b-2 border-purple-700 pb-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                          {userFullName}
-                        </h1>
-                        {resumeData?.profile?.full_name_en && (
-                          <p className="text-gray-500 font-bold text-xs mt-0.5">
-                            {resumeData.profile.full_name_en}
+                    <div className="flex justify-between items-start gap-4">
+                      {/* Left: Avatar + Names */}
+                      <div className="flex items-center gap-4">
+                        {/* Avatar Image (Requirement 7) */}
+                        <div className="w-20 h-24 rounded-xl border-2 border-purple-600 overflow-hidden shrink-0 shadow-sm bg-purple-50 flex items-center justify-center">
+                          {currentAvatarUrl ? (
+                            <img
+                              src={getFileUrl(currentAvatarUrl)}
+                              alt={userFullName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-2xl flex items-center justify-center">
+                              {avatarInitials}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                            {userFullName}
+                          </h1>
+                          {resumeData?.profile?.full_name_en && (
+                            <p className="text-purple-900 font-bold text-xs mt-0.5 tracking-wide">
+                              {resumeData.profile.full_name_en}
+                            </p>
+                          )}
+                          <p className="text-purple-700 font-bold text-xs mt-1">
+                            {resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}
                           </p>
-                        )}
-                        <p className="text-purple-700 font-bold text-xs mt-1">
-                          {resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'} • {resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'}
-                        </p>
+                          <p className="text-gray-500 font-medium text-[11px]">
+                            {resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'} • มหาวิทยาลัยราชภัฏศรีสะเกษ
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right text-[11px] text-gray-600 space-y-0.5">
-                        <p><strong>รหัสนักศึกษา:</strong> {studentIdentifier}</p>
+
+                      {/* Right: Contact & Granular Address (Requirement 8) */}
+                      <div className="text-right text-[11px] text-gray-600 space-y-0.5 max-w-[48%] shrink-0">
+                        <p><strong>รหัสนักศึกษา:</strong> <span className="text-purple-800 font-semibold">{studentIdentifier}</span></p>
                         <p><strong>อีเมล:</strong> {resumeData?.profile?.email || user?.email}</p>
                         {resumeData?.profile?.phone && <p><strong>โทรศัพท์:</strong> {resumeData.profile.phone}</p>}
                         {resumeData?.profile?.github_url && <p><strong>GitHub:</strong> {resumeData.profile.github_url}</p>}
                         {resumeData?.profile?.linkedin_url && <p><strong>LinkedIn:</strong> {resumeData.profile.linkedin_url}</p>}
+                        {/* Granular address (Requirement 8) */}
+                        {(() => {
+                          const cur = resumeData?.addresses?.current || resumeData?.address || {
+                            house_no: resumeForm.house_no,
+                            village_no: resumeForm.village_no,
+                            road: resumeForm.road,
+                            subdistrict: resumeForm.subdistrict,
+                            district: resumeForm.district,
+                            province: resumeForm.province,
+                            postal_code: resumeForm.postal_code
+                          };
+                          const parts = [
+                            cur.house_no ? `บ้านเลขที่ ${cur.house_no}` : '',
+                            cur.village_no ? `หมู่ ${cur.village_no}` : '',
+                            cur.road ? `ถ.${cur.road}` : '',
+                            cur.subdistrict ? `ต.${cur.subdistrict}` : '',
+                            cur.district ? `อ.${cur.district}` : '',
+                            cur.province ? `จ.${cur.province}` : '',
+                            cur.postal_code || ''
+                          ].filter(Boolean);
+                          const formatted = parts.length > 0 ? parts.join(' ') : (cur.address_line || '');
+                          return formatted ? (
+                            <p className="text-gray-500 pt-0.5 leading-snug">
+                              <strong>ที่อยู่:</strong> {formatted}
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   </div>
 
                   {/* Career Objective */}
-                  <div className="mt-4 space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
                       เป้าหมายในการทำงาน (Career Objective)
                     </h3>
-                    <p className="text-xs text-gray-700 leading-relaxed text-justify pt-1">
+                    <p className="text-xs text-gray-700 leading-relaxed text-justify pt-1 pl-2.5">
                       {resumeData?.profile?.bio || 'มุ่งมั่นที่จะนำความรู้ด้านการวิเคราะห์ ออกแบบ และการพัฒนาซอฟต์แวร์ที่ได้รับจากการศึกษา ตลอดจนทักษะในการพัฒนาโครงงานจบมาประยุกต์ใช้เพื่อแก้ไขปัญหาและส่งมอบนวัตกรรมซอฟต์แวร์ที่มีคุณภาพให้กับองค์กร'}
                     </p>
                   </div>
 
-                  {/* Education */}
-                  <div className="mt-4 space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
-                      ประวัติการศึกษา (Education)
+                  {/* Education History (Requirement 9) */}
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
+                      ประวัติการศึกษา (Education History)
                     </h3>
-                    <div className="pt-1 flex justify-between items-start text-xs">
-                      <div>
-                        <p className="font-bold text-slate-900">มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University)</p>
-                        <p className="text-gray-600">{resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'}</p>
-                        <p className="text-purple-700 font-semibold">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
-                      </div>
-                      <div className="text-right text-gray-500 text-[11px]">
-                        <p>ปีที่เข้าศึกษา: {resumeData?.education?.entry_year || '-'}</p>
-                        <p className="font-semibold text-gray-700">{resumeData?.education?.status || 'กำลังศึกษา'}</p>
-                      </div>
+                    <div className="space-y-2 pt-1 pl-2.5">
+                      {educationsList && educationsList.length > 0 ? (
+                        educationsList.map((edu) => (
+                          <div key={edu.id} className="flex justify-between items-start text-xs">
+                            <div>
+                              <p className="font-bold text-slate-900">
+                                {edu.institution_name}
+                                {edu.level && <span className="ml-2 text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">{edu.level}</span>}
+                              </p>
+                              {edu.major && <p className="text-purple-700 font-medium text-[11px]">{edu.major}</p>}
+                            </div>
+                            <div className="text-right text-gray-500 text-[11px] shrink-0">
+                              <p>{edu.start_year ? `พ.ศ. ${edu.start_year}` : ''}{edu.end_year ? ` - ${edu.end_year}` : (edu.start_year ? ' - ปัจจุบัน' : '')}</p>
+                              {edu.gpa !== null && edu.gpa !== undefined && (
+                                <p className="font-bold text-gray-700">เกรดเฉลี่ย (GPA): {Number(edu.gpa).toFixed(2)}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex justify-between items-start text-xs">
+                          <div>
+                            <p className="font-bold text-slate-900">มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University)</p>
+                            <p className="text-gray-600">{resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'}</p>
+                            <p className="text-purple-700 font-semibold">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
+                          </div>
+                          <div className="text-right text-gray-500 text-[11px] shrink-0">
+                            <p>ปีที่เข้าศึกษา: {resumeData?.education?.entry_year || '-'}</p>
+                            <p className="font-semibold text-gray-700">{resumeData?.education?.status || 'กำลังศึกษา'}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Skills Section */}
-                  <div className="mt-4 space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
                       ทักษะและความเชี่ยวชาญ (Technical & Professional Skills)
                     </h3>
-                    <div className="pt-1.5 flex flex-wrap gap-1.5">
+                    <div className="pt-1.5 pl-2.5 flex flex-wrap gap-1.5">
                       {skillsList.length > 0 ? (
                         skillsList.map((s, idx) => (
                           <span key={idx} className="bg-purple-50 border border-purple-200 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded">
@@ -2182,12 +3443,13 @@ const Profile = () => {
                   </div>
 
                   {/* Senior Thesis Project */}
-                  <div className="mt-4 space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
                       โครงงานปริญญานิพนธ์ (Senior Thesis Project)
                     </h3>
                     {thesisProject ? (
-                      <div className="pt-1 space-y-1">
+                      <div className="pt-1 pl-2.5 space-y-1">
                         <div className="flex justify-between items-start">
                           <h4 className="font-bold text-slate-900 text-xs">{thesisProject.title_th}</h4>
                           <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
@@ -2206,41 +3468,59 @@ const Profile = () => {
                         </p>
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 italic pt-1">ไม่มีข้อมูลโครงงานจบ</p>
+                      <p className="text-xs text-gray-400 italic pt-1 pl-2.5">ไม่มีข้อมูลโครงงานจบ</p>
                     )}
                   </div>
 
                   {/* Course Projects / Portfolio */}
-                  {studentProjectsList.length > 0 && (
-                    <div className="mt-4 space-y-1">
-                      <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
-                        ผลงานระหว่างภาคเรียน (Course Projects & Portfolio)
-                      </h3>
-                      <div className="pt-1 space-y-2">
-                        {studentProjectsList.slice(0, 3).map((p) => (
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
+                      ผลงานจากแฟ้มสะสมผลงาน (Portfolio Works)
+                    </h3>
+                    {selectedResumeProjects.length > 0 ? (
+                      <div className="pt-1 pl-2.5 space-y-2">
+                        {selectedResumeProjects.map((p) => (
                           <div key={p.id} className="text-xs space-y-0.5">
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-slate-800">{p.title}</span>
-                              <span className="text-[10px] text-gray-500">ภาคเรียนที่ {p.semester}/{p.academic_year}</span>
+                              <span className="text-[10px] text-gray-500">
+                                {p.category ? `${p.category} ` : ''}
+                                {p.semester && p.academic_year ? `(ภาคเรียนที่ ${p.semester}/${p.academic_year})` : (p.year ? `(ปี ${p.year})` : '')}
+                              </span>
                             </div>
                             {p.course_name && <p className="text-[11px] text-purple-700 font-medium">วิชา: {p.course_name}</p>}
-                            <p className="text-[11px] text-gray-600 text-justify">{p.description}</p>
+                            {p.description && <p className="text-[11px] text-gray-600 text-justify">{p.description}</p>}
+                            {p.technologies && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((t, tidx) => (
+                                  <span key={tidx} className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] px-1.5 py-0.2 rounded font-medium">
+                                    {String(t).trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             {p.github_url && <p className="text-[10px] text-gray-400">GitHub: {p.github_url}</p>}
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="py-2.5 px-3 my-1 bg-amber-50/80 border border-amber-200/80 rounded-lg text-amber-800 text-[11px] text-center font-medium">
+                        ยังไม่ได้เลือกผลงานสำหรับแสดงในเรซูเม่
+                      </div>
+                    )}
+                  </div>
 
-                  {/* Internships */}
+                  {/* Internships with Project Outcome and Attachment (Requirement 10) */}
                   {internshipsList.length > 0 && (
-                    <div className="mt-4 space-y-1">
-                      <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5">
-                        ประวัติการฝึกงาน (Internship Experience)
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
+                        ประวัติการฝึกงานและสหกิจศึกษา (Internship Experience)
                       </h3>
-                      <div className="pt-1 space-y-1.5">
+                      <div className="pt-1 pl-2.5 space-y-2">
                         {internshipsList.map((item) => (
-                          <div key={item.id} className="text-xs">
+                          <div key={item.id} className="text-xs space-y-1">
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-slate-800">{item.company_name} — {item.position}</span>
                               <span className="text-[10px] text-gray-500">
@@ -2248,6 +3528,16 @@ const Profile = () => {
                               </span>
                             </div>
                             {item.description && <p className="text-[11px] text-gray-600 text-justify">{item.description}</p>}
+                            {item.project_outcome && (
+                              <p className="text-[11px] text-purple-900 bg-purple-50/60 p-1.5 rounded border border-purple-100">
+                                <strong>ผลงานที่ส่งมอบ:</strong> {item.project_outcome}
+                              </p>
+                            )}
+                            {item.attachment_url && (
+                              <p className="text-[10px] text-purple-700 font-medium">
+                                <strong>เอกสารแนบ/ผลงาน:</strong> {item.attachment_url}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -2256,7 +3546,7 @@ const Profile = () => {
                 </div>
 
                 {/* Footer */}
-                <div className="border-t border-gray-200 pt-2 text-[9px] text-gray-400 flex justify-between items-center mt-6">
+                <div className="border-t border-purple-200/60 pt-2 text-[9px] text-gray-400 flex justify-between items-center mt-6">
                   <span>มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University) — เอกสารออกโดยระบบฐานข้อมูลนักศึกษาและโครงงาน</span>
                   <span>วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}</span>
                 </div>

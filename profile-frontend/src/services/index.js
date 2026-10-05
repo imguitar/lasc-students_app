@@ -82,6 +82,26 @@ export const studentService = {
     return response.data;
   },
 
+  getResumeWorks: async (id) => {
+    const response = await api.get(`/students/${id}/resume/works`);
+    return response.data;
+  },
+
+  updateResumeWorks: async (id, portfolioWorkIds) => {
+    const response = await api.put(`/students/${id}/resume/works`, { portfolio_work_ids: portfolioWorkIds });
+    return response.data;
+  },
+
+  addResumeWork: async (id, portfolioWorkId) => {
+    const response = await api.post(`/students/${id}/resume/works`, { portfolio_work_id: portfolioWorkId });
+    return response.data;
+  },
+
+  removeResumeWork: async (id, portfolioWorkId) => {
+    const response = await api.delete(`/students/${id}/resume/works/${portfolioWorkId}`);
+    return response.data;
+  },
+
   // Skills
   getSkills: async (id) => {
     const response = await api.get(`/students/${id}/skills`);
@@ -95,6 +115,27 @@ export const studentService = {
 
   deleteSkill: async (id, skillId) => {
     const response = await api.delete(`/students/${id}/skills/${skillId}`);
+    return response.data;
+  },
+
+  // Educations
+  getEducations: async (id) => {
+    const response = await api.get(`/students/${id}/educations`);
+    return response.data;
+  },
+
+  createEducation: async (id, data) => {
+    const response = await api.post(`/students/${id}/educations`, data);
+    return response.data;
+  },
+
+  updateEducation: async (id, educationId, data) => {
+    const response = await api.put(`/students/${id}/educations/${educationId}`, data);
+    return response.data;
+  },
+
+  deleteEducation: async (id, educationId) => {
+    const response = await api.delete(`/students/${id}/educations/${educationId}`);
     return response.data;
   },
 
@@ -190,6 +231,11 @@ export const projectService = {
     return response.data;
   },
 
+  getPendingApprovals: async () => {
+    const response = await api.get('/projects/approval/pending');
+    return response.data;
+  },
+
   getById: async (id) => {
     const response = await api.get(`/projects/${id}`);
     return response.data;
@@ -202,6 +248,21 @@ export const projectService = {
 
   update: async (id, data) => {
     const response = await api.put(`/projects/${id}`, data);
+    return response.data;
+  },
+
+  submitApproval: async (id) => {
+    const response = await api.post(`/projects/${id}/submit-approval`);
+    return response.data;
+  },
+
+  approve: async (id) => {
+    const response = await api.post(`/projects/${id}/approve`);
+    return response.data;
+  },
+
+  reject: async (id, data) => {
+    const response = await api.post(`/projects/${id}/reject`, data);
     return response.data;
   },
 
@@ -375,6 +436,7 @@ export const uploadService = {
 };
 
 export { newsEventService } from './newsEvent.service';
+export { chatBoardService } from './chatBoard.service';
 
 // เข้าระบบศูนย์ฝึกประสบการณ์โดยไม่ต้องล็อกอินใหม่
 export const coopSsoService = {
@@ -388,3 +450,31 @@ export const coopSsoService = {
     return `${base}/sso?ticket=${encodeURIComponent(ticket)}`;
   }
 };
+
+export const promotionService = {
+  preview: async (data) => {
+    const response = await api.post('/admin/student-promotion/preview', data);
+    return response.data;
+  },
+
+  execute: async (data) => {
+    const response = await api.post('/admin/student-promotion/execute', data);
+    return response.data;
+  },
+
+  getHistory: async () => {
+    const response = await api.get('/admin/student-promotion/history');
+    return response.data;
+  },
+
+  getBatchDetail: async (id) => {
+    const response = await api.get(`/admin/student-promotion/history/${id}`);
+    return response.data;
+  },
+
+  rollbackBatch: async (id) => {
+    const response = await api.delete(`/admin/student-promotion/batch/${id}`);
+    return response.data;
+  }
+};
+

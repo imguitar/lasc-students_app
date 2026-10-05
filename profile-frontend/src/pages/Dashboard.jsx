@@ -7,18 +7,65 @@ import {
   Users, GraduationCap, FolderKanban, Award, Calendar, Activity, 
   ChevronRight, Briefcase, FolderGit2, CheckCircle2, Clock, Sparkles,
   BookOpen, ArrowUpRight, FileText, Filter, RotateCcw, BarChart3, 
-  PieChart, AlertCircle, Layers, UserCheck, UserX
+  PieChart, AlertCircle, Layers, UserCheck, UserX, Eye, ExternalLink,
+  Mail, Check, FileEdit
 } from 'lucide-react';
+import { 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
+} from '../components/ui/dialog';
 import { Link } from 'react-router-dom';
 import MonthlyNewsSection from '../components/MonthlyNewsSection';
 
 const PROJECT_STATUS_LABELS = {
   draft: { label: 'แบบร่าง', en: 'Draft', color: 'bg-slate-100 text-slate-700 border-slate-200', barColor: 'bg-slate-400' },
-  approved: { label: 'อนุมัติหัวข้อ', en: 'Approved', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', barColor: 'bg-indigo-500' },
-  in_progress: { label: 'กำลังพัฒนา', en: 'In Progress', color: 'bg-blue-50 text-blue-700 border-blue-200', barColor: 'bg-blue-500' },
-  waiting_defense: { label: 'รอสอบประเมิน', en: 'Waiting Defense', color: 'bg-amber-50 text-amber-700 border-amber-200', barColor: 'bg-amber-500' },
-  passed_defense: { label: 'ผ่านการสอบ', en: 'Passed Defense', color: 'bg-teal-50 text-teal-700 border-teal-200', barColor: 'bg-teal-500' },
+  pending_approval: { label: 'รออนุมัติ', en: 'Pending Approval', color: 'bg-amber-50 text-amber-800 border-amber-200', barColor: 'bg-amber-500' },
+  approved: { label: 'อนุมัติแล้ว', en: 'Approved', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', barColor: 'bg-indigo-500' },
+  in_progress: { label: 'กำลังดำเนินการ', en: 'In Progress', color: 'bg-blue-50 text-blue-700 border-blue-200', barColor: 'bg-blue-500' },
+  waiting_defense: { label: 'รอสอบปริญญานิพนธ์', en: 'Waiting Defense', color: 'bg-purple-50 text-purple-700 border-purple-200', barColor: 'bg-purple-500' },
+  passed_defense: { label: 'ผ่านการสอบปริญญานิพนธ์', en: 'Passed Defense', color: 'bg-teal-50 text-teal-700 border-teal-200', barColor: 'bg-teal-500' },
   completed: { label: 'เสร็จสมบูรณ์', en: 'Completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', barColor: 'bg-emerald-500' }
+};
+
+const STATUS_STEPS = [
+  { key: 'draft', label: 'แบบร่าง', en: 'Draft', icon: FileEdit },
+  { key: 'pending_approval', label: 'รออนุมัติ', en: 'Pending Approval', icon: Mail },
+  { key: 'approved', label: 'อนุมัติแล้ว', en: 'Approved', icon: CheckCircle2 },
+  { key: 'in_progress', label: 'กำลังดำเนินการ', en: 'In Progress', icon: Activity },
+  { key: 'waiting_defense', label: 'รอสอบปริญญานิพนธ์', en: 'Waiting Defense', icon: Calendar },
+  { key: 'passed_defense', label: 'ผ่านการสอบปริญญานิพนธ์', en: 'Passed Defense', icon: Award },
+  { key: 'completed', label: 'เสร็จสมบูรณ์', en: 'Completed', icon: CheckCircle2 }
+];
+
+const getProjectStepIndex = (project) => {
+  if (!project) return 0;
+  const appStatus = (project.approval_status || 'draft').toLowerCase();
+  if (appStatus === 'draft') return 0;
+  if (appStatus === 'pending_approval') return 1;
+  if (appStatus === 'rejected') return 0;
+  
+  const s = (project.status || 'approved').toLowerCase();
+  if (s === 'draft' || s === 'approved') return 2;
+  if (s === 'in_progress') return 3;
+  if (s === 'waiting_defense') return 4;
+  if (s === 'passed_defense') return 5;
+  if (s === 'completed') return 6;
+  return 2;
+};
+
+const getProjectStatusDisplay = (project) => {
+  if (!project) return { title: 'ยังไม่มีโครงงานในระบบ', desc: '' };
+  const appStatus = (project.approval_status || 'draft').toLowerCase();
+  if (appStatus === 'draft') return { title: 'แบบร่าง (ยังไม่ยื่นขออนุมัติ)', desc: 'กรุณาตรวจสอบข้อมูลและยื่นขออนุมัติโครงงาน' };
+  if (appStatus === 'pending_approval') return { title: 'รออาจารย์ที่ปรึกษาอนุมัติ', desc: 'ยื่นคำขออนุมัติโครงงานแล้ว กำลังอยู่ระหว่างการพิจารณา' };
+  if (appStatus === 'rejected') return { title: 'ไม่อนุมัติโครงงาน (ต้องแก้ไข)', desc: project.rejection_reason ? `เหตุผล: "${project.rejection_reason}"` : 'กรุณาแก้ไขและยื่นใหม่' };
+  
+  const s = (project.status || 'approved').toLowerCase();
+  if (s === 'approved') return { title: 'อนุมัติโครงงานแล้ว', desc: 'โครงงานได้รับการอนุมัติเรียบร้อยแล้ว' };
+  if (s === 'in_progress') return { title: 'กำลังดำเนินการพัฒนาโครงงาน', desc: 'อยู่ระหว่างดำเนินการตามแผนงาน' };
+  if (s === 'waiting_defense') return { title: 'รอสอบประเมิน / สอบปริญญานิพนธ์', desc: 'ยื่นเรื่องรอสอบประเมินโครงงาน' };
+  if (s === 'passed_defense') return { title: 'ผ่านการสอบปริญญานิพนธ์แล้ว', desc: 'ผ่านการประเมินเรียบร้อย รอส่งเล่มสมบูรณ์' };
+  if (s === 'completed') return { title: 'โครงงานเสร็จสมบูรณ์', desc: 'ส่งเล่มปริญญานิพนธ์และเอกสารครบถ้วน' };
+  return { title: 'อนุมัติโครงงานแล้ว', desc: '' };
 };
 
 const Dashboard = () => {
@@ -26,6 +73,10 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [recentAlumni, setRecentAlumni] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Read-only Project Detail Modal state (Dashboard)
+  const [selectedProjectForView, setSelectedProjectForView] = useState(null);
+  const [isProjectDetailModalOpen, setIsProjectDetailModalOpen] = useState(false);
 
   // Feature 4: Student Status Report State
   const [studentReport, setStudentReport] = useState(null);
@@ -187,6 +238,98 @@ const Dashboard = () => {
           <span>ข้อมูลเรียลไทม์ล่าสุด</span>
         </div>
       </div>
+
+      {/* Student Personal Project Tracker (Exact match to Image 2!) */}
+      {(() => {
+        if (user?.role !== 'student' && user?.role !== 'alumni') return null;
+        const myStudentProject = projectReport?.projects?.find(p => 
+          p.created_by_profile_id === user.username ||
+          p.members?.some(m => m.student_id === user.username || m.id === user.profile?.id)
+        );
+        if (!myStudentProject) return null;
+
+        const currentStepIdx = getProjectStepIndex(myStudentProject);
+        const statusInfo = getProjectStatusDisplay(myStudentProject);
+
+        return (
+          <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white overflow-hidden p-6 sm:p-8">
+            <div className="border-b border-gray-100 pb-3 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FolderKanban className="w-5 h-5 text-purple-600" />
+                <span>สถานะคำร้องปัจจุบัน</span>
+              </h2>
+              <Link 
+                to="/projects" 
+                className="text-xs font-semibold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+              >
+                <span>จัดการโครงงานของคุณ</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="overflow-x-auto pb-4">
+              <div className="min-w-[680px] max-w-4xl mx-auto">
+                <div className="relative pt-1 pb-1">
+                  {/* Progress Line */}
+                  <div className="absolute top-[21px] -translate-y-1/2 left-[7.14%] right-[7.14%] h-[8px] bg-[#e5e7eb] rounded-full z-0 overflow-hidden pointer-events-none">
+                    <div
+                      className="h-full bg-[#6b7280] rounded-full transition-all duration-500 ease-in-out"
+                      style={{ width: `${(currentStepIdx / (STATUS_STEPS.length - 1)) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* 7 Circle Nodes */}
+                  <div className="relative z-10 grid grid-cols-7 gap-2">
+                    {STATUS_STEPS.map((step, idx) => {
+                      const isCompleted = idx < currentStepIdx;
+                      const isActive = idx === currentStepIdx;
+                      const StepIcon = step.icon;
+
+                      return (
+                        <div key={step.key} className="flex flex-col items-center text-center select-none">
+                          <div
+                            className={`w-[42px] h-[42px] rounded-full flex items-center justify-center transition-all bg-white relative ${
+                              isActive
+                                ? 'border-[2.5px] border-[#111111] text-[#111111] ring-4 ring-gray-900/15 scale-110 shadow-md font-bold'
+                                : isCompleted
+                                  ? 'border-2 border-[#6b7280] text-[#374151] font-bold'
+                                  : 'border-2 border-[#d1d5db] text-[#9ca3af] opacity-75'
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <Check className="w-5 h-5 stroke-[2.5] text-[#374151]" />
+                            ) : (
+                              <StepIcon className={`w-5 h-5 ${isActive ? 'stroke-[2.2] text-[#111111]' : 'stroke-[1.8]'}`} />
+                            )}
+                          </div>
+                          <span className={`mt-2.5 text-xs sm:text-[13px] font-semibold text-center leading-tight max-w-[90px] sm:max-w-[110px] break-words ${
+                            isActive ? 'text-[#111111] font-bold' : isCompleted ? 'text-[#374151]' : 'text-gray-400'
+                          }`}>
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tracker Summary (Exact layout of Image 2) */}
+                <div className="text-center mt-7 pt-4 border-t border-gray-100">
+                  <h3 className="text-2xl sm:text-3xl font-extrabold text-[#111111] tracking-tight">
+                    {statusInfo.title}
+                  </h3>
+                  <p className="text-base sm:text-lg text-[#333333] mt-1.5 font-semibold">
+                    {myStudentProject.title_th}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {statusInfo.desc} {myStudentProject.advisor_name ? `• อาจารย์ที่ปรึกษา: ${myStudentProject.advisor_name}` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Primary KPI Stats Cards - 5-column responsive grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -501,7 +644,7 @@ const Dashboard = () => {
       </Card>
 
       {/* ========================================================================= */}
-      {/* FEATURE 5: รายงานสรุปสถานะโครงงาน (Project Status Report) */}
+      {/* FEATURE 5: รายงานสถานะโครงการนักศึกษา (Student Project Status Report) */}
       {/* ========================================================================= */}
       <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white overflow-hidden">
         <CardHeader className="border-b border-purple-50/80 pb-4">
@@ -512,11 +655,11 @@ const Dashboard = () => {
                   <FolderKanban className="w-5 h-5" />
                 </div>
                 <CardTitle className="text-base font-bold text-gray-900">
-                  รายงานสรุปสถานะโครงงาน (Project Status Report)
+                  รายงานสถานะโครงการนักศึกษา (Student Project Status Report)
                 </CardTitle>
               </div>
               <CardDescription className="text-xs text-gray-500 mt-1">
-                สรุปขั้นตอนการดำเนินงานโครงงานและปริญญานิพนธ์ 6 ลำดับขั้น พร้อมตัวกรองตามคณะ สาขา ปีการศึกษา ประเภท และสถานะ
+                สรุปขั้นตอนการดำเนินงานโครงการและปริญญานิพนธ์ 7 ลำดับขั้น พร้อมตัวกรองตามคณะ สาขา ปีการศึกษา ประเภท และสถานะ (Read-only)
               </CardDescription>
             </div>
 
@@ -604,8 +747,8 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
-              {/* Pipeline Cards - 6 Status Stages */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Pipeline Cards - 7 Status Stages (แบบเดิม) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                 {Object.entries(PROJECT_STATUS_LABELS).map(([key, info], idx) => {
                   const count = projStatusCounts[key] || 0;
                   const percentage = projTotal > 0 ? Math.round((count / projTotal) * 100) : 0;
@@ -613,7 +756,11 @@ const Dashboard = () => {
                   return (
                     <div 
                       key={key} 
-                      className={`border p-4 rounded-xl flex flex-col justify-between transition-all hover:shadow-sm ${
+                      onClick={() => setProjectFilters(prev => ({
+                        ...prev,
+                        status: prev.status === key ? '' : key
+                      }))}
+                      className={`border p-4 rounded-xl flex flex-col justify-between transition-all hover:shadow-sm cursor-pointer select-none ${
                         projectFilters.status === key 
                           ? 'bg-purple-100/70 border-purple-300 ring-2 ring-purple-400' 
                           : 'bg-purple-50/25 border-purple-100/60 hover:bg-purple-50/50'
@@ -638,7 +785,7 @@ const Dashboard = () => {
                 })}
               </div>
 
-              {/* Progress and Summary Bar */}
+              {/* Progress and Summary Bar (แบบเดิม) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
                   <span className="flex items-center gap-2">
@@ -650,7 +797,7 @@ const Dashboard = () => {
                     to="/projects" 
                     className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
                   >
-                    <span>ดูโครงงานทั้งหมด</span>
+                    <span>ดูโครงงานทั้งหมดในระบบ</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
@@ -661,7 +808,7 @@ const Dashboard = () => {
                     if (pct === 0) return null;
                     return (
                       <div 
-                        key={key}
+                        key={key} 
                         style={{ width: `${pct}%` }} 
                         className={`${info.barColor} transition-all duration-500`} 
                         title={`${info.label}: ${count} โครงการ (${Math.round(pct)}%)`} 
@@ -674,15 +821,15 @@ const Dashboard = () => {
               {/* Projects By Year Breakdown */}
               {projectReport?.byYear && projectReport.byYear.length > 0 && (
                 <div className="pt-2 border-t border-purple-50">
-                  <div className="text-xs font-bold text-gray-800 flex items-center gap-2 mb-3">
+                  <div className="text-xs font-bold text-gray-800 flex items-center gap-2 mb-2.5">
                     <Calendar className="w-4 h-4 text-purple-600" />
-                    <span>จำนวนโครงงานแบ่งตามปีการศึกษา (พ.ศ.)</span>
+                    <span>จำนวนโครงการแบ่งตามปีการศึกษา (พ.ศ.)</span>
                   </div>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="flex flex-wrap gap-2">
                     {projectReport.byYear.map(item => (
                       <div 
                         key={item.year}
-                        className="bg-purple-50/50 border border-purple-100 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-sm"
+                        className="bg-purple-50/40 border border-purple-100 rounded-xl px-3 py-1.5 flex items-center gap-2 shadow-2xs"
                       >
                         <span className="text-xs font-bold text-purple-950">พ.ศ. {item.year}</span>
                         <span className="text-xs font-extrabold bg-white text-purple-700 px-2 py-0.5 rounded-lg border border-purple-100">
@@ -693,6 +840,111 @@ const Dashboard = () => {
                   </div>
                 </div>
               )}
+
+              {/* Requirement 6: Matching Project List Table (Read-Only) */}
+              <div className="pt-4 border-t border-purple-100/60 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-bold text-gray-800">
+                      รายชื่อโครงการนักศึกษา {projectFilters.status ? `(สถานะ: ${PROJECT_STATUS_LABELS[projectFilters.status]?.label || projectFilters.status})` : ''}
+                    </span>
+                    <span className="text-[11px] bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full font-bold">
+                      {projectReport?.projects?.length || 0} รายการ
+                    </span>
+                  </div>
+                  {projectFilters.status && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setProjectFilters({ ...projectFilters, status: '' })}
+                      className="text-[11px] text-purple-600 hover:bg-purple-50 h-7 px-2.5 rounded-lg w-max"
+                    >
+                      ✕ ล้างตัวกรองสถานะ (แสดงทุกสถานะ)
+                    </Button>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-purple-100 overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-purple-50/50 text-gray-700 font-bold border-b border-purple-100">
+                        <tr>
+                          <th className="py-3 px-3.5 whitespace-nowrap">รหัสโครงการ</th>
+                          <th className="py-3 px-3.5">ชื่อโครงการวิจัย / ผลงาน</th>
+                          <th className="py-3 px-3.5">ผู้จัดทำ (นักศึกษา)</th>
+                          <th className="py-3 px-3.5 whitespace-nowrap">สาขาวิชา</th>
+                          <th className="py-3 px-3.5 whitespace-nowrap">อาจารย์ที่ปรึกษา</th>
+                          <th className="py-3 px-3.5 text-center whitespace-nowrap">ปี พ.ศ.</th>
+                          <th className="py-3 px-3.5 text-center whitespace-nowrap">สถานะ</th>
+                          <th className="py-3 px-3.5 text-center whitespace-nowrap">รายละเอียด</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-purple-50">
+                        {projectReport?.projects && projectReport.projects.length > 0 ? (
+                          projectReport.projects.map((p) => {
+                            const appStatus = (p.approval_status || 'draft').toLowerCase();
+                            let displayStatusKey = p.status?.toLowerCase() || 'draft';
+                            if (appStatus === 'pending_approval') displayStatusKey = 'pending_approval';
+                            else if (appStatus === 'rejected') displayStatusKey = 'draft';
+                            const statusInfo = PROJECT_STATUS_LABELS[displayStatusKey] || PROJECT_STATUS_LABELS[p.status?.toLowerCase()] || PROJECT_STATUS_LABELS.draft;
+
+                            return (
+                              <tr key={p.id} className="hover:bg-purple-50/20 transition-colors">
+                                <td className="py-3 px-3.5 font-bold text-purple-900 whitespace-nowrap">
+                                  {p.project_id}
+                                </td>
+                                <td className="py-3 px-3.5 max-w-[240px]">
+                                  <div className="font-semibold text-gray-900 truncate" title={p.title_th}>{p.title_th}</div>
+                                  <div className="text-[10px] text-gray-400 truncate" title={p.title_en}>{p.title_en}</div>
+                                </td>
+                                <td className="py-3 px-3.5 text-gray-600 max-w-[160px] truncate" title={p.members_names || '-'}>
+                                  {p.members_names || '-'}
+                                </td>
+                                <td className="py-3 px-3.5 text-gray-600 whitespace-nowrap">
+                                  {p.department_name || '-'}
+                                </td>
+                                <td className="py-3 px-3.5 text-gray-700 whitespace-nowrap font-medium">
+                                  {p.advisor_name || '-'}
+                                </td>
+                                <td className="py-3 px-3.5 text-center text-gray-600 whitespace-nowrap">
+                                  {p.year}
+                                </td>
+                                <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusInfo.color}`}>
+                                    {statusInfo.label}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedProjectForView(p);
+                                      setIsProjectDetailModalOpen(true);
+                                    }}
+                                    className="h-7 px-2.5 text-[11px] rounded-xl border-purple-200 text-purple-700 hover:bg-purple-50 flex items-center gap-1 mx-auto font-medium"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>ดูรายละเอียด</span>
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={8} className="py-10 text-center text-gray-400 italic">
+                              ไม่พบโครงการนักศึกษาที่ตรงกับเงื่อนไขตัวกรอง
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </CardContent>
@@ -777,7 +1029,7 @@ const Dashboard = () => {
             </Link>
 
             <Link 
-              to="/profile" 
+              to="/profile?tab=resume" 
               className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
             >
               <div className="flex items-center gap-2.5">
@@ -827,6 +1079,141 @@ const Dashboard = () => {
       {/* Monthly News & Events Section */}
       {/* ========================================================================= */}
       <MonthlyNewsSection />
+
+      {/* Requirement 6: Read-Only Project Details Dialog for Dashboard */}
+      <Dialog open={isProjectDetailModalOpen} onOpenChange={setIsProjectDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-purple-100 p-6 bg-white">
+          {selectedProjectForView && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+                    รหัส: {selectedProjectForView.project_id} • ปี พ.ศ. {selectedProjectForView.year}
+                  </span>
+                  {(() => {
+                    const appStatus = (selectedProjectForView.approval_status || 'draft').toLowerCase();
+                    let displayStatusKey = selectedProjectForView.status?.toLowerCase() || 'draft';
+                    if (appStatus === 'pending_approval') displayStatusKey = 'pending_approval';
+                    const statusInfo = PROJECT_STATUS_LABELS[displayStatusKey] || PROJECT_STATUS_LABELS.draft;
+                    return (
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusInfo.color}`}>
+                        {statusInfo.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <DialogTitle className="text-lg font-bold text-gray-900 mt-2 leading-snug">
+                  {selectedProjectForView.title_th}
+                </DialogTitle>
+                <p className="text-xs text-gray-500 italic mt-0.5">{selectedProjectForView.title_en}</p>
+              </DialogHeader>
+
+              {/* Visual Step Bar for Project in Dashboard Dialog */}
+              <div className="bg-gray-50/70 rounded-xl p-3.5 border border-gray-100 my-2">
+                <div className="overflow-x-auto py-1">
+                  <div className="min-w-[620px] max-w-2xl mx-auto">
+                    <div className="relative pt-1 pb-1">
+                      {(() => {
+                        const modalStepIdx = getProjectStepIndex(selectedProjectForView);
+                        return (
+                          <>
+                            <div className="absolute top-[21px] -translate-y-1/2 left-[7.14%] right-[7.14%] h-[7px] bg-[#e5e7eb] rounded-full z-0 overflow-hidden pointer-events-none">
+                              <div
+                                className="h-full bg-[#6b7280] rounded-full transition-all duration-500"
+                                style={{ width: `${(modalStepIdx / (STATUS_STEPS.length - 1)) * 100}%` }}
+                              />
+                            </div>
+
+                            <div className="relative z-10 grid grid-cols-7 gap-2">
+                              {STATUS_STEPS.map((step, idx) => {
+                                const isDone = idx < modalStepIdx;
+                                const isCurrent = idx === modalStepIdx;
+                                const StepIcon = step.icon;
+                                return (
+                                  <div key={step.key} className="flex flex-col items-center text-center select-none">
+                                    <div
+                                      className={`w-[40px] h-[40px] rounded-full flex items-center justify-center transition-all bg-white relative ${
+                                        isCurrent
+                                          ? 'border-[2.5px] border-[#111111] text-[#111111] ring-4 ring-gray-900/15 scale-110 shadow-md font-bold'
+                                          : isDone
+                                            ? 'border-2 border-[#6b7280] text-[#374151] font-bold'
+                                            : 'border-2 border-[#d1d5db] text-[#9ca3af] opacity-60'
+                                      }`}
+                                    >
+                                      {isDone ? (
+                                        <Check className="w-4 h-4 stroke-[2.5] text-[#374151]" />
+                                      ) : (
+                                        <StepIcon className={`w-4 h-4 ${isCurrent ? 'stroke-[2.2] text-[#111111]' : 'stroke-[1.8]'}`} />
+                                      )}
+                                    </div>
+                                    <span className={`mt-2 text-[11px] font-semibold leading-tight text-center max-w-[80px] break-words ${
+                                      isCurrent ? 'text-gray-950 font-bold' : isDone ? 'text-gray-800' : 'text-gray-400'
+                                    }`}>
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <h6 className="font-bold text-gray-700 uppercase tracking-wider mb-1">บทคัดย่อ / รายละเอียด</h6>
+                  <div className="bg-gray-50 p-3.5 rounded-xl text-gray-600 leading-relaxed whitespace-pre-line border border-gray-100 max-h-40 overflow-y-auto">
+                    {selectedProjectForView.description || 'ไม่มีรายละเอียด'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="bg-purple-50/30 p-3 rounded-xl border border-purple-100/50">
+                    <span className="font-bold text-purple-950 block mb-1">อาจารย์ที่ปรึกษา</span>
+                    <p className="text-gray-700">{selectedProjectForView.advisor_name || '-'}</p>
+                    <p className="text-gray-500 text-[11px]">สาขาวิชา: {selectedProjectForView.department_name || '-'}</p>
+                  </div>
+                  <div className="bg-purple-50/30 p-3 rounded-xl border border-purple-100/50">
+                    <span className="font-bold text-purple-950 block mb-1">ผู้จัดทำ (นักศึกษา)</span>
+                    <p className="text-gray-700">{selectedProjectForView.members_names || '-'}</p>
+                    <p className="text-gray-500 text-[11px]">ประเภท: {selectedProjectForView.type === 'group' ? 'โครงงานกลุ่ม' : 'โครงงานเดี่ยว'}</p>
+                  </div>
+                </div>
+
+                {selectedProjectForView.document_url && (
+                  <div className="pt-2">
+                    <a 
+                      href={selectedProjectForView.document_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 font-semibold"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>เปิดดูเอกสารรายงานโครงงาน</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="pt-3 border-t border-gray-100">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setIsProjectDetailModalOpen(false)}
+                  className="text-gray-500 hover:bg-gray-100 rounded-xl text-xs"
+                >
+                  ปิด
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -36,7 +36,11 @@ exports.getDashboardStats = async (req, res) => {
     profiles.forEach(p => {
       const u = userMap[p.profile_id];
       const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
-      if (match) {
+      const isGraduated = p.student_status === 'graduated' || p.graduation_year !== null || (u && u.role === 'alumni');
+
+      if (isGraduated) {
+        alumniCount++;
+      } else if (match) {
         const batch = parseInt(match[1], 10);
         if (batch >= 66) {
           currentStudentCount++;
@@ -44,8 +48,6 @@ exports.getDashboardStats = async (req, res) => {
         } else {
           alumniCount++;
         }
-      } else if (p.graduation_year !== null || (u && u.role === 'alumni')) {
-        alumniCount++;
       } else if (u && u.role === 'student') {
         currentStudentCount++;
         if (u.isActive) activeStudentCount++;
@@ -524,22 +526,70 @@ exports.getProjectReport = async (req, res) => {
       }
     }
 
-    // Count by status
-    const statusCounts = {};
-    const statuses = ['draft', 'approved', 'in_progress', 'waiting_defense', 'passed_defense', 'completed'];
-    
-    for (const s of statuses) {
-      statusCounts[s] = await prisma.project.count({
-        where: { ...where, status: s }
-      });
+    // Base where without status filter for counting
+    const baseWhere = { ...where };
+
+    if (status && status.trim() !== '') {
+      const s = status.trim().toLowerCase();
+      if (s === 'pending_approval') {
+        where.approval_status = 'pending_approval';
+      } else if (s === 'draft') {
+        where.approval_status = 'draft';
+        where.status = 'draft';
+      } else if (s === 'approved') {
+        where.approval_status = 'approved';
+        where.status = { in: ['draft', 'approved'] };
+      } else {
+        where.status = s;
+      }
     }
 
-    const totalProjects = await prisma.project.count({ where });
+    // Count by 7 workflow & progress statuses
+    const statusCounts = {
+      draft: await prisma.project.count({
+        where: { ...baseWhere, approval_status: 'draft', status: 'draft' }
+      }),
+      pending_approval: await prisma.project.count({
+        where: { ...baseWhere, approval_status: 'pending_approval' }
+      }),
+      approved: await prisma.project.count({
+        where: { ...baseWhere, approval_status: 'approved', status: { in: ['draft', 'approved'] } }
+      }),
+      in_progress: await prisma.project.count({
+        where: { ...baseWhere, status: 'in_progress' }
+      }),
+      waiting_defense: await prisma.project.count({
+        where: { ...baseWhere, status: 'waiting_defense' }
+      }),
+      passed_defense: await prisma.project.count({
+        where: { ...baseWhere, status: 'passed_defense' }
+      }),
+      completed: await prisma.project.count({
+        where: { ...baseWhere, status: 'completed' }
+      })
+    };
+
+    const totalProjects = await prisma.project.count({ where: baseWhere });
+
+    // Fetch matching projects list for display in the status report
+    const projectsList = await prisma.project.findMany({
+      where,
+      include: {
+        advisor: { include: { department: true } },
+        advisors: {
+          include: { profile: { include: { department: true } } },
+          orderBy: { role: 'asc' }
+        },
+        members: { include: { profile: true } }
+      },
+      orderBy: { created_at: 'desc' },
+      take: 100
+    });
 
     // Projects by year
     const projectsByYear = await prisma.project.groupBy({
       by: ['year'],
-      where,
+      where: baseWhere,
       _count: { year: true },
       orderBy: { year: 'asc' }
     });
@@ -570,12 +620,20 @@ exports.getProjectReport = async (req, res) => {
       orderBy: { year: 'desc' }
     });
 
+    const statuses = ['draft', 'pending_approval', 'approved', 'in_progress', 'waiting_defense', 'passed_defense', 'completed'];
+
     res.json({
       success: true,
       data: {
         total: totalProjects,
         byStatus: statusCounts,
         byYear: projectsByYearArray,
+        projects: projectsList.map(p => ({
+          ...p,
+          advisor_name: p.advisor ? `${p.advisor.firstname} ${p.advisor.lastname}`.trim() : (p.advisors?.[0]?.profile ? `${p.advisors[0].profile.firstname} ${p.advisors[0].profile.lastname}`.trim() : '-'),
+          department_name: p.advisor?.department?.department_name || p.advisors?.[0]?.profile?.department?.department_name || '-',
+          members_names: (p.members || []).map(m => m.profile ? `${m.profile.firstname} ${m.profile.lastname}`.trim() : '').filter(Boolean).join(', ')
+        })),
         filterOptions: {
           advisors: advisors.map(a => ({ 
             id: a.profile_id, 

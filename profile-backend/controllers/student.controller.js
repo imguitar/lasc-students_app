@@ -10,6 +10,7 @@ const findProfileByIdOrCode = async (idOrCode) => {
       faculty: true,
       department: true,
       addresses: true,
+      educations: { orderBy: { order_index: 'asc' } },
       studentSkills: { include: { skill: true } },
       internships: { orderBy: { start_date: 'desc' } },
       studentProjects: { orderBy: { created_at: 'desc' }, include: { files: true } },
@@ -119,16 +120,6 @@ exports.getAllStudents = async (req, res) => {
         return (match && parseInt(match[1], 10) < 66) || u.role === 'alumni';
       });
     }
-    
-    if (year && typeof year === 'string' && year.trim() !== '') {
-      const parsedYear = parseInt(year, 10);
-      if (!isNaN(parsedYear)) {
-         const currentBE = new Date().getFullYear() + 543;
-         const entryBE = currentBE - parsedYear + 1;
-         const prefix = (entryBE - 2500).toString(); 
-         users = users.filter(u => u.username.startsWith(prefix));
-      }
-    }
 
     if (users.length === 0) {
       return res.json({ success: true, count: 0, data: [] });
@@ -152,17 +143,40 @@ exports.getAllStudents = async (req, res) => {
       profiles = profiles.concat(profilesChunk);
     }
 
-    // กรอง Profile อีกชั้นหนึ่งเพื่อความถูกต้องสมบูรณ์
-    if (filterType === 'current') {
-      profiles = profiles.filter(p => {
-        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
-        return match && parseInt(match[1], 10) >= 66;
+    // 4. Fetch latest effective promotions for these profiles (where effective_date <= today)
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const profileIds = profiles.map(p => p.profile_id);
+    const promotionMap = new Map();
+
+    if (profileIds.length > 0) {
+      const effectiveHistories = await prisma.promotionHistory.findMany({
+        where: {
+          profile_id: { in: profileIds },
+          status: 'promoted',
+          batch: {
+            status: 'executed',
+            effective_date: { lte: endOfToday }
+          }
+        },
+        include: {
+          batch: {
+            select: { academic_year: true, effective_date: true }
+          }
+        },
+        orderBy: [
+          { batch: { academic_year: 'desc' } },
+          { batch: { effective_date: 'desc' } },
+          { id: 'desc' }
+        ]
       });
-    } else if (filterType === 'alumni') {
-      profiles = profiles.filter(p => {
-        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
-        return (match && parseInt(match[1], 10) < 66) || p.graduation_year !== null;
-      });
+
+      for (const h of effectiveHistories) {
+        if (!promotionMap.has(h.profile_id)) {
+          promotionMap.set(h.profile_id, h);
+        }
+      }
     }
 
     const faculties = await prisma.faculty.findMany();
@@ -175,13 +189,46 @@ exports.getAllStudents = async (req, res) => {
     const userMap = {};
     users.forEach(u => { userMap[u.username] = u; });
 
+    const parsedYearFilter = (year && typeof year === 'string' && year.trim() !== '') 
+      ? parseInt(year.trim(), 10) 
+      : null;
+
     let students = profiles.map(p => {
       const user = userMap[p.profile_id];
       if (!user) return null;
 
-      const entryBE = 2500 + parseInt(p.profile_id.substring(0, 2), 10);
-      const currentBE = new Date().getFullYear() + 543;
-      const calYear = Math.max(1, currentBE - entryBE + 1);
+      const promo = promotionMap.get(p.profile_id);
+      let calYear;
+      let isGraduatedByPromo = false;
+
+      if (promo) {
+        calYear = promo.to_year;
+        if (calYear >= 5) {
+          isGraduatedByPromo = true;
+        }
+      } else {
+        const entryBE = 2500 + parseInt(p.profile_id.substring(0, 2), 10);
+        const currentBE = new Date().getFullYear() + 543;
+        calYear = Math.max(1, currentBE - entryBE + 1);
+      }
+
+      const isGraduated = p.student_status === 'graduated' || p.graduation_year !== null || isGraduatedByPromo || user.role === 'alumni';
+
+      // กรองตาม filterType
+      if (filterType === 'current') {
+        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+        const isOldBatch = match && parseInt(match[1], 10) < 66;
+        if (isGraduated || isOldBatch) return null;
+      } else if (filterType === 'alumni') {
+        const match = p.profile_id && p.profile_id.match(/^(\d{2})/);
+        const isOldBatch = match && parseInt(match[1], 10) < 66;
+        if (!isGraduated && !isOldBatch) return null;
+      }
+
+      // กรองตาม year ถ้ามีระบุ
+      if (parsedYearFilter && !isNaN(parsedYearFilter) && calYear !== parsedYearFilter) {
+        return null;
+      }
 
       return {
         id: p.id,
@@ -196,6 +243,7 @@ exports.getAllStudents = async (req, res) => {
         department: departmentMap[p.department_id] || '',
         department_id: p.department_id ? p.department_id.toString() : '',
         year: calYear,
+        student_status: isGraduated ? 'graduated' : (p.student_status || 'active'),
         status: user.isActive ? 'Active' : 'Inactive',
         email: (user.email && !user.email.includes('@student.sskru.ac.th'))
           ? user.email
@@ -249,11 +297,36 @@ exports.getStudent = async (req, res) => {
       }
     });
 
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const latestPromo = await prisma.promotionHistory.findFirst({
+      where: {
+        profile_id: profile.profile_id,
+        status: 'promoted',
+        batch: {
+          status: 'executed',
+          effective_date: { lte: endOfToday }
+        }
+      },
+      include: {
+        batch: {
+          select: { academic_year: true, effective_date: true }
+        }
+      },
+      orderBy: [
+        { batch: { academic_year: 'desc' } },
+        { batch: { effective_date: 'desc' } },
+        { id: 'desc' }
+      ]
+    });
+
     const entryBE = profile.profile_id && /^\d{2}/.test(profile.profile_id)
       ? 2500 + parseInt(profile.profile_id.substring(0, 2), 10)
       : null;
     const currentBE = new Date().getFullYear() + 543;
-    const yearLevel = entryBE ? Math.max(1, currentBE - entryBE + 1) : 1;
+    const yearLevel = latestPromo ? latestPromo.to_year : (entryBE ? Math.max(1, currentBE - entryBE + 1) : 1);
+    const isGraduated = profile.student_status === 'graduated' || profile.graduation_year !== null || yearLevel >= 5 || user?.role === 'alumni';
 
     const data = {
       id: profile.id,
@@ -270,7 +343,7 @@ exports.getStudent = async (req, res) => {
       graduation_year: profile.graduation_year || (entryBE ? entryBE + 4 : null),
       graduation_batch: profile.graduation_batch || '',
       graduation_date: profile.graduation_date,
-      student_status: profile.student_status || 'active',
+      student_status: isGraduated ? 'graduated' : (profile.student_status || 'active'),
       entry_year: entryBE,
       year: yearLevel,
       status: user?.isActive ? 'Active' : 'Inactive',
@@ -372,9 +445,49 @@ exports.getResume = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student/Profile not found' });
     }
 
+    // Authorization: Students can only view their own resume
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to access this resume' });
+    }
+
     const user = await prisma.user.findFirst({
       where: { username: profile.profile_id }
     });
+
+    // Fetch or create Resume record for this student
+    let resumeRecord = await prisma.resume.findUnique({
+      where: { profile_id: profile.profile_id },
+      include: {
+        works: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            portfolioWork: {
+              include: { files: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!resumeRecord) {
+      resumeRecord = await prisma.resume.create({
+        data: { profile_id: profile.profile_id },
+        include: {
+          works: {
+            include: {
+              portfolioWork: {
+                include: { files: true }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const selectedPortfolioWorks = (resumeRecord.works || [])
+      .map(w => w.portfolioWork)
+      .filter(Boolean);
+    const selectedPortfolioWorkIds = (resumeRecord.works || []).map(w => w.portfolio_work_id);
 
     // Thesis project
     const thesis = await prisma.project.findFirst({
@@ -451,6 +564,7 @@ exports.getResume = async (req, res) => {
         graduation_year: profile.graduation_year || (entryBE ? entryBE + 4 : null),
         status: user?.role === 'alumni' ? 'จบการศึกษาแล้ว (Graduated)' : 'กำลังศึกษา (Studying)'
       },
+      educations: profile.educations || [],
       addresses: {
         current: currentAddress,
         registered: registeredAddress
@@ -463,7 +577,11 @@ exports.getResume = async (req, res) => {
       })),
       skills_by_category: skillsByCategory,
       internships: profile.internships,
-      student_projects: profile.studentProjects,
+      resume_id: resumeRecord.id,
+      selected_project_ids: selectedPortfolioWorkIds,
+      selected_projects: selectedPortfolioWorks,
+      student_projects: selectedPortfolioWorks,
+      all_student_projects: profile.studentProjects,
       thesis_project: thesis ? {
         id: thesis.id,
         project_id: thesis.project_id,
@@ -496,7 +614,12 @@ exports.updateResume = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student/Profile not found' });
     }
 
-    const {
+    // Authorization: Students can only update their own resume
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this resume' });
+    }
+
+    let {
       first_name_en,
       last_name_en,
       phone,
@@ -507,8 +630,19 @@ exports.updateResume = async (req, res) => {
       github_url,
       portfolio_url,
       current_address,
-      registered_address
+      registered_address,
+      house_no,
+      village_no,
+      road,
+      subdistrict,
+      district,
+      province,
+      postal_code
     } = req.body;
+
+    if (!current_address && (house_no || village_no || road || subdistrict || district || province || postal_code)) {
+      current_address = { house_no, village_no, road, subdistrict, district, province, postal_code };
+    }
 
     // 1. Update Profile fields
     await prisma.profile.update({
@@ -526,33 +660,48 @@ exports.updateResume = async (req, res) => {
       }
     });
 
+    const buildAddressLine = (addr) => {
+      if (!addr) return '';
+      const parts = [
+        addr.house_no ? `บ้านเลขที่ ${addr.house_no}` : '',
+        addr.village_no ? `หมู่ที่ ${addr.village_no}` : '',
+        addr.road ? `ถนน ${addr.road}` : '',
+        addr.subdistrict ? `ตำบล/แขวง ${addr.subdistrict}` : '',
+        addr.district ? `อำเภอ/เขต ${addr.district}` : '',
+        addr.province ? `จังหวัด ${addr.province}` : '',
+        addr.postal_code || ''
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(' ') : (addr.address_line || '');
+    };
+
     // 2. Upsert Current Address
     if (current_address) {
       const existingCurrent = await prisma.studentAddress.findFirst({
         where: { profile_id: profile.profile_id, type: 'current' }
       });
 
+      const currentData = {
+        house_no: current_address.house_no || null,
+        village_no: current_address.village_no || null,
+        road: current_address.road || null,
+        subdistrict: current_address.subdistrict || null,
+        district: current_address.district || null,
+        province: current_address.province || null,
+        postal_code: current_address.postal_code || null,
+        address_line: current_address.address_line || buildAddressLine(current_address)
+      };
+
       if (existingCurrent) {
         await prisma.studentAddress.update({
           where: { id: existingCurrent.id },
-          data: {
-            address_line: current_address.address_line,
-            subdistrict: current_address.subdistrict,
-            district: current_address.district,
-            province: current_address.province,
-            postal_code: current_address.postal_code
-          }
+          data: currentData
         });
       } else {
         await prisma.studentAddress.create({
           data: {
             profile_id: profile.profile_id,
             type: 'current',
-            address_line: current_address.address_line,
-            subdistrict: current_address.subdistrict,
-            district: current_address.district,
-            province: current_address.province,
-            postal_code: current_address.postal_code
+            ...currentData
           }
         });
       }
@@ -564,27 +713,28 @@ exports.updateResume = async (req, res) => {
         where: { profile_id: profile.profile_id, type: 'registered' }
       });
 
+      const registeredData = {
+        house_no: registered_address.house_no || null,
+        village_no: registered_address.village_no || null,
+        road: registered_address.road || null,
+        subdistrict: registered_address.subdistrict || null,
+        district: registered_address.district || null,
+        province: registered_address.province || null,
+        postal_code: registered_address.postal_code || null,
+        address_line: registered_address.address_line || buildAddressLine(registered_address)
+      };
+
       if (existingReg) {
         await prisma.studentAddress.update({
           where: { id: existingReg.id },
-          data: {
-            address_line: registered_address.address_line,
-            subdistrict: registered_address.subdistrict,
-            district: registered_address.district,
-            province: registered_address.province,
-            postal_code: registered_address.postal_code
-          }
+          data: registeredData
         });
       } else {
         await prisma.studentAddress.create({
           data: {
             profile_id: profile.profile_id,
             type: 'registered',
-            address_line: registered_address.address_line,
-            subdistrict: registered_address.subdistrict,
-            district: registered_address.district,
-            province: registered_address.province,
-            postal_code: registered_address.postal_code
+            ...registeredData
           }
         });
       }
@@ -594,6 +744,250 @@ exports.updateResume = async (req, res) => {
   } catch (error) {
     console.error('Error updating resume:', error);
     res.status(500).json({ success: false, message: 'Error updating resume', error: error.message });
+  }
+};
+
+// ==========================================
+// RESUME PORTFOLIO WORKS (SELECTION)
+// ==========================================
+
+// @desc    Get selected portfolio works for Resume
+// @route   GET /api/students/:id/resume/works
+// @access  Private
+exports.getResumeWorks = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Student/Profile not found' });
+    }
+
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to access this resume' });
+    }
+
+    let resumeRecord = await prisma.resume.findUnique({
+      where: { profile_id: profile.profile_id },
+      include: {
+        works: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            portfolioWork: {
+              include: { files: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!resumeRecord) {
+      resumeRecord = await prisma.resume.create({
+        data: { profile_id: profile.profile_id },
+        include: {
+          works: {
+            include: {
+              portfolioWork: {
+                include: { files: true }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const selectedWorks = (resumeRecord.works || [])
+      .map(w => w.portfolioWork)
+      .filter(Boolean);
+    const selectedIds = (resumeRecord.works || []).map(w => w.portfolio_work_id);
+
+    res.json({
+      success: true,
+      resume_id: resumeRecord.id,
+      selected_ids: selectedIds,
+      count: selectedWorks.length,
+      data: selectedWorks
+    });
+  } catch (error) {
+    console.error('Error fetching resume works:', error);
+    res.status(500).json({ success: false, message: 'Error fetching resume works', error: error.message });
+  }
+};
+
+// @desc    Sync / Batch select portfolio works for Resume
+// @route   PUT /api/students/:id/resume/works
+// @access  Private
+exports.syncResumeWorks = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Student/Profile not found' });
+    }
+
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this resume' });
+    }
+
+    const { portfolio_work_ids } = req.body;
+    const ids = Array.isArray(portfolio_work_ids)
+      ? portfolio_work_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+      : [];
+
+    // Verify all portfolio works belong to this student (prevents unauthorized linking)
+    let validIds = [];
+    if (ids.length > 0) {
+      const studentProjects = await prisma.studentProject.findMany({
+        where: {
+          profile_id: profile.profile_id,
+          id: { in: ids }
+        },
+        select: { id: true }
+      });
+      // Preserve requested order
+      const validSet = new Set(studentProjects.map(p => p.id));
+      validIds = ids.filter(id => validSet.has(id));
+    }
+
+    let resumeRecord = await prisma.resume.findUnique({
+      where: { profile_id: profile.profile_id }
+    });
+
+    if (!resumeRecord) {
+      resumeRecord = await prisma.resume.create({
+        data: { profile_id: profile.profile_id }
+      });
+    }
+
+    // Atomically replace resume_works without touching student_projects
+    await prisma.$transaction(async (tx) => {
+      await tx.resumeWork.deleteMany({
+        where: { resume_id: resumeRecord.id }
+      });
+
+      if (validIds.length > 0) {
+        await tx.resumeWork.createMany({
+          data: validIds.map((workId, index) => ({
+            resume_id: resumeRecord.id,
+            portfolio_work_id: workId,
+            order_index: index
+          }))
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'บันทึกการเลือกผลงานลงเรซูเม่เรียบร้อยแล้ว',
+      selected_ids: validIds,
+      count: validIds.length
+    });
+  } catch (error) {
+    console.error('Error syncing resume works:', error);
+    res.status(500).json({ success: false, message: 'Error syncing resume works', error: error.message });
+  }
+};
+
+// @desc    Add a single portfolio work to Resume
+// @route   POST /api/students/:id/resume/works
+// @access  Private
+exports.addResumeWork = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Student/Profile not found' });
+    }
+
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this resume' });
+    }
+
+    const { portfolio_work_id } = req.body;
+    const workId = parseInt(portfolio_work_id, 10);
+    if (isNaN(workId)) {
+      return res.status(400).json({ success: false, message: 'Invalid portfolio_work_id' });
+    }
+
+    // Verify project belongs to this student
+    const project = await prisma.studentProject.findFirst({
+      where: { id: workId, profile_id: profile.profile_id }
+    });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Portfolio work not found for this student' });
+    }
+
+    let resumeRecord = await prisma.resume.findUnique({
+      where: { profile_id: profile.profile_id }
+    });
+
+    if (!resumeRecord) {
+      resumeRecord = await prisma.resume.create({
+        data: { profile_id: profile.profile_id }
+      });
+    }
+
+    // Upsert or insert if not existing
+    const existing = await prisma.resumeWork.findUnique({
+      where: {
+        resume_id_portfolio_work_id: {
+          resume_id: resumeRecord.id,
+          portfolio_work_id: workId
+        }
+      }
+    });
+
+    if (!existing) {
+      await prisma.resumeWork.create({
+        data: {
+          resume_id: resumeRecord.id,
+          portfolio_work_id: workId
+        }
+      });
+    }
+
+    res.status(201).json({ success: true, message: 'เพิ่มผลงานเข้าเรซูเม่สำเร็จ', portfolio_work_id: workId });
+  } catch (error) {
+    console.error('Error adding resume work:', error);
+    res.status(500).json({ success: false, message: 'Error adding resume work', error: error.message });
+  }
+};
+
+// @desc    Remove a portfolio work from Resume
+// @route   DELETE /api/students/:id/resume/works/:workId
+// @access  Private
+exports.removeResumeWork = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Student/Profile not found' });
+    }
+
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this resume' });
+    }
+
+    const workId = parseInt(req.params.workId, 10);
+    if (isNaN(workId)) {
+      return res.status(400).json({ success: false, message: 'Invalid workId' });
+    }
+
+    const resumeRecord = await prisma.resume.findUnique({
+      where: { profile_id: profile.profile_id }
+    });
+
+    if (resumeRecord) {
+      await prisma.resumeWork.deleteMany({
+        where: {
+          resume_id: resumeRecord.id,
+          OR: [
+            { portfolio_work_id: workId },
+            { id: workId }
+          ]
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'ยกเลิกผลงานออกจากเรซูเม่สำเร็จ' });
+  } catch (error) {
+    console.error('Error removing resume work:', error);
+    res.status(500).json({ success: false, message: 'Error removing resume work', error: error.message });
   }
 };
 
@@ -764,6 +1158,8 @@ exports.createInternship = async (req, res) => {
         hours: data.hours ? parseInt(data.hours) : 0,
         description: data.description || null,
         skills_used: data.skills_used || [],
+        project_outcome: data.project_outcome || null,
+        attachment_url: data.attachment_url || null,
         evaluation_score: data.evaluation_score ? parseFloat(data.evaluation_score) : null,
         evaluation_status: data.evaluation_status || 'pending',
         status: data.status || 'in_progress'
@@ -797,6 +1193,8 @@ exports.updateInternship = async (req, res) => {
         hours: data.hours !== undefined ? parseInt(data.hours) : undefined,
         description: data.description,
         skills_used: data.skills_used,
+        project_outcome: data.project_outcome !== undefined ? data.project_outcome : undefined,
+        attachment_url: data.attachment_url !== undefined ? data.attachment_url : undefined,
         evaluation_score: data.evaluation_score !== undefined ? parseFloat(data.evaluation_score) : undefined,
         evaluation_status: data.evaluation_status,
         status: data.status
@@ -823,6 +1221,102 @@ exports.deleteInternship = async (req, res) => {
 };
 
 // ==========================================
+// STUDENT EDUCATION CRUD
+// ==========================================
+
+// @desc    Get student educations
+// @route   GET /api/students/:id/educations
+// @access  Private
+exports.getStudentEducations = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    const educations = await prisma.studentEducation.findMany({
+      where: { profile_id: profile.profile_id },
+      orderBy: { order_index: 'asc' }
+    });
+
+    res.json({ success: true, count: educations.length, data: educations });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching educations', error: error.message });
+  }
+};
+
+// @desc    Create student education
+// @route   POST /api/students/:id/educations
+// @access  Private
+exports.createStudentEducation = async (req, res) => {
+  try {
+    const profile = await findProfileByIdOrCode(req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    const { level, institution_name, major, start_year, end_year, gpa, order_index } = req.body;
+    if (!level || !institution_name) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุระดับการศึกษาและชื่อสถานศึกษา' });
+    }
+
+    const education = await prisma.studentEducation.create({
+      data: {
+        profile_id: profile.profile_id,
+        level: level.trim(),
+        institution_name: institution_name.trim(),
+        major: major ? major.trim() : null,
+        start_year: start_year ? parseInt(start_year, 10) : null,
+        end_year: end_year ? parseInt(end_year, 10) : null,
+        gpa: gpa ? String(gpa).trim() : null,
+        order_index: order_index !== undefined ? parseInt(order_index, 10) : 0
+      }
+    });
+
+    res.status(201).json({ success: true, message: 'บันทึกประวัติการศึกษาสำเร็จ', data: education });
+  } catch (error) {
+    console.error('Error creating education:', error);
+    res.status(500).json({ success: false, message: 'Error creating education', error: error.message });
+  }
+};
+
+// @desc    Update student education
+// @route   PUT /api/students/:id/educations/:educationId
+// @access  Private
+exports.updateStudentEducation = async (req, res) => {
+  try {
+    const eduId = parseInt(req.params.educationId, 10);
+    const { level, institution_name, major, start_year, end_year, gpa, order_index } = req.body;
+
+    const updated = await prisma.studentEducation.update({
+      where: { id: eduId },
+      data: {
+        level: level !== undefined ? level.trim() : undefined,
+        institution_name: institution_name !== undefined ? institution_name.trim() : undefined,
+        major: major !== undefined ? (major ? major.trim() : null) : undefined,
+        start_year: start_year !== undefined ? (start_year ? parseInt(start_year, 10) : null) : undefined,
+        end_year: end_year !== undefined ? (end_year ? parseInt(end_year, 10) : null) : undefined,
+        gpa: gpa !== undefined ? (gpa ? String(gpa).trim() : null) : undefined,
+        order_index: order_index !== undefined ? parseInt(order_index, 10) : undefined
+      }
+    });
+
+    res.json({ success: true, message: 'แก้ไขประวัติการศึกษาสำเร็จ', data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating education', error: error.message });
+  }
+};
+
+// @desc    Delete student education
+// @route   DELETE /api/students/:id/educations/:educationId
+// @access  Private
+exports.deleteStudentEducation = async (req, res) => {
+  try {
+    const eduId = parseInt(req.params.educationId, 10);
+    await prisma.studentEducation.delete({ where: { id: eduId } });
+    res.json({ success: true, message: 'ลบประวัติการศึกษาสำเร็จ' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error deleting education', error: error.message });
+  }
+};
+
+// ==========================================
 // STUDENT PROJECTS CRUD (Semester Projects)
 // ==========================================
 
@@ -833,6 +1327,11 @@ exports.getStudentProjects = async (req, res) => {
   try {
     const profile = await findProfileByIdOrCode(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    // Authorization: Students can only view their own projects
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to access these projects' });
+    }
 
     const projects = await prisma.studentProject.findMany({
       where: { profile_id: profile.profile_id },
@@ -853,6 +1352,11 @@ exports.createStudentProject = async (req, res) => {
   try {
     const profile = await findProfileByIdOrCode(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    // Authorization: Students can only create projects for themselves
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== profile.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to manage these projects' });
+    }
 
     const data = req.body;
     if (!data.title) {
@@ -895,6 +1399,14 @@ exports.createStudentProject = async (req, res) => {
 exports.updateStudentProject = async (req, res) => {
   try {
     const projId = parseInt(req.params.projectId);
+    const existing = await prisma.studentProject.findUnique({ where: { id: projId } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Project not found' });
+
+    // Authorization: Students can only update their own project
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== existing.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this project' });
+    }
+
     const data = req.body;
 
     const updated = await prisma.studentProject.update({
@@ -932,6 +1444,14 @@ exports.updateStudentProject = async (req, res) => {
 exports.deleteStudentProject = async (req, res) => {
   try {
     const projId = parseInt(req.params.projectId);
+    const existing = await prisma.studentProject.findUnique({ where: { id: projId } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Project not found' });
+
+    // Authorization: Students can only delete their own project
+    if ((req.user.role === 'student' || req.user.role === 'alumni') && req.user.username !== existing.profile_id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to delete this project' });
+    }
+
     await prisma.studentProject.delete({ where: { id: projId } });
     res.json({ success: true, message: 'ลบผลงานสำเร็จ' });
   } catch (error) {

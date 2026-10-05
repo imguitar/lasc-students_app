@@ -1,7 +1,9 @@
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
+const { initSocket } = require('./socket');
 
 // Load environment variables BEFORE importing prismaClient
 // so DATABASE_URL is available when PrismaClient is instantiated
@@ -10,6 +12,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const prisma = require('./prismaClient');
 
 const app = express();
+const server = http.createServer(app);
 
 // CORS Configuration — ต้องอยู่ก่อนสุด เพื่อให้ preflight OPTIONS ตอบกลับเสมอ
 const allowedOrigins = process.env.CORS_ORIGIN
@@ -64,6 +67,8 @@ const skillRoutes = require('./routes/skill.routes');
 const studentProjectRoutes = require('./routes/studentProject.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const newsEventRoutes = require('./routes/newsEvent.routes');
+const chatBoardRoutes = require('./routes/chatBoard.routes');
+const promotionRoutes = require('./routes/promotion.routes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -80,6 +85,8 @@ app.use('/api/skills', skillRoutes);
 app.use('/api/student-projects', studentProjectRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/news-events', newsEventRoutes);
+app.use('/api/chat-board', chatBoardRoutes);
+app.use('/api/admin/student-promotion', promotionRoutes);
 
 // Serve uploaded files as static assets
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -115,8 +122,11 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Initialize Socket.IO
+initSocket(server, corsOptions);
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT} (with Socket.IO)`);
 });

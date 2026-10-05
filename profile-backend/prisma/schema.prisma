@@ -31,6 +31,11 @@ enum ProjectStatus {
   completed
 }
 
+enum AdvisorRole {
+  main
+  co
+}
+
 enum AddressType {
   current
   registered
@@ -72,6 +77,13 @@ enum ProjectType {
   group
 }
 
+enum EmailNotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
 // ==========================================
 // MODELS
 // ==========================================
@@ -83,6 +95,7 @@ model Faculty {
   // Relations
   departments  Department[]
   profiles     Profile[]
+  newsEvents   NewsEvent[]
 
   @@map("faculties")
 }
@@ -98,9 +111,12 @@ model Department {
   updated_at         DateTime  @updatedAt
 
   // Relations
-  faculty         Faculty   @relation(fields: [faculty_id], references: [id], onDelete: Cascade)
-  profiles        Profile[] @relation("DepartmentMembers")
-  head            Profile?  @relation("DepartmentHead", fields: [department_head_id], references: [id], onDelete: SetNull)
+  faculty         Faculty          @relation(fields: [faculty_id], references: [id], onDelete: Cascade)
+  profiles        Profile[]        @relation("DepartmentMembers")
+  head            Profile?         @relation("DepartmentHead", fields: [department_head_id], references: [id], onDelete: SetNull)
+  posts           DepartmentPost[]
+  newsEvents      NewsEvent[]
+  chatRoom        ChatRoom?
 
   @@map("departments")
 }
@@ -145,12 +161,20 @@ model Profile {
   studentProjects   StudentProject[]
   internships       Internship[]
   alumniEmployments AlumniEmployment[]
+  educations        StudentEducation[]
+  resume            Resume?
 
   // Relations ขาออก (Has Many)
-  projectsAsAdvisor Project[]        @relation("ProjectAdvisor")
-  projectsCreated   Project[]        @relation("ProjectCreator")
-  projectComments   ProjectComment[]
-  projectMembers    ProjectMember[]
+  projectsAsAdvisor  Project[]           @relation("ProjectAdvisor")
+  projectAdvisors    ProjectAdvisor[]
+  projectsCreated    Project[]           @relation("ProjectCreator")
+  projectComments    ProjectComment[]
+  projectMembers     ProjectMember[]
+  departmentPosts    DepartmentPost[]
+  departmentComments DepartmentComment[]
+  chatMessages       ChatMessage[]
+  chatReactions      ChatMessageReaction[]
+  promotionHistories PromotionHistory[]
 
   @@map("profile")
 }
@@ -172,15 +196,56 @@ model Project {
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
 
+  // Workflow การขออนุมัติโครงการ
+  approval_status       String        @default("draft") @db.VarChar(30)
+  approval_requested_at DateTime?
+  approved_at           DateTime?
+  approved_by           String?       @db.VarChar(13)
+  rejected_at           DateTime?
+  rejected_by           String?       @db.VarChar(13)
+  rejection_reason      String?       @db.Text
+
   // Relations ขาเข้า
   advisor   Profile? @relation("ProjectAdvisor", fields: [advisor_profile_id], references: [profile_id], onDelete: SetNull)
   createdBy Profile? @relation("ProjectCreator", fields: [created_by_profile_id], references: [profile_id], onDelete: SetNull)
 
   // Relations ขาออก
-  comments  ProjectComment[]
-  members   ProjectMember[]
+  comments        ProjectComment[]
+  members         ProjectMember[]
+  advisors        ProjectAdvisor[]
+  approvalHistory ProjectApprovalHistory[]
 
   @@map("projects")
+}
+
+model ProjectApprovalHistory {
+  id               Int       @id @default(autoincrement())
+  project_id       Int
+  action           String    @db.VarChar(50)
+  requested_by     String?   @db.VarChar(13)
+  requested_at     DateTime?
+  acted_by         String    @db.VarChar(13)
+  acted_at         DateTime  @default(now())
+  rejection_reason String?   @db.Text
+  comments         String?   @db.Text
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("project_approval_history")
+}
+
+model ProjectAdvisor {
+  id         Int         @id @default(autoincrement())
+  project_id Int
+  profile_id String      @db.VarChar(13)
+  role       AdvisorRole @default(main)
+  created_at DateTime    @default(now())
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@unique([project_id, profile_id])
+  @@map("project_advisors")
 }
 
 model ProjectComment {
@@ -219,7 +284,9 @@ model User {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  newsEvents NewsEvent[]
+  newsEvents         NewsEvent[]
+  promotionBatches   PromotionBatch[]
+  emailNotifications EventEmailNotification[]
 
   @@map("user")
 }
@@ -229,6 +296,9 @@ model StudentAddress {
   profile_id   String      @db.VarChar(13)
   type         AddressType @default(current)
   address_line String?     @db.VarChar(255)
+  house_no     String?     @db.VarChar(50)
+  village_no   String?     @db.VarChar(50)
+  road         String?     @db.VarChar(100)
   subdistrict  String?     @db.VarChar(100)
   district     String?     @db.VarChar(100)
   province     String?     @db.VarChar(100)
@@ -290,8 +360,9 @@ model StudentProject {
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
-  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
-  files   StudentProjectFile[]
+  profile     Profile              @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+  files       StudentProjectFile[]
+  resumeWorks ResumeWork[]
 
   @@map("student_projects")
 }
@@ -323,6 +394,8 @@ model Internship {
   hours             Int?             @default(0)
   description       String?          @db.Text
   skills_used       Json?
+  project_outcome   String?          @db.Text
+  attachment_url    String?          @db.VarChar(500)
   evaluation_score  Float?
   evaluation_status String?          @default("pending") @db.VarChar(50)
   status            InternshipStatus @default(in_progress)
@@ -355,26 +428,232 @@ model AlumniEmployment {
   @@map("alumni_employments")
 }
 
-model NewsEvent {
-  id             Int       @id @default(autoincrement())
-  title          String    @db.VarChar(255)
-  description    String    @db.Text
-  type           String    @db.VarChar(100)
-  event_date     DateTime  @db.Date
-  start_time     String?   @db.VarChar(20)
-  end_time       String?   @db.VarChar(20)
-  location       String?   @db.VarChar(255)
-  image_url      String?   @db.VarChar(500)
-  attachment_url String?   @db.VarChar(500)
-  attachment_name String?  @db.VarChar(255)
-  is_pinned      Boolean   @default(false)
-  is_published   Boolean   @default(true)
-  created_by     Int?
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+model StudentEducation {
+  id               Int      @id @default(autoincrement())
+  profile_id       String   @db.VarChar(13)
+  level            String   @db.VarChar(100)
+  institution_name String   @db.VarChar(255)
+  major            String?  @db.VarChar(255)
+  start_year       Int?
+  end_year         Int?
+  gpa              String?  @db.VarChar(10)
+  order_index      Int      @default(0)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
-  creator        User?     @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  profile Profile @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("student_educations")
+}
+
+model DepartmentPost {
+  id                Int       @id @default(autoincrement())
+  department_id     Int
+  author_profile_id String    @db.VarChar(13)
+  author_name       String    @db.VarChar(255)
+  author_role       String    @db.VarChar(50)
+  title             String    @db.VarChar(255)
+  content           String    @db.Text
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  department Department          @relation(fields: [department_id], references: [id], onDelete: Cascade)
+  author     Profile             @relation(fields: [author_profile_id], references: [profile_id], onDelete: Cascade)
+  comments   DepartmentComment[]
+
+  @@map("department_posts")
+}
+
+model DepartmentComment {
+  id                Int       @id @default(autoincrement())
+  post_id           Int
+  author_profile_id String    @db.VarChar(13)
+  author_name       String    @db.VarChar(255)
+  author_role       String    @db.VarChar(50)
+  content           String    @db.Text
+  created_at        DateTime  @default(now())
+
+  post   DepartmentPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  author Profile        @relation(fields: [author_profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@map("department_comments")
+}
+
+model NewsEvent {
+  id              Int         @id @default(autoincrement())
+  title           String      @db.VarChar(255)
+  description     String      @db.Text
+  type            String      @db.VarChar(100)
+  event_date      DateTime    @db.Date
+  start_time      String?     @db.VarChar(20)
+  end_time        String?     @db.VarChar(20)
+  location        String?     @db.VarChar(255)
+  image_url       String?     @db.VarChar(500)
+  attachment_url  String?     @db.VarChar(500)
+  attachment_name String?     @db.VarChar(255)
+  is_pinned       Boolean     @default(false)
+  is_published    Boolean     @default(true)
+  created_by      Int?
+  target_type     String      @default("all") @db.VarChar(50)
+  faculty_id      Int?
+  department_id   Int?
+  year_level      Int?
+  end_date        DateTime?   @db.Date
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+
+  creator            User?                    @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  faculty            Faculty?                 @relation(fields: [faculty_id], references: [id], onDelete: SetNull)
+  department         Department?              @relation(fields: [department_id], references: [id], onDelete: SetNull)
+  emailNotifications EventEmailNotification[]
 
   @@map("news_events")
 }
 
+model Resume {
+  id         Int          @id @default(autoincrement())
+  profile_id String       @unique @db.VarChar(13)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  profile    Profile      @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+  works      ResumeWork[]
+
+  @@map("resumes")
+}
+
+model ResumeWork {
+  id                Int            @id @default(autoincrement())
+  resume_id         Int
+  portfolio_work_id Int
+  order_index       Int            @default(0)
+  created_at        DateTime       @default(now())
+
+  resume            Resume         @relation(fields: [resume_id], references: [id], onDelete: Cascade)
+  portfolioWork     StudentProject @relation(fields: [portfolio_work_id], references: [id], onDelete: Cascade)
+
+  @@unique([resume_id, portfolio_work_id])
+  @@map("resume_works")
+}
+
+model ChatRoom {
+  id            Int           @id @default(autoincrement())
+  department_id Int           @unique
+  name          String        @db.VarChar(255)
+  description   String?       @db.Text
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  department    Department    @relation(fields: [department_id], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+model ChatMessage {
+  id                  Int                   @id @default(autoincrement())
+  room_id             Int
+  author_profile_id   String                @db.VarChar(13)
+  author_name         String                @db.VarChar(255)
+  author_role         String                @db.VarChar(50)
+  author_year         Int?
+  message             String                @db.Text
+  file_url            String?               @db.VarChar(500)
+  file_name           String?               @db.VarChar(255)
+  file_size           Int?
+  file_type           String?               @db.VarChar(100)
+  image_url           String?               @db.VarChar(500)
+  reply_to_message_id Int?
+  is_edited           Boolean               @default(false)
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @updatedAt
+
+  room                ChatRoom              @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  author              Profile               @relation(fields: [author_profile_id], references: [profile_id], onDelete: Cascade)
+  replyTo             ChatMessage?          @relation("MessageReplies", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+  replies             ChatMessage[]         @relation("MessageReplies")
+  reactions           ChatMessageReaction[]
+
+  @@map("chat_messages")
+}
+
+model ChatMessageReaction {
+  id                Int         @id @default(autoincrement())
+  message_id        Int
+  user_profile_id   String      @db.VarChar(13)
+  user_name         String      @db.VarChar(255)
+  reaction_type     String      @db.VarChar(20)
+  created_at        DateTime    @default(now())
+
+  message           ChatMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user              Profile     @relation(fields: [user_profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@unique([message_id, user_profile_id, reaction_type])
+  @@map("chat_message_reactions")
+}
+
+// ==========================================
+// STUDENT YEAR PROMOTION
+// ==========================================
+
+model PromotionBatch {
+  id             Int       @id @default(autoincrement())
+  academic_year  Int
+  from_year      Int
+  to_year        Int
+  effective_date DateTime  @db.Date
+  status         String    @default("pending") @db.VarChar(30)
+  notes          String?   @db.Text
+  total_eligible Int       @default(0)
+  total_promoted Int       @default(0)
+  created_by     Int
+  created_at     DateTime  @default(now())
+  executed_at    DateTime?
+
+  creator   User                @relation(fields: [created_by], references: [id], onDelete: Restrict)
+  histories PromotionHistory[]
+
+  @@map("promotion_batches")
+}
+
+model PromotionHistory {
+  id         Int      @id @default(autoincrement())
+  batch_id   Int
+  profile_id String   @db.VarChar(13)
+  from_year  Int
+  to_year    Int
+  status     String   @default("promoted") @db.VarChar(30)
+  created_at DateTime @default(now())
+
+  batch   PromotionBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  profile Profile        @relation(fields: [profile_id], references: [profile_id], onDelete: Cascade)
+
+  @@unique([batch_id, profile_id])
+  @@map("promotion_histories")
+}
+
+model EventEmailNotification {
+  id              Int                     @id @default(autoincrement())
+  news_event_id   Int
+  user_id         Int?
+  recipient_email String                  @db.VarChar(191)
+  recipient_name  String?                 @db.VarChar(255)
+  recipient_role  String?                 @db.VarChar(50)
+  status          EmailNotificationStatus @default(PENDING)
+  error_message   String?                 @db.Text
+  batch_id        String?                 @db.VarChar(50)
+  sent_at         DateTime?
+  created_at      DateTime                @default(now())
+  updated_at      DateTime                @updatedAt
+
+  newsEvent NewsEvent @relation(fields: [news_event_id], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([news_event_id])
+  @@index([user_id])
+  @@index([status])
+  @@index([news_event_id, user_id])
+  @@index([news_event_id, recipient_email])
+  @@index([batch_id])
+  @@map("event_email_notifications")
+}

@@ -18,7 +18,9 @@ import {
   X,
   User,
   ChevronRight,
-  Megaphone
+  Megaphone,
+  MessageSquare,
+  ArrowUpCircle
 } from 'lucide-react';
 
 const Layout = () => {
@@ -52,9 +54,11 @@ const Layout = () => {
   const menuItems = [
     { path: '/', label: 'แดชบอร์ด', icon: LayoutDashboard, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/students', label: (user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'advisor') ? 'จัดการนักศึกษา' : 'ทำเนียบนักศึกษา', icon: Users, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
+    { path: '/student-promotion', label: 'จัดการเลื่อนชั้นปี', icon: ArrowUpCircle, roles: ['admin'] },
     { path: '/alumni', label: 'ทำเนียบศิษย์เก่า', icon: GraduationCap, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/projects', label: 'จัดการโปรเจคจบ', icon: FolderKanban, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/news-events', label: 'ข่าวสารและกิจกรรม', icon: Megaphone, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
+    { path: '/chat-board', label: 'แชทสาขาวิชา', icon: MessageSquare, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/advisors', label: 'ทำเนียบอาจารย์', icon: UserCircle, roles: ['admin', 'teacher', 'advisor', 'student'] },
     { path: '/portfolio', label: 'ผลงานนักศึกษา', icon: Briefcase, roles: ['admin', 'teacher', 'advisor', 'student', 'alumni'] },
     { path: '/departments', label: 'ข้อมูลสาขาวิชา', icon: Building2, roles: ['admin', 'teacher', 'advisor'] },
@@ -160,11 +164,11 @@ const Layout = () => {
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside
-          className={`fixed md:sticky top-16 left-0 h-[calc(100vh-4rem)] bg-white/70 backdrop-blur-md border-r border-purple-100/40 transition-all duration-300 ease-in-out z-40 ${
+          className={`fixed md:sticky top-16 left-0 h-[calc(100vh-4rem)] bg-white/70 backdrop-blur-md border-r border-purple-100/40 transition-all duration-300 ease-in-out z-40 overflow-y-auto custom-scrollbar flex flex-col ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
           } w-64`}
         >
-          <nav className="p-4 space-y-1.5">
+          <nav className="p-4 space-y-1.5 flex-1 pb-10">
             {/* User Profile Card for Mobile Drawer */}
             <Link
               to="/profile"

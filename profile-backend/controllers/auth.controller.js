@@ -98,6 +98,14 @@ exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
     // Check if user exists — ใช้ findUnique เพื่อให้ใช้ index (เร็วกว่า findFirst + OR)
     const user =
       (await prisma.user.findUnique({ where: { username } })) ??
@@ -107,7 +115,8 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid credentials' 
+        message: 'ไม่พบชื่อผู้ใช้งานหรืออีเมลนี้ในระบบ',
+        code: 'USER_NOT_FOUND'
       });
     }
 
@@ -115,7 +124,8 @@ exports.login = async (req, res) => {
     if (!user.isActive) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Account is deactivated' 
+        message: 'บัญชีนี้ถูกระงับการใช้งาน',
+        code: 'ACCOUNT_DEACTIVATED'
       });
     }
 
@@ -125,7 +135,8 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid credentials' 
+        message: 'รหัสผ่านไม่ถูกต้อง',
+        code: 'INVALID_PASSWORD'
       });
     }
 
@@ -163,10 +174,11 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Error logging in',
-      error: error.message 
+      message: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง',
+      code: 'SERVER_ERROR'
     });
   }
 };

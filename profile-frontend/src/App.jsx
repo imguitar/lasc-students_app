@@ -14,6 +14,8 @@ import Profile from './pages/Profile';
 import Departments from './pages/Departments';
 import Portfolio from './pages/Portfolio';
 import NewsEvents from './pages/NewsEvents';
+import ChatBoard from './pages/ChatBoard';
+import StudentPromotion from './pages/StudentPromotion';
 
 function App() {
   return (
@@ -31,13 +33,16 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="students" element={<Students />} />
+            <Route path="student-promotion" element={<StudentPromotion />} />
             <Route path="alumni" element={<Alumni />} />
             <Route path="projects" element={<Projects />} />
             <Route path="news-events" element={<NewsEvents />} />
+            <Route path="chat-board" element={<ChatBoard />} />
             <Route path="advisors" element={<Advisors />} />
             <Route path="profile" element={<Profile />} />
             <Route path="departments" element={<Departments />} />
             <Route path="portfolio" element={<Portfolio />} />
+            <Route path="resume" element={<Navigate to="/profile?tab=resume" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

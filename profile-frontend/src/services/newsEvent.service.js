@@ -41,6 +41,27 @@ export const newsEventService = {
   togglePublish: async (id) => {
     const response = await api.patch(`/news-events/${id}/publish`);
     return response.data;
+  },
+
+  // Email Notifications (Admin only)
+  getEmailRecipients: async (id, params = {}) => {
+    const response = await api.get(`/news-events/${id}/email-recipients`, { params });
+    return response.data;
+  },
+
+  sendEmailBatch: async (id, data = {}) => {
+    const response = await api.post(`/news-events/${id}/send-email`, data);
+    return response.data;
+  },
+
+  getEmailHistory: async (id) => {
+    const response = await api.get(`/news-events/${id}/email-history`);
+    return response.data;
+  },
+
+  retryFailedEmail: async (id, data = {}) => {
+    const response = await api.post(`/news-events/${id}/retry-failed-email`, data);
+    return response.data;
   }
 };
 
