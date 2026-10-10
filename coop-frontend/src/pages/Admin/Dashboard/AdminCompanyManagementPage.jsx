@@ -9,18 +9,11 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatusBadge from '../../../components/StatusBadge';
 import {
   BuildingOffice2Icon,
-  PlusIcon,
   ArrowUpTrayIcon,
   TrashIcon,
-  PencilSquareIcon,
   MagnifyingGlassIcon,
   ArrowDownTrayIcon,
   DocumentArrowUpIcon,
-  MapPinIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  BriefcaseIcon,
-  SparklesIcon,
   AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import {
@@ -40,13 +33,17 @@ import {
   DialogActions,
   Button,
   IconButton,
-  Tooltip,
   Checkbox,
+  Tabs,
+  Tab,
   Typography,
   Snackbar,
   Alert,
   Chip,
+  Menu,
+  Tooltip,
 } from '@mui/material';
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, Eye, Info, MapPin, MoreVertical, Pencil, Plus, Trash2, UploadCloud, UserCheck } from 'lucide-react';
 import './AdminDashboardPage.css';
 
 const ALL_DEPARTMENTS = [
@@ -172,13 +169,14 @@ const AdminCompanyManagementPage = () => {
   });
 
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [actionMenu, setActionMenu] = useState({ anchor: null, comp: null });
   const fileInputRef = useRef(null);
   const [userRole, setUserRole] = useState('admin');
   const isAdmin = userRole === 'admin';
-  const [studentsModal, setStudentsModal] = useState({ open: false, company: null, students: [], loading: false });
+  const [studentsModal, setStudentsModal] = useState({ open: false, company: null, students: [], loading: false, tab: 'active' });
 
   const handleOpenStudentsModal = async (comp) => {
-    setStudentsModal({ open: true, company: comp, students: [], loading: true });
+    setStudentsModal({ open: true, company: comp, students: [], loading: true, tab: 'active' });
     try {
       const res = await api.get(`/public/companies/${encodeURIComponent(comp.name)}/students`);
       setStudentsModal(prev => ({ ...prev, students: res.data.data || [], loading: false }));
@@ -506,18 +504,11 @@ const AdminCompanyManagementPage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
               {isAdmin && (
               <Button
-                variant="contained"
+                variant="outlined"
+                color="secondary"
                 onClick={() => setImportModal({ open: true, file: null, fileName: '', parsedRows: [], submitting: false })}
-                startIcon={<ArrowUpTrayIcon style={{ width: 18, height: 18 }} />}
-                sx={{
-                  bgcolor: '#0284c7',
-                  '&:hover': { bgcolor: '#0369a1' },
-                  borderRadius: 2,
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  px: 2,
-                  py: 0.85
-                }}
+                startIcon={<UploadCloud className="w-4 h-4" />}
+                sx={{ height: 40, px: 1.75, fontSize: '0.75rem', borderColor: '#e2e8f0' }}
               >
                 Import CSV สถานประกอบการ
               </Button>
@@ -526,17 +517,10 @@ const AdminCompanyManagementPage = () => {
               {isAdmin && (
               <Button
                 variant="contained"
+                color="primary"
                 onClick={handleOpenAdd}
-                startIcon={<PlusIcon style={{ width: 18, height: 18 }} />}
-                sx={{
-                  bgcolor: '#be185d',
-                  '&:hover': { bgcolor: '#9d174d' },
-                  borderRadius: 2,
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  px: 2,
-                  py: 0.85
-                }}
+                startIcon={<Plus className="w-4 h-4" />}
+                sx={{ height: 40, px: 2, fontSize: '0.75rem' }}
               >
                 เพิ่มสถานประกอบการ
               </Button>
@@ -605,31 +589,28 @@ const AdminCompanyManagementPage = () => {
           </div>
 
           {/* Table */}
-          <TableContainer component={Box} className="compact-table" sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+          <TableContainer component={Box} className="compact-table" sx={{ display: { xs: 'none', md: 'block' }, width: '100%', overflowX: 'hidden', border: '1px solid #e2e8f0', borderRadius: 2, '& table': { tableLayout: 'fixed !important', width: '100% !important', minWidth: '100% !important' }, '& td': { whiteSpace: 'normal !important', verticalAlign: 'top', overflow: 'hidden', textOverflow: 'ellipsis', py: 1.75, px: 1.5 }, '& td.MuiTableCell-paddingCheckbox': { verticalAlign: 'middle', textAlign: 'center' }, '& th': { whiteSpace: 'normal !important' } }}>
             {loading ? (
               <p style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>กำลังโหลดข้อมูลสถานประกอบการ...</p>
             ) : (
-              <Table size="small">
+              <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f8fafc' }}>
                     {isAdmin && (
-                    <TableCell padding="checkbox">
+                    <TableCell padding="checkbox" align="center" sx={{ width: 48 }}>
                       <Checkbox
+                        size="small"
                         checked={isAllSelected}
                         indeterminate={selectedIds.length > 0 && !isAllSelected}
                         onChange={handleSelectAll}
+                        sx={{ p: 0.5, '& svg': { width: 18, height: 18, flexShrink: 0 } }}
                       />
                     </TableCell>
                     )}
-                    <TableCell sx={{ fontWeight: 800 }}>ชื่อสถานประกอบการ / บริษัท</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>สาขาวิชาที่เกี่ยวข้อง</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>ประเภทธุรกิจ</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>ที่ตั้ง / จังหวัด</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>ตำแหน่งที่เปิดรับ</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>นักศึกษาฝึกงาน</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>ข้อมูลติดต่อ</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>แหล่งข้อมูล</TableCell>
-                    {isAdmin && <TableCell align="center" sx={{ fontWeight: 800 }}>การกระทำ</TableCell>}
+                    <TableCell sx={{ fontWeight: 800, width: '34%' }}>สถานประกอบการ / ข้อมูลธุรกิจ</TableCell>
+                    <TableCell sx={{ fontWeight: 800, width: '28%' }}>สาขาวิชาที่เกี่ยวข้อง</TableCell>
+                    <TableCell sx={{ fontWeight: 800, width: '30%' }}>ที่ตั้ง / จังหวัด</TableCell>
+                    {isAdmin && <TableCell align="center" sx={{ fontWeight: 800, width: 64 }}>จัดการ</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -639,14 +620,16 @@ const AdminCompanyManagementPage = () => {
                       return (
                         <TableRow key={comp.id || idx} hover selected={isChecked}>
                           {isAdmin && (
-                          <TableCell padding="checkbox">
+                          <TableCell padding="checkbox" align="center">
                             {comp.isOfficial ? (
                               <Checkbox
+                                size="small"
                                 checked={isChecked}
                                 onChange={() => handleToggleSelect(comp.id)}
+                                sx={{ p: 0.5, '& svg': { width: 18, height: 18, flexShrink: 0 } }}
                               />
                             ) : (
-                              <Typography variant="caption" sx={{ color: '#cbd5e1', pl: 1 }}>-</Typography>
+                              <Typography variant="caption" sx={{ color: '#cbd5e1' }}>-</Typography>
                             )}
                           </TableCell>
                           )}
@@ -655,16 +638,19 @@ const AdminCompanyManagementPage = () => {
                               <Typography
                                 variant="body2"
                                 onClick={() => handleOpenStudentsModal(comp)}
-                                sx={{ fontWeight: 700, color: '#0f172a', cursor: 'pointer', '&:hover': { color: '#7c3aed', textDecoration: 'underline' } }}
+                                sx={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b', cursor: 'pointer', wordBreak: 'break-word', '&:hover': { color: '#7c3aed', textDecoration: 'underline' } }}
                               >
                                 {comp.name}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem', mt: 0.5, display: 'block' }}>
+                                {comp.businessType || 'ทั่วไป'}{comp.isOfficial ? '' : ' · จากรุ่นพี่'}
                               </Typography>
                               {comp.website && (
                                 <a 
                                   href={comp.website.startsWith('http') ? comp.website : `https://${comp.website}`} 
                                   target="_blank" 
                                   rel="noreferrer"
-                                  style={{ fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none' }}
+                                  style={{ fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none', display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                 >
                                   {comp.website}
                                 </a>
@@ -672,109 +658,62 @@ const AdminCompanyManagementPage = () => {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            {((Array.isArray(comp.departments) && comp.departments.length > 0) || comp.department) ? (
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxWidth: 220 }}>
-                                {(Array.isArray(comp.departments) && comp.departments.length > 0
-                                  ? comp.departments
-                                  : comp.department.split(',').map(s => s.trim())
-                                ).map((d, dIdx) => (
-                                  <Chip
-                                    key={dIdx}
-                                    label={d.replace('สาขาวิชา', '')}
-                                    size="small"
-                                    sx={{ fontSize: '0.7rem', bgcolor: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', fontWeight: 600 }}
-                                  />
-                                ))}
-                              </Box>
-                            ) : (
+                            {((Array.isArray(comp.departments) && comp.departments.length > 0) || comp.department) ? (() => {
+                              const deptList = (Array.isArray(comp.departments) && comp.departments.length > 0
+                                ? comp.departments
+                                : comp.department.split(',').map(s => s.trim())
+                              ).map(d => d.replace('สาขาวิชา', ''));
+                              const overflow = deptList.slice(2);
+                              return (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', maxWidth: '100%' }}>
+                                  {deptList.slice(0, 2).map((d, dIdx) => (
+                                    <span
+                                      key={dIdx}
+                                      className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60"
+                                      style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                    >
+                                      {d}
+                                    </span>
+                                  ))}
+                                  {overflow.length > 0 && (
+                                    <Tooltip title={overflow.join(', ')} arrow placement="top">
+                                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200/70 font-semibold cursor-default">
+                                        +{overflow.length} สาขา
+                                      </span>
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                              );
+                            })() : (
                               <Typography variant="caption" sx={{ color: '#94a3b8' }}>ทุกสาขาวิชา</Typography>
                             )}
                           </TableCell>
                           <TableCell>
-                            <Chip 
-                              label={comp.businessType || 'ทั่วไป'} 
-                              size="small" 
-                              sx={{ fontSize: '0.72rem', bgcolor: '#f1f5f9', color: '#334155', fontWeight: 600 }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: '#475569' }}>
-                              <MapPinIcon style={{ width: 15, height: 15, color: '#ef4444', flexShrink: 0 }} />
-                              <Typography variant="caption">
-                                {comp.province ? `${comp.province} ` : ''}{comp.address ? `(${comp.address.slice(0, 30)}...)` : '-'}
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, color: '#475569' }}>
+                              <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                              <Typography variant="caption" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', color: '#475569', fontSize: '0.75rem', lineHeight: 1.6 }}>
+                                {comp.province || (!comp.address ? '-' : '')}
+                                {comp.address && ` — ${comp.address}`}
                               </Typography>
                             </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#0284c7' }}>
-                              {comp.positions || '-'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              icon={<AcademicCapIcon style={{ width: 14, height: 14 }} />}
-                              label={`${comp.studentCount || 0} คน`}
-                              size="small"
-                              clickable
-                              onClick={() => handleOpenStudentsModal(comp)}
-                              sx={{
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                bgcolor: (comp.studentCount || 0) > 0 ? '#f5f3ff' : '#f8fafc',
-                                color: (comp.studentCount || 0) > 0 ? '#6d28d9' : '#94a3b8',
-                                border: (comp.studentCount || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0',
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: '#ede9fe' }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontSize: '0.75rem', color: '#64748b' }}>
-                              {comp.contactPerson && <span>ผู้ติดต่อ: {comp.contactPerson}</span>}
-                              {comp.phone && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <PhoneIcon style={{ width: 12, height: 12 }} /> {comp.phone}
-                                </span>
-                              )}
-                              {comp.email && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <EnvelopeIcon style={{ width: 12, height: 12 }} /> {comp.email}
-                                </span>
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={comp.isOfficial ? 'สถานประกอบการทางการ' : 'จากรุ่นพี่'} 
-                              size="small"
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                bgcolor: comp.isOfficial ? '#ecfdf5' : '#eff6ff',
-                                color: comp.isOfficial ? '#065f46' : '#1e40af',
-                                border: comp.isOfficial ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
-                              }}
-                            />
                           </TableCell>
                           {isAdmin && (
-                          <TableCell align="center">
+                          <TableCell align="center" sx={{ width: 64, verticalAlign: 'middle' }}>
                             {comp.isOfficial ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                <Tooltip title="แก้ไข">
-                                  <IconButton size="small" onClick={() => handleOpenEdit(comp)} sx={{ color: '#0284c7' }}>
-                                    <PencilSquareIcon style={{ width: 16, height: 16 }} />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="ลบ">
-                                  <IconButton size="small" onClick={() => handleOpenDeleteSingle(comp)} sx={{ color: '#ef4444' }}>
-                                    <TrashIcon style={{ width: 16, height: 16 }} />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
+                              <IconButton
+                                size="small"
+                                aria-label={`จัดการ${comp.name || 'สถานประกอบการ'}`}
+                                aria-haspopup="menu"
+                                title="จัดการ"
+                                onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, comp }); }}
+                                sx={{ p: 1, borderRadius: '10px', color: '#64748b', '&:hover': { bgcolor: 'rgba(241,245,249,0.9)', color: '#1e293b' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                              >
+                                <MoreVertical className="w-5 h-5" />
+                              </IconButton>
                             ) : (
-                              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                                ระบบบันทึกอัตโนมัติ
-                              </Typography>
+                              <Tooltip title="ระบบบันทึกอัตโนมัติ" arrow placement="left">
+                                <Info className="w-5 h-5 text-slate-300" style={{ margin: '0 auto' }} />
+                              </Tooltip>
                             )}
                           </TableCell>
                           )}
@@ -783,7 +722,7 @@ const AdminCompanyManagementPage = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 9 : 7} align="center" sx={{ py: 4, color: '#94a3b8' }}>
+                      <TableCell colSpan={isAdmin ? 5 : 3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
                         ไม่พบข้อมูลสถานประกอบการ
                       </TableCell>
                     </TableRow>
@@ -792,7 +731,113 @@ const AdminCompanyManagementPage = () => {
               </Table>
             )}
           </TableContainer>
+
+          {/* มุมมองการ์ด — เฉพาะหน้าจอมือถือ (<768px) กันตารางล้นจอ */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5 }}>
+            {loading ? (
+              <Typography sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>กำลังโหลดข้อมูลสถานประกอบการ...</Typography>
+            ) : filteredCompanies.length === 0 ? (
+              <Typography sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>ไม่พบข้อมูลสถานประกอบการ</Typography>
+            ) : filteredCompanies.map((comp, idx) => (
+              <Box key={comp.id || idx} sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#fff' }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      onClick={() => handleOpenStudentsModal(comp)}
+                      sx={{ fontWeight: 700, color: '#0f172a', cursor: 'pointer', wordBreak: 'break-word', '&:hover': { color: '#7c3aed' } }}
+                    >
+                      {comp.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: 0.25 }}>
+                      {comp.businessType || 'ทั่วไป'}{comp.isOfficial ? '' : ' · จากรุ่นพี่'}
+                    </Typography>
+                  </Box>
+                  {isAdmin && comp.isOfficial && (
+                    <IconButton
+                      size="small"
+                      aria-label={`จัดการ${comp.name || 'สถานประกอบการ'}`}
+                      aria-haspopup="menu"
+                      title="จัดการ"
+                      onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, comp }); }}
+                      sx={{ p: 1, flexShrink: 0, borderRadius: '10px', color: '#64748b', '&:hover': { bgcolor: 'rgba(241,245,249,0.9)', color: '#1e293b' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </IconButton>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, color: '#64748b', fontSize: '0.75rem' }}>
+                  <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {comp.province || '-'}{comp.address ? ` — ${comp.address}` : ''}
+                  </span>
+                </Box>
+                {comp.website && (
+                  <a
+                    href={comp.website.startsWith('http') ? comp.website : `https://${comp.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '0.72rem', color: '#0284c7', textDecoration: 'none', display: 'block', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {comp.website}
+                  </a>
+                )}
+                {comp.positions && (
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontWeight: 600, color: '#0284c7' }}>
+                    ตำแหน่ง: {comp.positions}
+                  </Typography>
+                )}
+                {((Array.isArray(comp.departments) && comp.departments.length > 0) || comp.department) && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                    {(Array.isArray(comp.departments) && comp.departments.length > 0
+                      ? comp.departments
+                      : comp.department.split(',').map(s => s.trim())
+                    ).map((d, dIdx) => (
+                      <Chip
+                        key={dIdx}
+                        label={d.replace('สาขาวิชา', '')}
+                        size="small"
+                        sx={{ fontSize: '0.66rem', height: 20, bgcolor: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', fontWeight: 500, borderRadius: '8px' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.25, pt: 1.25, borderTop: '1px solid #f1f5f9' }}>
+                  <Typography variant="caption" sx={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {comp.contactPerson ? `ผู้ติดต่อ: ${comp.contactPerson}` : comp.phone || comp.email || ''}
+                  </Typography>
+                  <Chip
+                    icon={<AcademicCapIcon style={{ width: 13, height: 13 }} />}
+                    label={`${comp.studentCount || 0} คน`}
+                    size="small"
+                    clickable
+                    onClick={() => handleOpenStudentsModal(comp)}
+                    sx={{ fontSize: '0.68rem', fontWeight: 700, bgcolor: (comp.studentCount || 0) > 0 ? '#f5f3ff' : '#f8fafc', color: (comp.studentCount || 0) > 0 ? '#6d28d9' : '#94a3b8', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                </Box>
+              </Box>
+            ))}
+          </Box>
         </div>
+
+        {/* เมนูจัดการสถานประกอบการ (3 จุด) */}
+        <Menu
+          anchorEl={actionMenu.anchor}
+          open={Boolean(actionMenu.anchor)}
+          onClose={() => setActionMenu({ anchor: null, comp: null })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={() => { handleOpenStudentsModal(actionMenu.comp); setActionMenu({ anchor: null, comp: null }); }}>
+            <Eye className="w-4 h-4 text-slate-500" style={{ marginRight: 10 }} /> ดูรายละเอียดสถานประกอบการ
+          </MenuItem>
+          <MenuItem onClick={() => { handleOpenEdit(actionMenu.comp); setActionMenu({ anchor: null, comp: null }); }}>
+            <Pencil className="w-4 h-4 text-violet-600" style={{ marginRight: 10 }} /> แก้ไขข้อมูล
+          </MenuItem>
+          <MenuItem onClick={() => { handleOpenDeleteSingle(actionMenu.comp); setActionMenu({ anchor: null, comp: null }); }} sx={{ color: '#e11d48' }}>
+            <Trash2 className="w-4 h-4 text-rose-500" style={{ marginRight: 10 }} /> ลบรายการ
+          </MenuItem>
+        </Menu>
 
         {/* Modal: รายชื่อนักศึกษาที่ฝึกงานในบริษัท */}
         <Dialog
@@ -800,9 +845,9 @@ const AdminCompanyManagementPage = () => {
           onClose={() => setStudentsModal({ open: false, company: null, students: [], loading: false })}
           maxWidth="md"
           fullWidth
-          PaperProps={{ sx: { borderRadius: 3 } }}
+          PaperProps={{ sx: { borderRadius: 3, height: 460, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}
         >
-          <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #f1f5f9', pb: 2 }}>
+          <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #f1f5f9', pb: 2, flexShrink: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
               <BuildingOffice2Icon style={{ width: 24, height: 24, color: '#7c3aed' }} />
               <Box>
@@ -810,56 +855,149 @@ const AdminCompanyManagementPage = () => {
                   {studentsModal.company?.name}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#64748b' }}>
-                  นักศึกษาที่ฝึกงาน {studentsModal.students.length} คน
+                  นักศึกษาที่เคยฝึกงาน {studentsModal.students.length} คน
                 </Typography>
               </Box>
             </Box>
           </DialogTitle>
-          <DialogContent sx={{ pt: 3 }}>
+          <DialogContent sx={{ pt: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {/* แท็บ กำลังฝึกงาน / ย้ายออกแล้ว — MUI Tabs Clean Violet */}
+            <Tabs
+              value={studentsModal.tab}
+              onChange={(_, v) => setStudentsModal(prev => ({ ...prev, tab: v }))}
+              sx={{
+                minHeight: 38,
+                mb: 2,
+                bgcolor: 'rgba(241,245,249,0.7)',
+                borderRadius: '10px',
+                p: '3px',
+                display: 'inline-flex',
+                '& .MuiTabs-indicator': { display: 'none' },
+                '& .MuiTabs-flexContainer': { gap: '2px' },
+                '& .MuiTab-root': {
+                  minHeight: 32,
+                  py: 0.5,
+                  px: 1.75,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  color: '#64748b',
+                  '&.Mui-selected': {
+                    bgcolor: '#fff',
+                    color: '#6d28d9',
+                    fontWeight: 600,
+                    boxShadow: '0 1px 2px rgba(15,23,42,0.08)',
+                  },
+                },
+              }}
+            >
+              <Tab
+                value="active"
+                icon={<UserCheck style={{ width: 14, height: 14 }} />}
+                iconPosition="start"
+                label={
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                    กำลังฝึกงาน
+                    <Box component="span" sx={{ px: 0.75, py: '1px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, bgcolor: studentsModal.tab === 'active' ? '#ede9fe' : '#e2e8f0', color: studentsModal.tab === 'active' ? '#6d28d9' : '#64748b' }}>
+                      {studentsModal.students.filter(s => !s.relocated).length}
+                    </Box>
+                  </Box>
+                }
+              />
+              <Tab
+                value="relocated"
+                icon={<ArrowUpRight style={{ width: 14, height: 14 }} />}
+                iconPosition="start"
+                label={
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                    ย้ายออกแล้ว
+                    <Box component="span" sx={{ px: 0.75, py: '1px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, bgcolor: studentsModal.tab === 'relocated' ? '#ede9fe' : '#e2e8f0', color: studentsModal.tab === 'relocated' ? '#6d28d9' : '#64748b' }}>
+                      {studentsModal.students.filter(s => s.relocated).length}
+                    </Box>
+                  </Box>
+                }
+              />
+            </Tabs>
+
             {studentsModal.loading ? (
-              <Box sx={{ py: 4, textAlign: 'center', color: '#64748b' }}>กำลังโหลดรายชื่อนักศึกษา...</Box>
-            ) : studentsModal.students.length > 0 ? (
-              <TableContainer component={Box} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                      <TableCell sx={{ fontWeight: 800 }}>รหัสนักศึกษา</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>ชื่อ-นามสกุล</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>สาขาวิชา</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>อาจารย์นิเทศ</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>ช่วงเวลาฝึกงาน</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>สถานะ</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {studentsModal.students.map((stu) => (
-                      <TableRow key={stu.requestId} hover>
-                        <TableCell>{stu.studentId}</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{stu.studentName}</TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{String(stu.department || '-').replace('สาขาวิชา', '')}</Typography>
-                        </TableCell>
-                        <TableCell>{stu.advisorName}</TableCell>
-                        <TableCell>
-                          <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>
-                            {stu.startDate ? new Date(stu.startDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                            {' — '}
-                            {stu.endDate ? new Date(stu.endDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell><StatusBadge status={stu.status} /></TableCell>
+              <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>กำลังโหลดรายชื่อนักศึกษา...</Box>
+            ) : (() => {
+              const visibleStudents = studentsModal.students.filter(s => studentsModal.tab === 'active' ? !s.relocated : s.relocated);
+              return visibleStudents.length > 0 ? (
+                <TableContainer component={Box} sx={{ width: '100%', flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                        <TableCell sx={{ fontWeight: 800, width: '30%' }}>นักศึกษา</TableCell>
+                        <TableCell sx={{ fontWeight: 800, width: '25%' }}>สาขาวิชา</TableCell>
+                        <TableCell sx={{ fontWeight: 800, width: '25%' }}>ช่วงเวลาฝึกงาน</TableCell>
+                        <TableCell sx={{ fontWeight: 800, width: '20%' }}>สถานะ</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Box sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>
-                ยังไม่มีนักศึกษาฝึกงานที่สถานประกอบการนี้
-              </Box>
-            )}
+                    </TableHead>
+                    <TableBody>
+                      {visibleStudents.map((stu) => (
+                        <TableRow key={stu.requestId} hover>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{stu.studentName}</Typography>
+                            <Typography variant="caption" sx={{ color: '#94a3b8' }}>{stu.studentId}</Typography>
+                            {stu.relocated && stu.relocatedTo && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, color: '#64748b', fontSize: '0.75rem' }}>
+                                <ArrowRight className="w-3 h-3 text-violet-500" style={{ flexShrink: 0 }} />
+                                <span>ย้ายไป: {stu.relocatedTo}</span>
+                              </Box>
+                            )}
+                            {stu.is_relocated_in && stu.previous_company_name && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, color: '#7c3aed', fontSize: '0.75rem' }}>
+                                <ArrowDownLeft className="w-3 h-3" style={{ flexShrink: 0 }} />
+                                <span>ย้ายมาจาก: {stu.previous_company_name}</span>
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption">{String(stu.department || '-').replace('สาขาวิชา', '')}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ wordBreak: 'break-word' }}>
+                              {stu.startDate ? new Date(stu.startDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                              {' — '}
+                              {stu.relocated
+                                ? (stu.relocatedAt ? new Date(stu.relocatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-')
+                                : (stu.endDate ? new Date(stu.endDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-')}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {stu.relocated ? (
+                              <Chip
+                                label="ย้ายสถานที่ฝึกงานแล้ว"
+                                size="small"
+                                sx={{
+                                  fontSize: '0.68rem', fontWeight: 700, borderRadius: '8px',
+                                  bgcolor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a',
+                                  maxWidth: '100%', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' }
+                                }}
+                              />
+                            ) : (
+                              <StatusBadge status={stu.status} />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', textAlign: 'center', border: '1px dashed #e2e8f0', borderRadius: 2 }}>
+                  {studentsModal.students.length === 0
+                    ? 'ยังไม่มีนักศึกษาฝึกงานที่สถานประกอบการนี้'
+                    : studentsModal.tab === 'active'
+                      ? 'ไม่มีนักศึกษาที่กำลังฝึกงานอยู่ในขณะนี้'
+                      : 'ไม่มีนักศึกษาที่ย้ายออกจากสถานประกอบการนี้'}
+                </Box>
+              );
+            })()}
           </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <DialogActions sx={{ px: 3, pb: 2.5, flexShrink: 0, borderTop: '1px solid #f1f5f9' }}>
             <Button onClick={() => setStudentsModal({ open: false, company: null, students: [], loading: false })} sx={{ textTransform: 'none', fontWeight: 700 }}>
               ปิด
             </Button>

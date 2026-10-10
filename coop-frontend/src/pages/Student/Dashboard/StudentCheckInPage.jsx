@@ -5,6 +5,7 @@ import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Typography } from '@mui/material';
 import SignatureCanvas from 'react-signature-canvas';
 import {
+  AlertCircle,
   CalendarDays,
   Menu as MenuIcon,
   X,
@@ -71,6 +72,7 @@ const StudentCheckInPage = () => {
   const [currentRequestStatus, setCurrentRequestStatus] = useState('ไม่มีคำร้อง');
   const [internshipStartDate, setInternshipStartDate] = useState(null);
   const [showSignature, setShowSignature] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
   const [dayModal, setDayModal] = useState({ open: false, date: '' });
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -203,6 +205,7 @@ const StudentCheckInPage = () => {
     if (sigCanvas.current) {
       sigCanvas.current.clear();
     }
+    setHasSignature(false);
   };
 
   const openDayModal = (dateStr) => {
@@ -213,7 +216,9 @@ const StudentCheckInPage = () => {
     // วันหยุดนักขัตฤกษ์ → prefill สถานะวันหยุดให้เลย (เปลี่ยนกลับได้)
     const holidayName = getThaiHoliday(dateStr);
     setDayModal({ open: true, date: dateStr });
-    setShowSignature(false);
+    // วันย้อนหลังที่ยังไม่ได้บันทึก → บังคับลายเซ็นพี่เลี้ยง → เปิดช่องเซ็นไว้เลย
+    setShowSignature(!entry && dateStr < todayDate);
+    setHasSignature(false);
     setForm({
       date: dateStr,
       status: holidayName && !entry ? 'holiday' : 'present',
@@ -283,6 +288,7 @@ const StudentCheckInPage = () => {
       setForm((prev) => ({ ...prev, workExperience: '', note: '' }));
       if (sigCanvas.current) sigCanvas.current.clear();
       setShowSignature(false);
+      setHasSignature(false);
 
       // Auto-advance to the next unsubmitted day so back-filling stays in flow
       // (compute before setEntries — selectedEntry resolves from the updated map)
@@ -312,6 +318,11 @@ const StudentCheckInPage = () => {
   };
 
   const selectedEntry = dayModal.date ? entriesByDate[dayModal.date] : null;
+  // วันที่ในอดีตที่ยังไม่มีรายงาน → โหมดบันทึกย้อนหลัง (บังคับลายเซ็นพี่เลี้ยง)
+  const isBackfillDay = Boolean(dayModal.date) && dayModal.date < todayDate;
+  const isSubmitDisabled = submitting
+    || (!LEAVE_DEFAULT_TEXT[form.status] && !form.workExperience.trim())
+    || (isBackfillDay && !hasSignature);
 
   // Called by AttendanceCalendar after a successful mentor batch-sign
   const handleBatchSigned = (updated) => {
@@ -709,6 +720,14 @@ const StudentCheckInPage = () => {
             ) : (
               /* Form Mode: new entry */
               <form onSubmit={handleSubmit} className="space-y-4">
+                {isBackfillDay && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200/80 px-3.5 py-3 flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <p className="text-[11px] font-semibold text-amber-700 m-0 leading-relaxed">
+                      การบันทึกย้อนหลังจำเป็นต้องได้รับการลงนามรับรองจากพี่เลี้ยงสถานประกอบการ
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-medium text-slate-600 mb-1.5 block">วันที่รายงาน</label>
                   <input
@@ -758,24 +777,34 @@ const StudentCheckInPage = () => {
                   />
                 </div>
 
-                {/* Supervisor Signature */}
+                {/* Supervisor Signature — บังคับเมื่อบันทึกย้อนหลัง */}
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowSignature(!showSignature)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-700 transition cursor-pointer border-none bg-transparent p-0"
-                  >
-                    <PenTool className="w-3.5 h-3.5" />
-                    {showSignature ? 'ซ่อนช่องลายเซ็นพี่เลี้ยง' : 'แนบลายเซ็นยืนยันจากพี่เลี้ยง (ไม่บังคับ)'}
-                  </button>
+                  {isBackfillDay ? (
+                    <label className="text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1.5">
+                      <PenTool className="w-3.5 h-3.5 text-violet-600" />
+                      ลายมือชื่อพี่เลี้ยงสถานประกอบการ <span className="text-rose-500">*</span>
+                    </label>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowSignature(!showSignature)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-700 transition cursor-pointer border-none bg-transparent p-0"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      {showSignature ? 'ซ่อนช่องลายเซ็นพี่เลี้ยง' : 'แนบลายเซ็นยืนยันจากพี่เลี้ยง (ไม่บังคับ)'}
+                    </button>
+                  )}
 
-                  {showSignature && (
+                  {(isBackfillDay || showSignature) && (
                     <div className="mt-2.5 p-3 rounded-2xl border border-dashed border-violet-200 bg-violet-50/30">
-                      <p className="text-[11px] text-slate-500 m-0 mb-2">ให้พี่เลี้ยงเซ็นกำกับรายงานวันนี้เพื่อความถูกต้อง</p>
+                      <p className="text-[11px] text-slate-500 m-0 mb-2">
+                        {isBackfillDay ? 'ให้พี่เลี้ยงเซ็นรับรองการมาปฏิบัติงานย้อนหลังในวันนี้' : 'ให้พี่เลี้ยงเซ็นกำกับรายงานวันนี้เพื่อความถูกต้อง'}
+                      </p>
                       <div className="rounded-xl border border-slate-200 bg-white h-32 overflow-hidden mb-2">
                         <SignatureCanvas
                           ref={sigCanvas}
                           penColor="#312e81"
+                          onEnd={() => setHasSignature(true)}
                           canvasProps={{ className: 'sigCanvas', style: { width: '100%', height: '100%' } }}
                         />
                       </div>
@@ -800,9 +829,14 @@ const StudentCheckInPage = () => {
                   >
                     ยกเลิก
                   </button>
+                  {isBackfillDay && !hasSignature && (
+                    <p className="w-full text-center sm:text-right text-[10px] text-amber-600 font-medium m-0">
+                      กรุณาให้พี่เลี้ยงลงนามรับรองก่อนบันทึก
+                    </p>
+                  )}
                   <button
                     type="submit"
-                    disabled={submitting || !form.workExperience.trim()}
+                    disabled={isSubmitDisabled}
                     className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                   >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึกรายงาน'}

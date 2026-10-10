@@ -48,7 +48,11 @@ router.get('/', authenticate, async (req, res) => {
           .filter(Boolean);
         if (codes.length > 0) {
           const [reqRows] = await pool.query(
-            `SELECT r.id, r.studentId, r.status, r.company, r.details
+            `SELECT r.id, r.studentId, r.status,
+                    COALESCE((SELECT rr.new_company_name FROM internship_relocation_requests rr
+                              WHERE rr.internship_request_id = r.id AND rr.status = 'completed'
+                              ORDER BY rr.created_at DESC, rr.id DESC LIMIT 1), r.company) AS company,
+                    r.details
              FROM requests r
              INNER JOIN (
                SELECT studentId, MAX(id) AS maxId

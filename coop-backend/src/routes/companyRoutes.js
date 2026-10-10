@@ -193,16 +193,47 @@ router.get('/companies/:name/students', async (req, res) => {
     const [rows] = await pool.query(`
       SELECT r.id, r.studentId, r.studentName, r.department, r.position, r.status,
              r.internship_start_date, r.internship_end_date, r.supervisionAppointment, r.submittedDate,
-             p.firstname, p.lastname
+             p.firstname, p.lastname,
+             reloc.new_company_name AS relocated_to,
+             reloc.updated_at AS relocated_at
       FROM requests r
       LEFT JOIN profile p ON p.profile_id = r.studentId
+      LEFT JOIN internship_relocation_requests reloc
+        ON reloc.id = (
+          SELECT MAX(rr.id) FROM internship_relocation_requests rr
+          WHERE rr.internship_request_id = r.id AND rr.status = 'completed'
+        )
       WHERE REPLACE(TRIM(r.company), ' ', '') = ?
          OR REPLACE(TRIM(r.company), ' ', '') LIKE CONCAT('%', ?, '%')
          OR ? LIKE CONCAT('%', NULLIF(REPLACE(TRIM(r.company), ' ', ''), ''), '%')
       ORDER BY r.studentId ASC, r.id DESC
     `, [core, core, core]);
 
-    const data = rows.map((r) => {
+    // นักศึกษาที่ย้ายเข้ามาฝึกที่บริษัทนี้ (คำร้องตั้งต้นอยู่ที่อื่น แต่ย้ายเข้าสำเร็จ)
+    const [inRows] = await pool.query(`
+      SELECT r.id, r.studentId, r.studentName, r.department, r.position, r.status, r.company,
+             r.internship_start_date, r.internship_end_date, r.supervisionAppointment, r.submittedDate,
+             p.firstname, p.lastname,
+             reloc.updated_at AS relocated_in_at
+      FROM requests r
+      JOIN internship_relocation_requests reloc
+        ON reloc.id = (
+          SELECT MAX(rr.id) FROM internship_relocation_requests rr
+          WHERE rr.internship_request_id = r.id AND rr.status = 'completed'
+        )
+      LEFT JOIN profile p ON p.profile_id = r.studentId
+      WHERE (REPLACE(TRIM(reloc.new_company_name), ' ', '') = ?
+         OR REPLACE(TRIM(reloc.new_company_name), ' ', '') LIKE CONCAT('%', ?, '%')
+         OR ? LIKE CONCAT('%', NULLIF(REPLACE(TRIM(reloc.new_company_name), ' ', ''), ''), '%'))
+        AND NOT (REPLACE(TRIM(r.company), ' ', '') = ?
+         OR REPLACE(TRIM(r.company), ' ', '') LIKE CONCAT('%', ?, '%')
+         OR ? LIKE CONCAT('%', NULLIF(REPLACE(TRIM(r.company), ' ', ''), ''), '%'))
+      ORDER BY r.studentId ASC, r.id DESC
+    `, [core, core, core, core, core, core]);
+
+    const seenRequestIds = new Set(rows.map((r) => r.id));
+
+    const mapRow = (r, extra = {}) => {
       let advisorName = '';
       try {
         const appt = typeof r.supervisionAppointment === 'string' ? JSON.parse(r.supervisionAppointment) : r.supervisionAppointment;
@@ -218,7 +249,23 @@ router.get('/companies/:name/students', async (req, res) => {
         startDate: r.internship_start_date,
         endDate: r.internship_end_date,
         status: r.status,
+        relocated: Boolean(r.relocated_to),
+        relocatedTo: r.relocated_to || null,
+        relocatedAt: r.relocated_at || null,
+        is_relocated_in: false,
+        previous_company_name: null,
+        ...extra,
       };
+    };
+
+    const data = rows.map((r) => mapRow(r));
+    inRows.forEach((r) => {
+      if (seenRequestIds.has(r.id)) return;
+      data.push(mapRow(r, {
+        is_relocated_in: true,
+        previous_company_name: r.company,
+        relocatedAt: r.relocated_in_at || null,
+      }));
     });
 
     res.json({ success: true, data });

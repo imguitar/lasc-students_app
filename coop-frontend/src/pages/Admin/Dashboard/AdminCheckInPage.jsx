@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
@@ -11,9 +12,11 @@ import {
   DialogContent,
   DialogActions,
   LinearProgress,
-  Chip,
+  IconButton,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { BookOpenText, Pencil, Trash2, X, CalendarCheck, PenLine } from 'lucide-react';
+import { BookOpenText, CheckCircle2, ChevronRight, MoreVertical, Pencil, Plus, Trash2, X, CalendarCheck, PenLine } from 'lucide-react';
 import { AcademicCapIcon, DocumentTextIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Box } from '@mui/material';
 import StatCard from '../../../components/StatCard';
@@ -29,7 +32,7 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 const STATUS_LABEL = { present: 'มา', absent: 'ขาด', late: 'สาย', sick: 'ลาป่วย', personal: 'ลากิจ', holiday: 'วันหยุด' };
 const STATUS_COLOR = { present: '#10b981', absent: '#ef4444', late: '#f59e0b', sick: '#ec4899', personal: '#f97316', holiday: '#0ea5e9' };
 
-// นับวันทำการ จันทร์–เสาร์ (ไม่นับอาทิตย์) ตามกฎฝึกงานของคณะ
+// นับวันทำการ จันทร์–ศุกร์ — ไม่นับเสาร์/อาทิตย์ (วันนักขัตฤกษ์หักออกภายหลัง)
 const countWorkingDays = (start, end) => {
   if (!start || !end) return 0;
   const s = new Date(String(start).split('T')[0]);
@@ -37,7 +40,7 @@ const countWorkingDays = (start, end) => {
   if (isNaN(s) || isNaN(e) || e < s) return 0;
   let count = 0;
   for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-    if (d.getDay() !== 0) count += 1;
+    if (d.getDay() !== 0 && d.getDay() !== 6) count += 1;
   }
   return count;
 };
@@ -59,14 +62,17 @@ const studentStats = (s) => {
   const holiday = Number(s.holidayCount || 0);
   const sick = Number(s.sickCount || 0);
   const personal = Number(s.personalCount || 0);
-  const total = countWorkingDays(s.startDate, s.endDate);
-  const elapsed = countElapsedDays(s.startDate, s.endDate);
-  // วันนักขัตฤกษ์ที่ผ่านมาแล้ว — ถ้านักศึกษาไม่ได้ mark วันหยุดเอง ก็ไม่นับเป็นวันขาดส่งรายงาน
+  // Eligible days = จันทร์–ศุกร์ เท่านั้น — หักวันนักขัตฤกษ์ออกจากฐานทั้งหมด
+  // (วันที่ นศ. mark 'holiday' เองมีบันทึกอยู่แล้วจึงไม่ถูกนับเป็น "ไม่ได้เช็ค" โดยอัตโนมัติ)
+  const startStr = String(s.startDate || '').split('T')[0];
   const todayStr = new Date().toISOString().slice(0, 10);
   const elapsedCap = s.endDate && String(s.endDate).split('T')[0] < todayStr ? String(s.endDate).split('T')[0] : todayStr;
-  const unmarkedHolidays = Math.max(0, countThaiHolidays(String(s.startDate || '').split('T')[0], elapsedCap) - holiday);
-  const unchecked = Math.max(0, elapsed - submitted - unmarkedHolidays);
-  const rateBase = Math.max(0, elapsed - holiday - unmarkedHolidays); // วันหยุดไม่หักอัตราการเข้าฝึก
+  const endStr = s.endDate ? String(s.endDate).split('T')[0] : '';
+  const total = Math.max(0, countWorkingDays(s.startDate, s.endDate) - countThaiHolidays(startStr, endStr));
+  const elapsed = Math.max(0, countElapsedDays(s.startDate, s.endDate) - countThaiHolidays(startStr, elapsedCap));
+  // ไม่ได้เช็ค = วันทำการที่ผ่านมาแล้ว − บันทึกทั้งหมด (บันทึกสถานะใดก็ตามถือว่ามีรายงาน)
+  const unchecked = Math.max(0, elapsed - submitted);
+  const rateBase = Math.max(0, elapsed - holiday); // วันหยุดสถานประกอบการไม่หักอัตราการเข้าฝึก
   const rate = rateBase > 0 ? Math.round(((present + late) / rateBase) * 100) : 0;
   return { submitted, present, late, absent, holiday, sick, personal, total, elapsed, unchecked, rate };
 };
@@ -92,6 +98,54 @@ const AdminCheckInPage = () => {
   const [diary, setDiary] = useState({ open: false, student: null, entries: [], loading: false });
   const [diaryView, setDiaryView] = useState('calendar'); // 'calendar' | 'list'
   const [editDialog, setEditDialog] = useState({ open: false, target: null, date: '', status: 'present', note: '' });
+
+  // เมนูสามจุดลอยตัวของแต่ละแถว
+  const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
+  const menuPanelRef = useRef(null);
+
+  useEffect(() => {
+    const closeOnOutside = (event) => {
+      if (event.target?.closest?.('.action-menu-trigger')) return;
+      if (menuPanelRef.current && !menuPanelRef.current.contains(event.target)) {
+        setActionMenu({ id: null, top: 0, left: 0 });
+      }
+    };
+    const closeMenu = () => setActionMenu({ id: null, top: 0, left: 0 });
+    document.addEventListener('mousedown', closeOnOutside);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, []);
+
+  const toggleActionMenu = (e, requestId) => {
+    e.stopPropagation();
+    if (actionMenu.id === requestId) {
+      setActionMenu({ id: null, top: 0, left: 0 });
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 200;
+    setActionMenu({
+      id: requestId,
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
+  };
+
+  const actionMenuStudent = actionMenu.id
+    ? students.find((s) => s.requestId === actionMenu.id)
+    : null;
+
+  // Toast แจ้งผลสั้น ๆ (emerald)
+  const [toast, setToast] = useState('');
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2600);
+  };
 
   const loadOverview = () => {
     api.get('/checkins/overview')
@@ -131,16 +185,16 @@ const AdminCheckInPage = () => {
 
   // สถิติภาพรวม 4 การ์ด (ตาม scope สาขาที่เลือก)
   const globalStats = useMemo(() => {
-    let present = 0, late = 0, absent = 0, unchecked = 0;
+    let present = 0, late = 0, absent = 0, unchecked = 0, submitted = 0;
     deptStudents.forEach((s) => {
       const st = studentStats(s);
       present += st.present; late += st.late; absent += st.absent; unchecked += st.unchecked;
+      submitted += st.submitted;
     });
-    const totalSent = present + late + absent;
-    const elapsed = totalSent + unchecked;
+    const elapsed = submitted + unchecked;
     return {
       students: deptStudents.length,
-      submitted: totalSent,
+      submitted,
       needFollowUp: absent + unchecked,
       rate: elapsed > 0 ? Math.round(((present + late) / elapsed) * 100) : 0,
     };
@@ -153,7 +207,7 @@ const AdminCheckInPage = () => {
       list = list.filter((s) =>
         String(s.studentName || '').toLowerCase().includes(term)
         || String(s.studentId || '').toLowerCase().includes(term)
-        || String(s.company || '').toLowerCase().includes(term));
+        || String(s.active_company_name || s.company || '').toLowerCase().includes(term));
     }
     if (statFilter === 'submitted') {
       list = list.filter((s) => Number(s.submittedDays || 0) > 0);
@@ -214,14 +268,25 @@ const AdminCheckInPage = () => {
       return;
     }
     try {
-      await api.post('/checkins', {
-        studentId: editDialog.target.studentId,
-        studentName: editDialog.target.studentName,
-        date: editDialog.date,
-        status: editDialog.status,
-        note: editDialog.note,
-      });
+      if (editDialog.target.id) {
+        // แก้ไขรายการเดิม → PUT (staff override ไม่ติดเงื่อนไขลายเซ็นย้อนหลัง)
+        await api.put(`/checkins/${editDialog.target.id}`, {
+          date: editDialog.date,
+          status: editDialog.status,
+          note: editDialog.note,
+        });
+      } else {
+        // เพิ่มรายการใหม่แทนนักศึกษา → POST (admin bypass retro-signature)
+        await api.post('/checkins', {
+          studentId: editDialog.target.studentId,
+          studentName: editDialog.target.studentName,
+          date: editDialog.date,
+          status: editDialog.status,
+          note: editDialog.note,
+        });
+      }
       await reloadDiaryEntries();
+      showToast('บันทึกข้อมูลสำเร็จเรียบร้อย');
     } catch (err) {
       alert('บันทึกล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
@@ -236,9 +301,22 @@ const AdminCheckInPage = () => {
     try {
       await api.delete(`/checkins/${entry.id}`);
       await reloadDiaryEntries();
+      showToast('ลบรายงานประจำวันเรียบร้อย');
     } catch (err) {
       alert('ลบล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
+  };
+
+  // เพิ่มรายงานแทนนักศึกษา (admin) — เปิด dialog เดียวกับแก้ไข แต่ target ไม่มี id → POST
+  const handleOpenAdd = () => {
+    if (!diary.student) return;
+    setEditDialog({
+      open: true,
+      target: { id: null, studentId: diary.student.studentId, studentName: diary.student.studentName },
+      date: new Date().toISOString().slice(0, 10),
+      status: 'present',
+      note: '',
+    });
   };
 
   const ProgressCell = ({ s }) => {
@@ -270,10 +348,6 @@ const AdminCheckInPage = () => {
       </div>
     );
   };
-
-  const pendingBadge = (n) => n > 0
-    ? <Chip size="small" label={`รอลายเซ็น ${n} วัน`} sx={{ bgcolor: '#fff7ed', color: '#c2410c', fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
-    : <Chip size="small" label="ลายเซ็นครบ" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.68rem', height: 22 }} />;
 
   return (
     <div className="admin-dashboard-container">
@@ -384,31 +458,32 @@ const AdminCheckInPage = () => {
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">สถานประกอบการ</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">ความคืบหน้าการส่งงาน</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">ส่งล่าสุด</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">ลายเซ็นพี่เลี้ยง</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide text-center">จัดการ</th>
+                  <th className="px-3 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide text-center w-12">จัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">ไม่พบนักศึกษาที่กำลังฝึกงาน</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">ไม่พบนักศึกษาที่กำลังฝึกงาน</td></tr>
                 ) : filteredStudents.map((s) => (
-                  <tr key={s.requestId} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                  <tr key={s.requestId} onClick={() => openDiary(s)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors cursor-pointer">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-800 text-[13px]">{s.studentName}</div>
                       <div className="text-[11px] text-slate-400">{s.studentId} · {s.department || '-'}</div>
                     </td>
-                    <td className="px-4 py-3 text-[13px] text-slate-600">{s.company || '-'}</td>
+                    <td className="px-4 py-3 text-[13px] text-slate-600">{s.active_company_name || s.company || '-'}</td>
                     <td className="px-4 py-3"><ProgressCell s={s} /></td>
                     <td className="px-4 py-3 text-[12px] text-slate-500">{formatThaiDate(s.lastCheckinDate)}</td>
-                    <td className="px-4 py-3">{pendingBadge(Number(s.pendingSignature || 0))}</td>
-                    <td className="px-4 py-3 text-center">
-                      <Button
-                        size="small" variant="outlined" onClick={() => openDiary(s)}
-                        startIcon={<BookOpenText size={14} />}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', borderRadius: 2, borderColor: '#ddd6fe', color: '#7c3aed', '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' } }}
+                    <td className="px-3 py-2 text-center">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => toggleActionMenu(e, s.requestId)}
+                        className="action-menu-trigger"
+                        title="จัดการ"
+                        aria-label={`จัดการสมุดบันทึกของ ${s.studentName}`}
+                        sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                       >
-                        ดูสมุดบันทึก
-                      </Button>
+                        <MoreVertical className="w-4 h-4" />
+                      </IconButton>
                     </td>
                   </tr>
                 ))}
@@ -426,26 +501,66 @@ const AdminCheckInPage = () => {
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-800 m-0">{s.studentName}</p>
                     <p className="text-[11px] text-slate-400 m-0 mt-0.5">{s.studentId} · {s.department || '-'}</p>
-                    <p className="text-xs text-slate-500 m-0 mt-1 truncate">{s.company || '-'}</p>
+                    <p className="text-xs text-slate-500 m-0 mt-1 truncate">{s.active_company_name || s.company || '-'}</p>
                   </div>
-                  {pendingBadge(Number(s.pendingSignature || 0))}
                 </div>
                 <ProgressCell s={s} />
                 <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>ส่งล่าสุด: {formatThaiDate(s.lastCheckinDate)}</span>
                 </div>
                 <Button
-                  fullWidth variant="contained" onClick={() => openDiary(s)}
-                  startIcon={<BookOpenText size={15} />}
-                  sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 600, borderRadius: '0.75rem', bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' }, boxShadow: 'none' }}
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => openDiary(s)}
+                  sx={{
+                    height: 44,
+                    px: 2,
+                    borderRadius: '12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    justifyContent: 'space-between',
+                    color: '#6d28d9',
+                    bgcolor: 'rgba(245,243,255,0.8)',
+                    borderColor: 'rgba(221,214,254,0.8)',
+                    boxShadow: 'none',
+                    '&:hover': { bgcolor: '#ede9fe', borderColor: '#c4b5fd' },
+                    '&:active': { bgcolor: 'rgba(221,214,254,0.7)' },
+                  }}
                 >
-                  ดูสมุดบันทึก
+                  <span className="inline-flex items-center gap-2">
+                    <BookOpenText className="w-4 h-4 text-violet-600" style={{ strokeWidth: 2.2 }} />
+                    ดูสมุดบันทึกการฝึกงาน
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-violet-400" />
                 </Button>
               </div>
             ))}
           </div>
         </div>
       </main>
+
+      {/* เมนูสามจุด — floating dropdown ผ่าน portal (กันโดนตัดขอบตาราง) */}
+      {actionMenuStudent && createPortal(
+        <div
+          ref={menuPanelRef}
+          className="fixed z-[1300] w-[200px] rounded-2xl border border-violet-100 bg-white p-1.5 shadow-[0_12px_32px_rgba(124,58,237,0.12)]"
+          style={{ top: actionMenu.top, left: actionMenu.left }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setActionMenu({ id: null, top: 0, left: 0 });
+              openDiary(actionMenuStudent);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition cursor-pointer border-none bg-transparent text-left"
+          >
+            <BookOpenText className="w-4 h-4 text-slate-400" />
+            <span>ดูสมุดบันทึกประจำวัน</span>
+          </button>
+        </div>,
+        document.body
+      )}
 
       {/* สมุดบันทึกรายวัน — Fullscreen Dialog */}
       <Dialog
@@ -454,36 +569,61 @@ const AdminCheckInPage = () => {
         fullScreen
         PaperProps={{ sx: { bgcolor: '#f8f9fc' } }}
       >
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 bg-white border-b border-slate-100 sticky top-0 z-10">
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 m-0 flex items-center gap-2">
-              <BookOpenText size={18} className="text-violet-600 shrink-0" />
-              สมุดบันทึกการฝึกงาน — {diary.student?.studentName}
-            </h2>
-            <p className="text-xs text-slate-400 m-0 mt-0.5">
-              {diary.student?.studentId} · {diary.student?.company || '-'} · {formatThaiDate(diary.student?.startDate)} – {formatThaiDate(diary.student?.endDate)}
-            </p>
-          </div>
-          <div className="flex items-center gap-0.5 p-1 bg-slate-100 rounded-xl shrink-0 mr-1">
-            <button
-              onClick={() => setDiaryView('calendar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border-0 cursor-pointer ${diaryView === 'calendar' ? 'bg-violet-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+        <div className="px-4 sm:px-6 pt-3 pb-3 bg-white border-b border-slate-100 sticky top-0 z-10">
+          {/* แถวบน: ชื่อ + ข้อมูลนักศึกษา | ปุ่มปิด */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm md:text-base font-extrabold text-slate-800 m-0 flex items-center gap-2">
+                <BookOpenText size={18} className="text-violet-600 shrink-0" />
+                สมุดบันทึกการฝึกงาน
+              </h2>
+              <p className="text-xs text-slate-500 m-0 mt-0.5 truncate max-w-[240px] md:max-w-none">
+                {diary.student?.studentName} ({diary.student?.studentId}) • {diary.student?.active_company_name || diary.student?.company || '-'} • {formatThaiDate(diary.student?.active_start_date || diary.student?.startDate)} – {formatThaiDate(diary.student?.active_end_date || diary.student?.endDate)}
+              </p>
+            </div>
+            <IconButton
+              onClick={closeDiary}
+              size="small"
+              aria-label="ปิด"
+              sx={{ flexShrink: 0, color: '#94a3b8', '&:hover': { color: '#475569', bgcolor: '#f1f5f9' } }}
             >
-              ปฏิทิน
-            </button>
-            <button
-              onClick={() => setDiaryView('list')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border-0 cursor-pointer ${diaryView === 'list' ? 'bg-violet-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-            >
-              ไทม์ไลน์
-            </button>
+              <X className="w-5 h-5" />
+            </IconButton>
           </div>
-          <button onClick={closeDiary} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition border-0 bg-transparent cursor-pointer shrink-0" aria-label="ปิด">
-            <X size={20} />
-          </button>
+          {/* แถวล่าง: Action controls */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<Plus className="w-4 h-4" />}
+              onClick={handleOpenAdd}
+            >
+              เพิ่มบันทึก
+            </Button>
+            <Tabs
+              value={diaryView}
+              onChange={(_, v) => v && setDiaryView(v)}
+              sx={{
+                minHeight: 32,
+                p: '3px',
+                bgcolor: '#f1f5f9',
+                borderRadius: '10px',
+                '& .MuiTabs-indicator': { display: 'none' },
+                '& .MuiTab-root': {
+                  minHeight: 26, minWidth: 0, px: 1.75, py: 0.5,
+                  fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
+                  borderRadius: '8px', color: '#64748b', zIndex: 1,
+                },
+                '& .MuiTab-root.Mui-selected': { bgcolor: '#fff', color: '#6d28d9', boxShadow: '0 1px 3px rgba(15,23,42,0.12)' },
+              }}
+            >
+              <Tab value="calendar" label="ปฏิทิน" />
+              <Tab value="list" label="ไทม์ไลน์" />
+            </Tabs>
+          </div>
         </div>
 
-        <div className="max-w-3xl w-full mx-auto px-4 py-5 space-y-3">
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-4 space-y-3">
           {diary.loading ? (
             <div className="text-center py-16 text-slate-400 text-sm">กำลังโหลดสมุดบันทึก...</div>
           ) : diary.entries.length === 0 ? (
@@ -491,7 +631,7 @@ const AdminCheckInPage = () => {
               นักศึกษายังไม่ได้ส่งรายงานประจำวัน
             </div>
           ) : diaryView === 'calendar' ? (
-            <div className="w-full" style={{ maxWidth: 980, margin: '0 auto' }}>
+            <div className="w-full">
               <AttendanceCalendar
                 entries={diary.entries}
                 studentId={diary.student?.studentId}
@@ -515,8 +655,8 @@ const AdminCheckInPage = () => {
                   </span>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => handleOpenEdit(entry)} className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition border-0 bg-transparent cursor-pointer" title="แก้ไข"><Pencil size={14} /></button>
-                  <button onClick={() => handleDelete(entry)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition border-0 bg-transparent cursor-pointer" title="ลบ"><Trash2 size={14} /></button>
+                  <IconButton size="small" onClick={() => handleOpenEdit(entry)} title="แก้ไข" aria-label="แก้ไข" sx={{ color: '#94a3b8', '&:hover': { color: '#7c3aed', bgcolor: '#f5f3ff' } }}><Pencil size={14} /></IconButton>
+                  <IconButton size="small" onClick={() => handleDelete(entry)} title="ลบ" aria-label="ลบ" sx={{ color: '#94a3b8', '&:hover': { color: '#ef4444', bgcolor: '#fef2f2' } }}><Trash2 size={14} /></IconButton>
                 </div>
               </div>
 
@@ -548,7 +688,7 @@ const AdminCheckInPage = () => {
 
       {/* Edit Checkin Dialog */}
       <Dialog open={editDialog.open} onClose={handleCloseEdit} fullWidth maxWidth="sm">
-        <DialogTitle>แก้ไขข้อมูลรายงานประจำวัน</DialogTitle>
+        <DialogTitle>{editDialog.target?.id ? 'แก้ไขข้อมูลรายงานประจำวัน' : 'เพิ่มรายงานประจำวันแทนนักศึกษา'}</DialogTitle>
         <DialogContent>
           <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
             <TextField
@@ -588,6 +728,14 @@ const AdminCheckInPage = () => {
           <Button variant="contained" onClick={handleSaveEdit}>บันทึก</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Toast — emerald แจ้งผลสำเร็จสั้น ๆ */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1400] inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 text-white text-xs font-semibold shadow-[0_8px_24px_rgba(5,150,105,0.35)]">
+          <CheckCircle2 size={15} />
+          {toast}
+        </div>
+      )}
     </div>
   );
 };

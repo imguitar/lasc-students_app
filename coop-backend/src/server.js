@@ -70,9 +70,19 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 //   /coop/api/ → backend /api/      → request มาที่ /api/uploads/...
 //   proxy ส่ง URI เต็ม              → request มาที่ /coop/api/uploads/...
 const uploadsDir = require('path').join(__dirname, '..', 'uploads');
-app.use('/uploads', express.static(uploadsDir));
-app.use('/api/uploads', express.static(uploadsDir));
-app.use('/coop/api/uploads', express.static(uploadsDir));
+// headers ตาม mobile-document-download skill — PDF เปิด inline (iOS กด Share/Save ได้) + cache กันจอขาวตอน reload
+const uploadsStaticOpts = {
+  setHeaders: (res, filePath) => {
+    if (/\.pdf$/i.test(filePath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(require('path').basename(filePath))}"`);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+};
+app.use('/uploads', express.static(uploadsDir, uploadsStaticOpts));
+app.use('/api/uploads', express.static(uploadsDir, uploadsStaticOpts));
+app.use('/coop/api/uploads', express.static(uploadsDir, uploadsStaticOpts));
 
 // =============================================
 // Health Check

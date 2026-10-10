@@ -21,8 +21,11 @@ import {
   FormControlLabel,
   Checkbox,
   Stack,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import { TrashIcon, PencilSquareIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MoreVertical } from 'lucide-react';
 import api from '../../../api/axios';
 
 const AdminEvaluationRoundsModal = ({ open, onClose }) => {
@@ -33,6 +36,7 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingRound, setEditingRound] = useState(null);
+  const [actionMenu, setActionMenu] = useState({ anchor: null, round: null });
   const [formData, setFormData] = useState({
     title: '',
     academicYear: '',
@@ -283,11 +287,15 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
                             )}
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton size="small" color="primary" onClick={() => handleOpenForm(r)} title="แก้ไข">
-                              <PencilSquareIcon style={{ width: 18, height: 18 }} />
-                            </IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeleteRound(r.id)} title="ลบ">
-                              <TrashIcon style={{ width: 18, height: 18 }} />
+                            <IconButton
+                              size="small"
+                              aria-label={`จัดการรอบการประเมิน ${r.title}`}
+                              aria-haspopup="menu"
+                              title="จัดการ"
+                              onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, round: r }); }}
+                              sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                            >
+                              <MoreVertical className="w-4 h-4" />
                             </IconButton>
                           </TableCell>
                         </TableRow>
@@ -295,6 +303,21 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
                     </TableBody>
                   </Table>
                 </TableContainer>
+
+                <Menu
+                  anchorEl={actionMenu.anchor}
+                  open={Boolean(actionMenu.anchor)}
+                  onClose={() => setActionMenu({ anchor: null, round: null })}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                  <MenuItem onClick={() => { handleOpenForm(actionMenu.round); setActionMenu({ anchor: null, round: null }); }}>
+                    <PencilSquareIcon style={{ width: 16, height: 16, marginRight: 10, color: '#6d28d9' }} /> แก้ไข
+                  </MenuItem>
+                  <MenuItem onClick={() => { handleDeleteRound(actionMenu.round?.id); setActionMenu({ anchor: null, round: null }); }} sx={{ color: '#ef4444' }}>
+                    <TrashIcon style={{ width: 16, height: 16, marginRight: 10 }} /> ลบ
+                  </MenuItem>
+                </Menu>
 
                 {/* Mobile: Card List */}
                 <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>

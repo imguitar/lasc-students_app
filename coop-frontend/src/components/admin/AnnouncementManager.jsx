@@ -3,13 +3,14 @@ import {
   Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Typography, Snackbar, Alert as MuiAlert, Switch,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, FormControlLabel,
-  Avatar, IconButton, InputBase, Zoom
+  Avatar, IconButton, InputBase, Zoom, Menu, MenuItem
 } from '@mui/material';
 import api from '../../api/axios';
 import ImageEditorModal from '../ImageEditorModal';
+import { MoreVertical } from 'lucide-react';
 import {
   MapPinIcon, PencilIcon, PhotoIcon, XMarkIcon, GlobeAltIcon,
-  ChevronDownIcon, LinkIcon, NewspaperIcon
+  ChevronDownIcon, LinkIcon, NewspaperIcon, TrashIcon
 } from '@heroicons/react/24/outline';
 
 const categories = ['รับสมัคร', 'ประกาศ', 'กิจกรรม', 'ทั่วไป'];
@@ -31,6 +32,7 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
   const [formData, setFormData] = useState(emptyForm);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, title: '' });
   const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [actionMenu, setActionMenu] = useState({ anchor: null, item: null });
 
   const fetchAnnouncements = async () => {
     try {
@@ -218,11 +220,17 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button size="small" variant="outlined" onClick={() => openEditDialog(item)} sx={{ borderRadius: 999, fontWeight: 600 }}>แก้ไข</Button>
-                        <Button size="small" variant="outlined" color="error" onClick={() => setDeleteDialog({ open: true, id: item.id, title: item.title })} sx={{ borderRadius: 999, fontWeight: 600 }}>ลบ</Button>
-                      </Box>
+                    <TableCell align="center">
+                      <IconButton
+                        size="small"
+                        aria-label={`จัดการข่าว ${item.title}`}
+                        aria-haspopup="menu"
+                        title="จัดการ"
+                        onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, item }); }}
+                        sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </IconButton>
                     </TableCell>
                   </TableRow>
                 );
@@ -230,6 +238,21 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
             </TableBody>
           </Table>
         </TableContainer>
+
+        <Menu
+          anchorEl={actionMenu.anchor}
+          open={Boolean(actionMenu.anchor)}
+          onClose={() => setActionMenu({ anchor: null, item: null })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={() => { openEditDialog(actionMenu.item); setActionMenu({ anchor: null, item: null }); }}>
+            <PencilIcon style={{ width: 16, height: 16, marginRight: 10, color: '#6d28d9' }} /> แก้ไข
+          </MenuItem>
+          <MenuItem onClick={() => { setDeleteDialog({ open: true, id: actionMenu.item?.id, title: actionMenu.item?.title }); setActionMenu({ anchor: null, item: null }); }} sx={{ color: '#ef4444' }}>
+            <TrashIcon style={{ width: 16, height: 16, marginRight: 10 }} /> ลบ
+          </MenuItem>
+        </Menu>
 
         {/* มุมมองการ์ด — เฉพาะหน้าจอมือถือ (กันตารางล้นจอ) */}
         <Box sx={{ display: { xs: 'block', md: 'none' } }}>

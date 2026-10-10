@@ -141,7 +141,10 @@ const ensureTable = async () => {
     'mentor_phone VARCHAR(50) NULL',
     'new_start_date DATE NULL',
     'new_end_date DATE NULL',
-    'relocation_round INT UNSIGNED DEFAULT 1'
+    'relocation_round INT UNSIGNED DEFAULT 1',
+    "dispatch_method ENUM('student_delivery','admin_email') DEFAULT 'student_delivery'",
+    'recipient_email VARCHAR(255) NULL',
+    'dispatched_at DATETIME NULL'
   ];
   // MySQL 8 ไม่รองรับ ADD COLUMN IF NOT EXISTS — เช็ค information_schema ก่อนเพิ่ม (idempotent, ใช้ได้ทั้ง MySQL/MariaDB)
   const [colRows] = await pool.query(
@@ -176,6 +179,13 @@ const saveDataUrlFile = async (dataUrl, prefix) => {
   const filename = `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
   await fs.promises.writeFile(path.join(DOC_DIR, filename), buffer);
   return { url: `/uploads/relocations/${filename}` };
+};
+
+// base URL ฝั่ง frontend สำหรับลิงก์สาธารณะในอีเมล (ตรงกับ mailer.buildRequestDetailUrl)
+const coopPublicBase = () => {
+  let base = (process.env.COOP_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:5173/coop').replace(/\/+$/, '');
+  if (!base.endsWith('/coop')) base += '/coop';
+  return base;
 };
 
 const STATUS_LABEL = {
@@ -335,8 +345,7 @@ router.get('/', authenticate, async (req, res) => {
       let where = '';
       const params = [];
       if (role === 'student') { where = 'WHERE rr.student_id = ?'; params.push(String(req.user.username)); }
-      else if (role === 'advisor') { where = "WHERE rr.status IN ('company_approved_waiting_advisor','submitted_waiting_advisor','advisor_approved_waiting_admin','rejected')"; }
-      else if (role !== 'admin') { return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์' }); }
+      else if (!['advisor', 'admin'].includes(role)) { return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์' }); }
       const [rows] = await pool.query(`${listQuery} ${where} ORDER BY rr.created_at DESC`, params);
       res.json({ success: true, data: rows });
     });
@@ -445,7 +454,8 @@ const transition = async (req, res, { from, to, fileField, filePrefix, notify, e
 
   const { comment } = req.body || {};
   if (comment !== undefined) { updates.push('admin_comment = ?'); params.push(comment || null); }
-  if (extra) for (const [k, v] of Object.entries(extra)) { updates.push(`${k} = ?`); params.push(v); }
+  const extraFields = typeof extra === 'function' ? extra(req, rel) : extra;
+  if (extraFields) for (const [k, v] of Object.entries(extraFields)) { updates.push(`${k} = ?`); params.push(v); }
 
   params.push(rel.id);
   await pool.query(`UPDATE internship_relocation_requests SET ${updates.join(', ')} WHERE id = ?`, params);
@@ -561,39 +571,59 @@ router.patch('/:id/admin-reject', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// ขั้น 2: ออกหนังสือขอความอนุเคราะห์ (แนบ PDF + ส่งอีเมลหาบริษัทใหม่)
+// ขั้น 2: ออกหนังสือขอความอนุเคราะห์ (แนบ PDF + เลือกวิธีนำส่ง: แอดมินอีเมลตรง / นักศึกษาส่งต่อเอง)
 router.patch('/:id/request-letter', authenticate, async (req, res) => {
   try {
     if (!adminOnly(req, res)) return;
+    // วิธีนำส่งเอกสารถึงสถานประกอบการใหม่ — student_delivery = นศ. ถือลิงก์/PDF ไปส่งเอง, admin_email = คณะส่งอีเมลทางการ
+    const dispatchMethod = ['student_delivery', 'admin_email'].includes(req.body?.dispatch_method)
+      ? req.body.dispatch_method : 'student_delivery';
+    const recipientEmail = String(req.body?.recipient_email || '').trim();
+    if (dispatchMethod === 'admin_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุอีเมลปลายทางของสถานประกอบการใหม่' });
+    }
+    const acceptanceToken = crypto.randomBytes(24).toString('hex');
     await transition(req, res, {
       from: 'admin_approved_generating_request_letter',
       to: 'waiting_company_acceptance',
       fileField: 'new_request_letter_file',
       filePrefix: 'request-letter',
       requireDates: true,
-      // one-time token สำหรับลิงก์/QR ให้สถานประกอบการใหม่ตอบรับออนไลน์
-      extra: { acceptance_token: crypto.randomBytes(24).toString('hex') },
+      // one-time token สำหรับลิงก์/QR ให้สถานประกอบการใหม่ตอบรับออนไลน์ + บันทึกวิธีนำส่ง
+      extra: {
+        acceptance_token: acceptanceToken,
+        dispatch_method: dispatchMethod,
+        recipient_email: dispatchMethod === 'admin_email' ? recipientEmail : null,
+        dispatched_at: dispatchMethod === 'admin_email' ? new Date() : null
+      },
       notify: async (rel) => {
-        // ส่งอีเมลแจ้งบริษัทใหม่ (ใช้อีเมลหัวหน้าหน่วยงาน หรือดึงอีเมลแรกจากช่องผู้ประสานงานเดิม)
-        const emailMatch = rel.mentor_email
-          ? [rel.mentor_email]
-          : /[\w.+-]+@[\w-]+\.[\w.]+/.exec(rel.new_company_contact || '');
-        if (emailMatch) {
+        const acceptanceLink = `${coopPublicBase()}/public/company-acceptance/${acceptanceToken}`;
+        if (dispatchMethod === 'admin_email') {
+          // แอดมินส่งอีเมลทางการถึงสถานประกอบการโดยตรง พร้อมลิงก์ตอบรับออนไลน์
           try {
             await sendEmail({
-              to: emailMatch[0],
+              to: recipientEmail,
               subject: `[LASC] ขอความอนุเคราะห์รับนักศึกษาฝึกงาน (ย้ายจากสถานประกอบการเดิม) — ${rel.new_company_name}`,
               htmlContent: `<p>เรียน ผู้ประสานงาน ${rel.new_company_name}</p>
-                <p>คณะศิลปศาสตร์และวิทยาศาสตร์ มหาวิทยาลัยราชภัฏศรีสะเกษ ได้ออกหนังสือขอความอนุเคราะห์ส่งนักศึกษา <strong>${rel.student_id}</strong> ไปฝึกงาน ณ สถานประกอบการของท่าน โปรดตรวจสอบเอกสารแนบในระบบหรือติดต่อฝ่ายฝึกประสบการณ์เพื่อตอบรับการฝึกงาน</p>
+                <p>คณะศิลปศาสตร์และวิทยาศาสตร์ มหาวิทยาลัยราชภัฏศรีสะเกษ ได้ออกหนังสือขอความอนุเคราะห์ส่งนักศึกษา <strong>${rel.student_id}</strong> ไปฝึกงาน ณ สถานประกอบการของท่าน</p>
+                <p>โปรดตอบรับการฝึกงานผ่านลิงก์ออนไลน์ (ลงนามดิจิทัล ใช้ได้ครั้งเดียว):<br/>
+                <a href="${acceptanceLink}">${acceptanceLink}</a></p>
                 <p style="color:#94a3b8;font-size:12px">อีเมลอัตโนมัติจากระบบสหกิจศึกษา LASC</p>`
             });
           } catch (mailErr) { console.error('[Relocation] company email fail:', mailErr.message); }
+          await notifyStudent(rel.student_id, {
+            type: 'relocation_status', title: 'คณะส่งหนังสือส่งตัวทางอีเมลแล้ว',
+            message: `ส่งหนังสือขอความอนุเคราะห์ไปยัง ${rel.new_company_name} ทางอีเมล ${recipientEmail} แล้ว รอการตอบรับ`,
+            link: '/dashboard/my-requests', requestId: rel.internship_request_id
+          });
+        } else {
+          // นักศึกษานำลิงก์/เอกสารไปส่งต่อเอง — แจ้งให้ไปคัดลอกลิงก์ที่หน้าคำร้องของฉัน
+          await notifyStudent(rel.student_id, {
+            type: 'relocation_status', title: 'ออกหนังสือขอความอนุเคราะห์ที่ใหม่แล้ว',
+            message: `กรุณานำลิงก์ตอบรับหรือหนังสือส่งตัวไปมอบให้ ${rel.new_company_name} เพื่อให้ตอบรับการฝึกงาน`,
+            link: '/dashboard/my-requests', requestId: rel.internship_request_id
+          });
         }
-        await notifyStudent(rel.student_id, {
-          type: 'relocation_status', title: 'ออกหนังสือขอความอนุเคราะห์ที่ใหม่แล้ว',
-          message: `ระบบส่งหนังสือขอความอนุเคราะห์ไปยัง ${rel.new_company_name} แล้ว รอแบบตอบรับ`,
-          link: '/dashboard/my-requests', requestId: rel.internship_request_id
-        });
       }
     });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

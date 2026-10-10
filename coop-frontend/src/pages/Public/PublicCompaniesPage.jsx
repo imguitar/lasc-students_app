@@ -513,7 +513,7 @@ const PublicCompaniesPage = () => {
                       <span className="text-xs">กำลังโหลดรายชื่อนักศึกษา...</span>
                     </div>
                   ) : interns.length > 0 ? (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-hidden">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50/80">

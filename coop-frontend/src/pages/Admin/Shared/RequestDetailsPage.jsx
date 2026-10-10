@@ -6,31 +6,12 @@ import { useReactToPrint } from 'react-to-print';
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
 import PrintableEvaluationForm from '../../../components/PrintableEvaluationForm';
-import { ChartBarIcon, PrinterIcon, EyeIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
-import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud, ArrowRight } from 'lucide-react';
-import { formatAddress } from '../../../utils/formatters';
+import { ChartBarIcon, PrinterIcon, ArrowDownTrayIcon, DocumentTextIcon, QrCodeIcon } from '@heroicons/react/24/outline';
+import { Pencil, CalendarDays, Check, X, Copy, ExternalLink, FileText, UploadCloud, ArrowLeft } from 'lucide-react';
+import InternshipRequestDetailView from '../../../components/InternshipRequestDetailView';
 import { getUploadUrl } from '../../../utils/fileUrl';
-import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
-import { isMobileDevice, dataUrlToBlobUrl, downloadDocument } from '../../../utils/documentViewer';
 import { isStudentEditableStatus } from '../../Student/Dashboard/MyRequestsPage';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
-
-const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  downloadDocument(dataUrl, fileName);
-};
-
-// โทนสี badge ตามขั้นตอนคำร้องเปลี่ยนสถานที่ฝึกงาน
-const RELOC_BADGE = {
-  submitted_waiting_company: 'bg-amber-50 text-amber-600 border-amber-200',
-  company_approved_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
-  submitted_waiting_advisor: 'bg-amber-50 text-amber-600 border-amber-200',
-  advisor_approved_waiting_admin: 'bg-sky-50 text-sky-600 border-sky-200',
-  admin_approved_generating_request_letter: 'bg-violet-50 text-violet-600 border-violet-200',
-  waiting_company_acceptance: 'bg-blue-50 text-blue-600 border-blue-200',
-  company_accepted_generating_dispatch_letter: 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  completed: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-  rejected: 'bg-red-50 text-red-500 border-red-200',
-};
 
 const RequestDetailsPage = () => {
   const { id } = useParams();
@@ -57,7 +38,6 @@ const RequestDetailsPage = () => {
   const [internshipRounds, setInternshipRounds] = useState([]);
   const [relocations, setRelocations] = useState([]);
   const [imageModal, setImageModal] = useState(false);
-  const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
   const dispatchFileInputRef = useRef(null);
   const printRef = useRef(null);
   const qrCanvasRef = useRef(null);
@@ -506,36 +486,12 @@ const RequestDetailsPage = () => {
   const statusInfo = getStatusBadge(effectiveStatusBadge);
   const details = request.details || {}; // Fields from NewRequestPage payload
   const studentPhotoSrc = details.studentPhoto?.dataUrl || details.studentPhoto || request.studentPhotoUrl || request.photo || '';
-  const studentAddress = formatAddress(details.student_info?.address);
-  const companyAddress = formatAddress(details.companyAddress || details.address);
-  const internshipTermLabel = details.internshipTerm === 'term1'
-    ? 'ภาคการศึกษาที่ 1'
-    : details.internshipTerm === 'term2'
-      ? 'ภาคการศึกษาที่ 2'
-      : details.internshipTerm === 'summer'
-        ? 'ภาคฤดูร้อน'
-        : (details.internshipTerm || '');
-
-  // ค่าปัจจุบันหลังเปลี่ยนสถานที่ฝึกงาน — นับเฉพาะรอบที่ "เสร็จสิ้น" แล้ว (รอบที่กำลังดำเนินการยังไม่ใช่บริษัทปัจจุบัน)
-  const completedRelocs = relocations.filter((r) => r.status === 'completed');
-  const latestReloc = completedRelocs.length > 0 ? completedRelocs[completedRelocs.length - 1] : null;
-  const effectiveStart = latestReloc?.new_start_date || request.internship_start_date || details.startDate;
-  const effectiveEnd = latestReloc?.new_end_date || request.internship_end_date || details.endDate;
   const effectiveStatus = effectiveStatusBadge;
   const isInterning = effectiveStatus.includes('ออกฝึกงาน') || effectiveStatus.includes('สิ้นสุด') || effectiveStatus.includes('เสร็จ');
   // บริษัทตอบรับแล้วหรือออกฝึกงานแล้ว → ไม่ต้องมี QR ตอบรับล่วงหน้า
   const hideQrButton = isInterning || effectiveStatus.includes('ตอบรับแล้ว') || effectiveStatus.includes('อนุมัติแล้ว');
   // มีประวัติย้าย + ออกฝึกงานแล้ว → ห้ามแก้วันฝึกย้อนหลัง
   const hideScheduleButton = relocations.length > 0 && isInterning;
-  // ข้อมูลบริษัทปัจจุบัน (ถ้าย้ายแล้วใช้ค่าที่ใหม่)
-  const currentCompanyName = latestReloc?.new_company_name || details.companyName || request.company;
-  const currentCompanyAddress = latestReloc?.new_company_address
-    ? formatAddress(latestReloc.new_company_address)
-    : companyAddress;
-  const currentContactPerson = latestReloc?.mentor_name || details.contactPerson;
-  const currentContactPosition = latestReloc?.mentor_position || details.contactPosition;
-  const currentContactPhone = latestReloc?.mentor_phone || details.contactPhone;
-  const currentContactEmail = latestReloc?.mentor_email || details.contactEmail;
   const isPostApproval = isInterning || effectiveStatus.includes('อนุมัติแล้ว') || effectiveStatus.includes('ตอบรับแล้ว');
 
   // Determine if current user can execute actions
@@ -571,234 +527,46 @@ const RequestDetailsPage = () => {
           )}
         </header>
 
-        <section className="detail-section">
-          <h3>ข้อมูลนักศึกษา</h3>
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">ชื่อ-นามสกุล</span>
-              <span className="detail-value">{request.studentName}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">รหัสนักศึกษา</span>
-              <span className="detail-value">{request.studentId}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">สาขาวิชา</span>
-              <span className="detail-value">{request.department}</span>
-            </div>
-            {details.student_info?.lastSemesterGrade && (
-              <div className="detail-item">
-                <span className="detail-label">เกรดเฉลี่ยเทอมล่าสุด</span>
-                <span className="detail-value">{details.student_info.lastSemesterGrade}</span>
-              </div>
-            )}
-            <div className="detail-item">
-              <span className="detail-label">โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">
-                {details.student_info?.phone || '-'} / {(details.student_info?.email && !details.student_info.email.includes('@student.sskru.ac.th'))
-                  ? details.student_info.email
-                  : (request.studentId ? `stu${request.studentId}@sskru.ac.th` : '-')}
-              </span>
-            </div>
-            {studentAddress && studentAddress !== '-' && (
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">ที่อยู่ปัจจุบัน</span>
-                <span className="detail-value">{studentAddress}</span>
-              </div>
-            )}
-          </div>
-        </section>
+        <InternshipRequestDetailView
+          request={request}
+          relocations={relocations}
+          evaluatorEmailAction={userRole === 'admin' && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setEditEvalEmailModal({
+                open: true,
+                email: request.evaluator_email || details.evaluatorEmail || '',
+                submitting: false,
+                error: ''
+              })}
+              sx={{ fontSize: '0.78rem', py: 0.2, px: 1.2, borderRadius: 1.5 }}
+            >
+              แก้ไขอีเมลผู้ประเมิน
+            </Button>
+          )}
+          datesHeaderAction={userRole === 'admin' && !hideScheduleButton && (
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleOpenScheduleModal}
+              sx={{
+                bgcolor: '#4f46e5',
+                '&:hover': { bgcolor: '#4338ca' },
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <CalendarDays size={15} /> กำหนด / แก้ไขวันฝึกงาน
+            </Button>
+          )}
+        />
 
-        <section className="detail-section">
-          <h3>รายละเอียดสถานประกอบการ</h3>
-          <div className="detail-grid">
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">1. ชื่อบุคคล / ชื่อตำแหน่งงานติดต่อ / ผู้ประสานงานที่ติดต่อ</span>
-              <span className="detail-value">
-                {currentContactPerson || '-'} {currentContactPosition ? `(${currentContactPosition})` : ''}
-              </span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ{latestReloc ? ' (สถานที่ฝึกปัจจุบัน)' : ''}</span>
-              <span className="detail-value">{currentCompanyName}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">3. ที่อยู่หน่วยงาน</span>
-              <span className="detail-value">{currentCompanyAddress}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">4. โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">{currentContactPhone || '-'} / {currentContactEmail || '-'}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">อีเมลผู้ประเมินจากสถานประกอบการ (สำหรับส่งแบบประเมิน)</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
-                <span className="detail-value" style={{ fontWeight: 600, color: (request.evaluator_email || details.evaluatorEmail) ? '#1e293b' : '#94a3b8' }}>
-                  {request.evaluator_email || details.evaluatorEmail || '(ยังไม่ระบุโดยสถานประกอบการ)'}
-                </span>
-                {userRole === 'admin' && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => setEditEvalEmailModal({
-                      open: true,
-                      email: request.evaluator_email || details.evaluatorEmail || '',
-                      submitting: false,
-                      error: ''
-                    })}
-                    sx={{ fontSize: '0.78rem', py: 0.2, px: 1.2, borderRadius: 1.5 }}
-                  >
-                    แก้ไขอีเมลผู้ประเมิน
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">5. ตำแหน่งงานที่ต้องการเข้าฝึกงาน</span>
-              <span className="detail-value">{details.position || request.position}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">6. ข้อมูลเพิ่มเติม (ลักษณะงานที่ทำ / ทักษะที่ต้องการ)</span>
-              <p className="detail-value" style={{whiteSpace: 'pre-wrap', marginTop: '5px'}}>
-                {details.description ? `ลักษณะงาน: ${details.description}\n` : ''}
-                {details.skills ? `ทักษะ: ${details.skills}` : ''}
-                {!details.description && !details.skills && <span style={{ color: '#94a3b8' }}>ไม่ได้ระบุ</span>}
-              </p>
-            </div>
-          </div>
-        </section>
 
-        {/* ประวัติการเปลี่ยนสถานที่ฝึกงาน — แสดงเฉพาะเมื่อเคยยื่นคำร้องย้าย */}
-        {relocations.length > 0 && (
-          <section className="detail-section">
-            <h3>
-              ประวัติการเปลี่ยนสถานที่ฝึกงาน
-              <span className="ml-2 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-600 text-[11px] font-bold align-middle">
-                {relocations.length} ครั้ง
-              </span>
-            </h3>
-            <div className="space-y-3">
-              {relocations.map((r, idx) => (
-                <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
-                  {/* หัวรายการ: ครั้งที่ + วันยื่น + สถานะ */}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-slate-800 m-0">
-                      คำร้องครั้งที่ {idx + 1}
-                      <span className="text-[11px] font-normal text-slate-400 ml-1.5">
-                        (ยื่นเมื่อ {new Date(r.created_at).toLocaleDateString('th-TH')})
-                      </span>
-                    </p>
-                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border inline-flex items-center gap-1.5 ${RELOC_BADGE[r.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                      {RELOCATION_STATUS_LABEL[r.status] || r.status}
-                    </span>
-                  </div>
-
-                  {/* ที่เดิม → ที่ใหม่ (มือถือเรียงแนวตั้ง) */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                    <div className="flex-1 min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                      <p className="text-[10px] font-semibold text-slate-400 m-0">สถานประกอบการเดิม</p>
-                      {/* รอบถัดไป "ที่เดิม" คือบริษัทใหม่ของรอบก่อนหน้า */}
-                      <p className="text-xs font-bold text-slate-700 m-0 mt-0.5 truncate">
-                        {idx > 0 ? (relocations[idx - 1].new_company_name || r.old_company || request.company) : (r.old_company || request.company) || '—'}
-                      </p>
-                      {(relocations[idx - 1]?.new_start_date || request.internship_start_date || request.details?.startDate) && (
-                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">
-                          ฝึกช่วง {new Date(relocations[idx - 1]?.new_start_date || request.internship_start_date || request.details?.startDate).toLocaleDateString('th-TH')} – {new Date(r.created_at).toLocaleDateString('th-TH')}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">ฝึกสะสมแล้ว {r.days_trained || 0} วัน</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-violet-400 shrink-0 rotate-90 sm:rotate-0 self-center" />
-                    <div className="flex-1 min-w-0 rounded-xl bg-violet-50/60 border border-violet-100 px-3 py-2">
-                      <p className="text-[10px] font-semibold text-violet-400 m-0">สถานประกอบการใหม่</p>
-                      <p className="text-xs font-bold text-violet-800 m-0 mt-0.5 truncate">{r.new_company_name}</p>
-                      <p className="text-[10px] text-violet-500 m-0 mt-0.5">
-                        {r.new_start_date && r.new_end_date
-                          ? `${new Date(r.new_start_date).toLocaleDateString('th-TH')} – ${new Date(r.new_end_date).toLocaleDateString('th-TH')}`
-                          : 'รอสำนักงานคณบดีกำหนดวันฝึกงาน'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* เหตุผล */}
-                  <div className="detail-item">
-                    <span className="detail-label">เหตุผลการขอย้าย</span>
-                    <span className="detail-value">{r.reason}</span>
-                  </div>
-
-                  {/* เอกสารที่เกี่ยวข้อง */}
-                  {(r.return_letter_file || r.new_request_letter_file || r.new_dispatch_letter_file) && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {[
-                        [r.return_letter_file, 'หนังสือส่งตัวกลับ'],
-                        [r.new_request_letter_file, 'หนังสือขอความอนุเคราะห์'],
-                        [r.new_dispatch_letter_file, 'หนังสือส่งตัวฉบับใหม่'],
-                      ].filter(([u]) => u).map(([u, label]) => (
-                        <a key={label} href={getUploadUrl(u)} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 no-underline hover:text-violet-800 px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-100">
-                          <FileText className="w-3.5 h-3.5" /> {label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="detail-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ margin: 0 }}>ความประสงค์และกำหนดวันฝึกงาน{latestReloc ? ' (ช่วงฝึกปัจจุบัน)' : ''}</h3>
-            {userRole === 'admin' && !hideScheduleButton && (
-              <Button
-                variant="contained"
-                size="small"
-                onClick={handleOpenScheduleModal}
-                sx={{
-                  bgcolor: '#4f46e5',
-                  '&:hover': { bgcolor: '#4338ca' },
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <CalendarDays size={15} /> กำหนด / แก้ไขวันฝึกงาน
-              </Button>
-            )}
-          </div>
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">ภาคการศึกษา / ช่วงฝึกงาน</span>
-              <span className="detail-value">{internshipTermLabel || '-'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">วันที่เริ่มต้นฝึกงาน</span>
-              <span className="detail-value">
-                {effectiveStart 
-                  ? new Date(effectiveStart).toLocaleDateString('th-TH') 
-                  : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">วันที่สิ้นสุดการฝึกงาน</span>
-              <span className="detail-value">
-                {effectiveEnd 
-                  ? new Date(effectiveEnd).toLocaleDateString('th-TH') 
-                  : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
-              </span>
-            </div>
-            {details.internshipDateNote && (
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">หมายเหตุวันฝึกงาน</span>
-                <span className="detail-value">{details.internshipDateNote}</span>
-              </div>
-            )}
-          </div>
-        </section>
 
 
         {(request.supervisionAppointment || isPostApproval) && (
@@ -1090,7 +858,7 @@ const RequestDetailsPage = () => {
         )}
 
         <footer className="actions-footer">
-          <Button variant="outlined" className="btn-back" onClick={() => navigate(-1)}>
+          <Button variant="outlined" className="btn-back" startIcon={<ArrowLeft size={16} />} onClick={() => navigate(-1)}>
             ย้อนกลับ
           </Button>
           
@@ -1614,89 +1382,6 @@ const RequestDetailsPage = () => {
           />
         </div>
       )}
-
-      {/* Document Preview Modal */}
-      <Dialog
-        open={docModal.open}
-        onClose={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })}
-        maxWidth="md"
-        fullWidth
-        disableScrollLock={true}
-        PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
-      >
-        <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid #f1f5f9' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                bgcolor: '#ffe4e6',
-                color: '#be185d',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <DocumentTextIcon style={{ width: 18, height: 18 }} />
-            </Box>
-            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
-              {docModal.fileName || 'หนังสือส่งตัวฝึกงาน'}
-            </Typography>
-          </Box>
-          <Button size="small" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ color: '#64748b', fontWeight: 700 }}>
-            ปิด
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, bgcolor: '#f8fafc', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '65vh' }}>
-          {docModal.open && (docModal.blobUrl || docModal.dataUrl) && (
-            docModal.dataUrl?.startsWith('data:image/') ? (
-              <img
-                src={docModal.dataUrl}
-                alt={docModal.fileName}
-                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
-              />
-            ) : isMobileDevice() ? (
-              // iframe PDF ไม่แสดงผลบนเบราว์เซอร์มือถือ — แสดงปุ่มเปิดแท็บใหม่/ดาวน์โหลดแทน
-              <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
-                <DocumentTextIcon style={{ width: 48, height: 48, color: '#94a3b8', margin: '0 auto 16px' }} />
-                <Typography sx={{ color: '#475569', mb: 3, fontSize: '0.9rem' }}>
-                  เบราว์เซอร์มือถือไม่รองรับการแสดงตัวอย่าง PDF ในหน้านี้
-                </Typography>
-                <Button
-                  variant="contained"
-                  component="a"
-                  href={docModal.blobUrl || docModal.dataUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 3 }}
-                >
-                  เปิดดูเอกสารในแท็บใหม่
-                </Button>
-              </Box>
-            ) : (
-              <iframe
-                src={docModal.blobUrl || docModal.dataUrl}
-                title={docModal.fileName}
-                style={{ width: '100%', height: '70vh', border: 'none', borderRadius: '8px', backgroundColor: '#fff' }}
-              />
-            )
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            variant="contained"
-            startIcon={<ArrowDownTrayIcon style={{ width: 18, height: 18 }} />}
-            onClick={() => handleDownloadFile(docModal.dataUrl, docModal.fileName)}
-            sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5 }}
-          >
-            ดาวน์โหลดไฟล์
-          </Button>
-          <Button variant="outlined" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b', borderColor: '#cbd5e1' }}>
-            ปิดหน้าต่าง
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {(userRole === 'admin' || userRole === 'advisor') && (
         <div style={{ display: 'none' }}>

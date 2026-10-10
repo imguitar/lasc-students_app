@@ -38,6 +38,9 @@ export const isMobileDevice = () =>
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   || window.innerWidth < 768;
 
+// LINE / in-app browsers — บล็อก filesystem download; ใช้พารามิเตอร์ openExternalBrowser=1 ดีดออกไป external browser
+export const isLineBrowser = () => /Line/i.test(navigator.userAgent);
+
 // เปิดเอกสารในแท็บใหม่ — เรียกจาก click handler เท่านั้น
 // มือถือใช้ <a target="_blank"> (browser ให้อนุญาตเสมอ ไม่โดนบล็อกเหมือน window.open)
 // Desktop ใช้ window.open(blobUrl) ให้เปิดด้วย Native PDF Viewer
@@ -75,4 +78,49 @@ export const downloadDocument = (dataUrl, fileName = 'document.pdf') => {
   a.click();
   a.remove();
   if (href.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(href), 60_000);
+};
+
+// Dual-strategy สำหรับไฟล์จาก URL (ตาม skill mobile-document-download):
+// - Mobile/In-App browser: preview-first — เปิด URL จริงในแท็บใหม่
+//   (native PDF viewer มี Share/Save to Files; blob download บน iOS/Android มักพังหรือชื่อไฟล์เพี้ยน)
+// - Desktop: fetch→blob→a.download เพื่อบังคับเซฟข้าม origin (/uploads คนละพอร์ต)
+//   fallback: เปิดแท็บใหม่ถ้า fetch ล้มเหลว
+// ต้องเรียกภายใน user gesture (click handler) เท่านั้น
+export const downloadFileSmart = async (url, fileName = 'document.pdf') => {
+  if (!url) return;
+  // data: URL ถูกบล็อกทั้งเปิดแท็บและดาวน์โหลดบนมือถือ — แปลงเป็น blob ก่อนเสมอ
+  const href = url.startsWith('data:') ? dataUrlToBlobUrl(url) : url;
+  if (!href) return;
+  // LINE in-app browser: แนบพารามิเตอร์ให้ดีดไป external browser (ทำได้เฉพาะ http(s) เท่านั้น)
+  const openHref = isLineBrowser() && /^https?:/i.test(href)
+    ? href + (href.includes('?') ? '&' : '?') + 'openExternalBrowser=1'
+    : href;
+  if (isMobileDevice()) {
+    // Preview-first — เปิดในแท็บใหม่ผ่าน <a> click (ไม่โดน popup blocker)
+    // native PDF viewer มี Share/Save to Files ในตัว
+    const a = document.createElement('a');
+    a.href = openHref;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (href.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    return;
+  }
+  try {
+    const res = await fetch(href);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+  } catch {
+    window.open(openHref, '_blank', 'noopener,noreferrer');
+  }
 };

@@ -5,7 +5,7 @@ import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { IconButton, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import NotificationBell from '../../../components/NotificationBell';
@@ -190,7 +190,7 @@ const AllRequestsOverviewPage = () => {
       if (!matchStatus(effectiveStatus, statusFilter)) return false;
       if (!matchDepartment(r.department, departmentFilter)) return false;
       if (!q) return true;
-      return [r.studentName, r.studentId, r.company, r.department]
+      return [r.studentName, r.studentId, r.active_company_name || r.company, r.department]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q));
     });
@@ -859,7 +859,7 @@ const AllRequestsOverviewPage = () => {
               </div>
             ) : (
               <>
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100">
+                <div className="hidden md:block overflow-hidden rounded-xl border border-slate-100">
                   {/* border-separate จำเป็น — sticky <td> หลุด/ไม่แสดงผลในบางแถวเมื่อ border-collapse: collapse (bug ของ Chrome/Safari) */}
                   <table className="w-full min-w-[860px] text-left border-separate border-spacing-0 table-auto">
                   <thead>
@@ -903,7 +903,10 @@ const AllRequestsOverviewPage = () => {
                         </td>
                         <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 max-w-[160px] truncate" title={request.department || ''}>{request.department || '-'}</td>
                         <td className="text-xs sm:text-sm text-slate-600 px-3 py-2.5 border-b border-slate-100 min-w-[140px]">
-                          <div className="font-medium text-slate-800 break-words">{request.company || '-'}</div>
+                          <div className="font-medium text-slate-800 break-words">
+                            {request.active_company_name || request.company || '-'}
+                            {request.active_company_name && <span className="block text-[10px] text-slate-400 font-normal">ย้ายจาก {request.company}</span>}
+                          </div>
                           {(request.internship_start_date || request.details?.startDate) ? (
                             <div className="text-[0.72rem] text-violet-700 font-medium mt-1 flex items-center gap-1">
                               <CalendarDays className="w-3.5 h-3.5 shrink-0" />
@@ -917,14 +920,15 @@ const AllRequestsOverviewPage = () => {
                           <StatusBadge status={getEffectiveInternshipStatus(request)} />
                         </td>
                         <td className="px-3 py-2.5 border-b border-slate-100 text-center sticky right-0 w-[68px] bg-white group-hover:bg-slate-50">
-                          <button
-                            type="button"
-                            className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent"
+                          <IconButton
+                            size="small"
+                            className="action-menu-trigger"
                             onClick={(e) => handleToggleActionMenu(e, request.id)}
                             aria-label="เมนูจัดการคำร้อง"
+                            sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                           >
                             <MoreVertical className="w-4 h-4 stroke-[2]" />
-                          </button>
+                          </IconButton>
                         </td>
                       </tr>
                     ))}
@@ -970,7 +974,8 @@ const AllRequestsOverviewPage = () => {
                         <div className="text-xs text-slate-400 mt-0.5 break-words">{request.department || '-'}</div>
                       </div>
                       <div className="bg-slate-50 p-2.5 rounded-xl text-xs text-slate-700 font-medium break-words">
-                        {request.company || '-'}
+                        {request.active_company_name || request.company || '-'}
+                        {request.active_company_name && <span className="block text-[10px] text-slate-400 font-normal mt-0.5">ย้ายจาก {request.company}</span>}
                         {(request.internship_start_date || request.details?.startDate) && (
                           <div className="text-[0.7rem] text-violet-700 font-medium mt-1 flex items-center gap-1">
                             <CalendarDays className="w-3.5 h-3.5 shrink-0" />
@@ -1318,7 +1323,7 @@ const AllRequestsOverviewPage = () => {
             {qrModal.request && (
               <p className="text-sm text-slate-500 text-center mt-2 mb-0">
                 {qrModal.request.studentName || qrModal.request.studentId}
-                {qrModal.request.company && <span className="block text-xs text-slate-400 mt-0.5">{qrModal.request.company}</span>}
+                {(qrModal.request.active_company_name || qrModal.request.company) && <span className="block text-xs text-slate-400 mt-0.5">{qrModal.request.active_company_name || qrModal.request.company}</span>}
               </p>
             )}
             <div className="flex items-center justify-center mt-4">
@@ -1588,7 +1593,7 @@ const AllRequestsOverviewPage = () => {
                     </div>
                     <div className="col-span-2">
                       <div className="text-[11px] text-slate-500 mb-0.5">บริษัทที่ยื่นขอฝึกงาน</div>
-                      <div className="text-xs font-semibold text-slate-800 break-words">{wizardCurrent.company || '-'}</div>
+                      <div className="text-xs font-semibold text-slate-800 break-words">{wizardCurrent.active_company_name || wizardCurrent.company || '-'}</div>
                     </div>
                   </div>
                 </div>

@@ -20,6 +20,8 @@ import {
   StarIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
+import { Button, IconButton } from '@mui/material';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { redirectToProfileLogin } from '../../utils/sso';
 import NotificationBell from '../../components/NotificationBell';
 import UserProfileMenu from '../../components/UserProfileMenu';
@@ -73,6 +75,23 @@ const HomePage = () => {
   });
   const carouselRef = useRef(null);
   const [isCarouselHovered, setIsCarouselHovered] = useState(false);
+  const [activeNewsDot, setActiveNewsDot] = useState(0);
+
+  const handleNewsScroll = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const cardNode = el.querySelector('.news-card');
+    const step = cardNode ? cardNode.offsetWidth + 24 : 344;
+    setActiveNewsDot(Math.max(0, Math.round(el.scrollLeft / step)));
+  };
+
+  const scrollToNewsIndex = (idx) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const cardNode = el.querySelector('.news-card');
+    const step = cardNode ? cardNode.offsetWidth + 24 : 344;
+    el.scrollTo({ left: idx * step, behavior: 'smooth' });
+  };
 
   const scrollCarousel = (direction) => {
     if (carouselRef.current) {
@@ -409,32 +428,9 @@ const HomePage = () => {
       {announcements.length > 0 && (
         <section className="pt-4 pb-12 sm:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-4 sm:mb-8">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
-                <div className="w-14 h-1 bg-purple-600 rounded-full mt-2.5" />
-              </div>
-              <div className="flex items-center gap-4">
-                <Link to="/news" className="text-sm font-semibold text-purple-700 hover:text-purple-900 no-underline">
-                  ดูข่าวทั้งหมด →
-                </Link>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => scrollCarousel('left')}
-                    className="w-10 h-10 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all"
-                    aria-label="เลื่อนซ้าย"
-                  >
-                    <ChevronLeftIcon className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => scrollCarousel('right')}
-                    className="w-10 h-10 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all"
-                    aria-label="เลื่อนขวา"
-                  >
-                    <ChevronRightIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+            <div className="mb-4 sm:mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
+              <div className="w-14 h-1 bg-purple-600 rounded-full mt-2.5" />
             </div>
 
             <div
@@ -442,6 +438,7 @@ const HomePage = () => {
               ref={carouselRef}
               onMouseEnter={() => setIsCarouselHovered(true)}
               onMouseLeave={() => setIsCarouselHovered(false)}
+              onScroll={handleNewsScroll}
               style={{ scrollBehavior: 'smooth', scrollSnapType: 'x mandatory', msOverflowStyle: 'none', scrollbarWidth: 'none' }}
             >
               {announcements.slice(0, 10).map((news) => (
@@ -480,6 +477,54 @@ const HomePage = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Bottom controls — dots ซ้าย | ดูทั้งหมด + arrows ขวา */}
+            <div className="flex items-center justify-between gap-3 mt-4 sm:mt-6">
+              {/* Pagination dots — จุดละ 1 การ์ดข่าว กดข้ามได้ */}
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                {announcements.slice(0, 10).map((news, idx) => (
+                  <button
+                    key={news.id}
+                    type="button"
+                    onClick={() => scrollToNewsIndex(idx)}
+                    aria-label={`ไปข่าวที่ ${idx + 1}`}
+                    className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${
+                      idx === activeNewsDot ? 'w-4 bg-violet-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* ลิงก์ดูทั้งหมด + ปุ่มเลื่อน */}
+              <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                <Button
+                  variant="text"
+                  endIcon={<ArrowRight className="w-4 h-4" />}
+                  onClick={() => navigate('/news')}
+                  sx={{ color: '#7c3aed', textTransform: 'none', fontSize: '13px', fontWeight: 600, px: 1, minWidth: 0 }}
+                >
+                  ดูข่าวทั้งหมด
+                </Button>
+                <div className="flex items-center gap-2">
+                  <IconButton
+                    size="small"
+                    onClick={() => scrollCarousel('left')}
+                    aria-label="เลื่อนซ้าย"
+                    sx={{ border: '1px solid #e2e8f0', color: '#64748b', bgcolor: '#fff', borderRadius: '50%', '&:hover': { bgcolor: '#f8fafc' } }}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => scrollCarousel('right')}
+                    aria-label="เลื่อนขวา"
+                    sx={{ border: '1px solid #e2e8f0', color: '#64748b', bgcolor: '#fff', borderRadius: '50%', '&:hover': { bgcolor: '#f8fafc' } }}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </IconButton>
+                </div>
+              </div>
             </div>
           </div>
         </section>

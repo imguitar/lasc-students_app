@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
 import {
-    Alert, Box, Dialog, DialogContent, Paper, Snackbar, Table, TableBody,
-    TableCell, TableContainer, TableHead, TableRow, TextField,
+    Alert, Box, Dialog, DialogContent, Paper, Snackbar, Tab, Table, TableBody,
+    TableCell, TableContainer, TableHead, TableRow, Tabs, TextField,
 } from '@mui/material';
-import { CheckCircle2, FileText, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, FileText, History, Inbox, Loader2, MessageSquareText, XCircle } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
@@ -29,6 +29,7 @@ const AdvisorRelocationsPage = () => {
     const [reviewDialog, setReviewDialog] = useState({ open: false, item: null, approve: true, comment: '', signature: '' });
     const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+    const [viewTab, setViewTab] = useState('active');
 
     const load = (dept) => {
         api.get('/relocations').then((res) => {
@@ -47,6 +48,20 @@ const AdvisorRelocationsPage = () => {
         setAdvisorDept(dept);
         load(dept);
     }, [navigate]);
+
+    // Deep link จากเมนู action หน้า dashboard (?focus=<relocId>) — เปิด dialog พิจารณาของรายการนั้นอัตโนมัติ
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const focusId = searchParams.get('focus');
+        if (!focusId || rows.length === 0 || reviewDialog.open) return;
+        const target = rows.find((r) => String(r.id) === String(focusId));
+        if (target && ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(target.status)) {
+            setReviewDialog({ open: true, item: target, approve: true, comment: '', signature: '' });
+        }
+        searchParams.delete('focus');
+        setSearchParams(searchParams, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows]);
 
     const handleLogout = () => { localStorage.removeItem('user'); navigate('/'); };
 
@@ -74,10 +89,27 @@ const AdvisorRelocationsPage = () => {
         }
     };
 
+    // รายการที่ถึงขั้นอาจารย์ตัดสินได้ — นอกเหนือนี้ dialog ใช้ดูรายละเอียดอย่างเดียว
+    const isReviewable = ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(reviewDialog.item?.status);
+
     const statusColor = (status) =>
         status === 'rejected' ? 'bg-red-50 text-red-600 border-red-200/60'
         : ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(status) ? 'bg-amber-50 text-amber-600 border-amber-200/60'
         : 'bg-violet-50 text-violet-600 border-violet-200/60';
+
+    // แท็บทำงาน: คำร้องที่จบแล้ว (completed/rejected) ย้ายไปประวัติ — active เหลือคำร้องล่าสุด 1 รายการต่อคำร้องฝึกงาน กันแถวซ้ำ
+    const RELOC_TERMINAL = ['completed', 'rejected'];
+    const sortedRows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id));
+    const seenActiveKeys = new Set();
+    const activeRows = sortedRows.filter((r) => {
+        if (RELOC_TERMINAL.includes(r.status)) return false;
+        const key = String(r.internship_request_id || r.student_id);
+        if (seenActiveKeys.has(key)) return false;
+        seenActiveKeys.add(key);
+        return true;
+    });
+    const historyRows = sortedRows.filter((r) => RELOC_TERMINAL.includes(r.status));
+    const displayRows = viewTab === 'active' ? activeRows : historyRows;
 
     return (
         <div className="admin-dashboard-container">
@@ -109,6 +141,50 @@ const AdvisorRelocationsPage = () => {
 
                 <Paper className="content-section" elevation={0} sx={{ width: '100%' }}>
                     <div className="section-header"><h2>รายการคำร้อง</h2></div>
+
+                    {/* Segmented Tabs — แยกงานที่ต้องทำออกจากประวัติที่จบแล้ว */}
+                    <Tabs
+                        value={viewTab}
+                        onChange={(_, v) => { if (v) setViewTab(v); }}
+                        sx={{
+                            minHeight: 0, mb: 2, display: 'inline-flex',
+                            bgcolor: 'rgba(241,245,249,0.7)', p: 0.5, borderRadius: 2.5,
+                            '& .MuiTabs-indicator': { display: 'none' },
+                            '& .MuiTabs-flexContainer': { gap: 0.5 },
+                        }}
+                    >
+                        {[
+                            { key: 'active', icon: <Inbox size={14} />, label: 'คำร้องรอดำเนินการ', count: activeRows.length },
+                            { key: 'history', icon: <History size={14} />, label: 'ประวัติเสร็จสิ้น', count: historyRows.length },
+                        ].map((tab) => (
+                            <Tab
+                                key={tab.key}
+                                value={tab.key}
+                                disableRipple
+                                label={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        {tab.icon}
+                                        <span>{tab.label}</span>
+                                        <Box component="span" sx={{
+                                            px: 0.75, py: 0.125, borderRadius: '999px', fontSize: '10px', fontWeight: 700,
+                                            bgcolor: viewTab === tab.key ? '#ede9fe' : 'rgba(226,232,240,0.8)',
+                                            color: viewTab === tab.key ? '#6d28d9' : '#64748b',
+                                        }}>
+                                            {tab.count}
+                                        </Box>
+                                    </Box>
+                                }
+                                sx={{
+                                    minHeight: 0, py: 0.75, px: 1.5, borderRadius: 2,
+                                    textTransform: 'none', fontSize: '0.75rem', fontWeight: 600, color: '#64748b',
+                                    '&.Mui-selected': { bgcolor: '#fff', color: '#6d28d9', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' },
+                                }}
+                            />
+                        ))}
+                    </Tabs>
+
+                    {/* Desktop: ตาราง / Mobile: การ์ด — ไม่มี horizontal scroll */}
+                    <div className="hidden md:block">
                     <TableContainer component={Box} className="compact-table">
                         <Table size="small">
                             <TableHead>
@@ -122,7 +198,7 @@ const AdvisorRelocationsPage = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {rows.length > 0 ? rows.map((r) => (
+                                {displayRows.length > 0 ? displayRows.map((r) => (
                                     <TableRow key={r.id} hover>
                                         <TableCell>
                                             <div className="font-semibold text-slate-800">{r.studentName || r.student_id}</div>
@@ -152,11 +228,11 @@ const AdvisorRelocationsPage = () => {
                                             {['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status) ? (
                                                 <div className="flex gap-1.5">
                                                     <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold border-0 cursor-pointer transition">
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-semibold border border-emerald-200/80 cursor-pointer transition">
                                                         <CheckCircle2 style={{ width: 12, height: 12 }} /> อนุญาต
                                                     </button>
                                                     <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold border border-red-200 cursor-pointer transition">
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 text-[11px] font-medium border border-rose-200 cursor-pointer transition">
                                                         <XCircle style={{ width: 12, height: 12 }} /> ไม่อนุญาต
                                                     </button>
                                                 </div>
@@ -168,22 +244,126 @@ const AdvisorRelocationsPage = () => {
                                         </TableCell>
                                     </TableRow>
                                 )) : (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>ไม่มีคำร้องขอเปลี่ยนสถานที่ฝึกงาน</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                                        <Inbox className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                        <div className="text-sm text-slate-400">
+                                            {viewTab === 'active' ? 'ไม่มีคำร้องขอย้ายที่รอดำเนินการในขณะนี้' : 'ยังไม่มีประวัติคำร้องที่เสร็จสิ้น'}
+                                        </div>
+                                    </TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    </div>
+
+                    {/* Mobile Card View (< md) — การ์ดแนวตั้งเต็มความกว้างจอ */}
+                    <div className="md:hidden px-1">
+                        {displayRows.length > 0 ? displayRows.map((r) => {
+                            const isPending = ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status);
+                            return (
+                                <div key={r.id} className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3 mb-3.5">
+                                    {/* Header: ชื่อ + badge สถานะ */}
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-slate-900 font-semibold text-base m-0 truncate">{r.studentName || r.student_id}</p>
+                                            <p className="text-slate-500 text-xs font-normal m-0 mt-0.5">({r.student_id})</p>
+                                        </div>
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${statusColor(r.status)}`}>
+                                            {RELOCATION_STATUS_LABEL[r.status] || r.status}
+                                        </span>
+                                    </div>
+
+                                    {/* เส้นทางการย้าย */}
+                                    <div className="bg-slate-50 p-3 rounded-xl space-y-1.5 text-xs">
+                                        <p className="m-0 text-slate-600"><span className="font-semibold text-slate-500">ย้ายจาก:</span> {r.old_company || '-'}</p>
+                                        <p className="m-0"><span className="font-semibold text-slate-500">ย้ายไป:</span> <span className="text-violet-600 font-semibold">{r.new_company_name}</span></p>
+                                        <p className="m-0 text-slate-500">ระยะเวลา: ฝึกแล้ว {r.days_trained} วัน / คงเหลือ {r.days_remaining} วัน</p>
+                                        {r.reason && <p className="m-0 text-slate-500 pt-1 border-t border-slate-200/70"><span className="font-semibold">เหตุผล:</span> {r.reason}</p>}
+                                    </div>
+
+                                    {r.return_letter_file && (
+                                        <a href={fileUrl(r.return_letter_file)} target="_blank" rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 no-underline">
+                                            <FileText style={{ width: 13, height: 13 }} /> หนังสือส่งตัวกลับ
+                                        </a>
+                                    )}
+
+                                    {/* Actions */}
+                                    {isPending ? (
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
+                                                className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition">
+                                                <CheckCircle2 style={{ width: 14, height: 14 }} /> อนุญาต
+                                            </button>
+                                            <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
+                                                className="px-4 py-2.5 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition">
+                                                <XCircle style={{ width: 14, height: 14 }} /> ไม่อนุญาต
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
+                                            className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 shadow-sm border-0 cursor-pointer transition">
+                                            ดูรายละเอียด
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        }) : (
+                            <div className="text-center text-slate-400 text-sm py-8 bg-white rounded-2xl border border-slate-200/80">
+                                <Inbox className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                {viewTab === 'active' ? 'ไม่มีคำร้องขอย้ายที่รอดำเนินการในขณะนี้' : 'ยังไม่มีประวัติคำร้องที่เสร็จสิ้น'}
+                            </div>
+                        )}
+                    </div>
                 </Paper>
             </main>
 
             <Dialog open={reviewDialog.open} onClose={() => setReviewDialog((p) => ({ ...p, open: false }))} fullWidth maxWidth="sm" PaperProps={{ className: '!rounded-3xl' }}>
                 <DialogContent sx={{ px: 3, py: 3 }}>
                     <h3 className="text-base font-bold text-slate-800 mt-0 mb-1">
-                        {reviewDialog.approve ? 'อนุญาตให้เปลี่ยนสถานที่ฝึกงาน?' : 'ไม่อนุญาต — ระบุเหตุผล'}
+                        {isReviewable
+                            ? (reviewDialog.approve ? 'อนุญาตให้เปลี่ยนสถานที่ฝึกงาน?' : 'ไม่อนุญาต — ระบุเหตุผล')
+                            : 'รายละเอียดคำร้องขอย้ายสถานที่ฝึกงาน'}
                     </h3>
                     <p className="text-xs text-slate-500 mb-3 m-0">
-                        {reviewDialog.item?.studentName} → {reviewDialog.item?.new_company_name}
+                        {reviewDialog.item?.studentName} ({reviewDialog.item?.student_id})
                     </p>
+
+                    {/* สรุปเส้นทางการย้าย: ที่เดิม → ที่ใหม่ + ระยะเวลา */}
+                    {reviewDialog.item && (
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5 mb-3">
+                            <p className="m-0 text-slate-600">
+                                <span className="font-semibold text-slate-500">สถานที่เดิม:</span>{' '}
+                                {reviewDialog.item.old_company || '-'}{reviewDialog.item.old_position ? ` (${reviewDialog.item.old_position})` : ''}
+                            </p>
+                            <p className="m-0 text-violet-700 font-semibold">
+                                <span className="font-semibold text-slate-500">สถานที่ใหม่:</span>{' '}
+                                {reviewDialog.item.new_company_name}
+                            </p>
+                            <p className="m-0 text-slate-500">
+                                ระยะเวลา: ฝึกแล้ว {reviewDialog.item.days_trained ?? 0} วัน / คงเหลือ {reviewDialog.item.days_remaining ?? 0} วัน
+                            </p>
+                        </div>
+                    )}
+
+                    {/* เหตุผลที่ขอย้าย */}
+                    {reviewDialog.item && (
+                        <div className="bg-amber-50/60 border border-amber-200/60 rounded-xl p-3 text-xs text-slate-800 leading-relaxed mb-3">
+                            <p className="m-0 font-medium text-slate-700 text-xs mb-1 flex items-center gap-1.5"><MessageSquareText className="w-3.5 h-3.5 text-amber-600" /> เหตุผลความจำเป็นในการขอย้าย:</p>
+                            <p className="m-0">{reviewDialog.item.reason?.trim() || 'ไม่ได้ระบุเหตุผล'}</p>
+                        </div>
+                    )}
+
+                    {!isReviewable && reviewDialog.item && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 mb-3 space-y-1.5 text-xs text-slate-600">
+                            <p className="m-0"><span className="font-semibold">ย้ายจาก:</span> {reviewDialog.item.old_company || '-'}</p>
+                            <p className="m-0"><span className="font-semibold">เหตุผล:</span> {reviewDialog.item.reason || '-'}</p>
+                            <p className="m-0"><span className="font-semibold">สถานะ:</span> {RELOCATION_STATUS_LABEL[reviewDialog.item.status] || reviewDialog.item.status}</p>
+                            {(reviewDialog.item.advisor_comment || reviewDialog.item.admin_comment) && (
+                                <p className="m-0"><span className="font-semibold">ความเห็น:</span> {reviewDialog.item.advisor_comment || reviewDialog.item.admin_comment}</p>
+                            )}
+                        </div>
+                    )}
                     {/* ลายเซ็นที่ผ่านมา */}
                     {(reviewDialog.item?.student_signature || reviewDialog.item?.company_signature) && (
                         <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 mb-3 grid grid-cols-2 gap-2">
@@ -203,13 +383,15 @@ const AdvisorRelocationsPage = () => {
                             )}
                         </div>
                     )}
-                    <TextField
-                        fullWidth multiline minRows={3} size="small"
-                        label={reviewDialog.approve ? 'ความเห็น (ไม่บังคับ)' : 'เหตุผลที่ไม่อนุญาต *'}
-                        value={reviewDialog.comment}
-                        onChange={(e) => setReviewDialog((p) => ({ ...p, comment: e.target.value }))}
-                    />
-                    {reviewDialog.approve && (
+                    {isReviewable && (
+                        <TextField
+                            fullWidth multiline minRows={3} size="small"
+                            label={reviewDialog.approve ? 'ความเห็น (ไม่บังคับ)' : 'เหตุผลที่ไม่อนุญาต *'}
+                            value={reviewDialog.comment}
+                            onChange={(e) => setReviewDialog((p) => ({ ...p, comment: e.target.value }))}
+                        />
+                    )}
+                    {isReviewable && reviewDialog.approve && (
                         <div className="mt-3">
                             <p className="text-[11px] font-semibold text-slate-600 mb-1">ลายมือชื่ออาจารย์ที่ปรึกษา *</p>
                             <SignaturePad height={120} onChange={(d) => setReviewDialog((p) => ({ ...p, signature: d || '' }))} />
@@ -217,12 +399,14 @@ const AdvisorRelocationsPage = () => {
                     )}
                     <div className="flex justify-end gap-2 mt-4">
                         <button type="button" onClick={() => setReviewDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitReview} disabled={submitting}
-                            className={`px-5 py-2 rounded-xl text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${reviewDialog.approve ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                            ยืนยัน
-                        </button>
+                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">{isReviewable ? 'ยกเลิก' : 'ปิด'}</button>
+                        {isReviewable && (
+                            <button type="button" onClick={submitReview} disabled={submitting}
+                                className={`px-5 py-2 rounded-xl text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${reviewDialog.approve ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                                {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                ยืนยัน
+                            </button>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

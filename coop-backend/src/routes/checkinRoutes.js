@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middlewares/auth');
+const { LATEST_COMPLETED_RELOC_JOIN, ACTIVE_COMPANY_COLS } = require('../utils/activeCompany');
 
 // สถานะคำร้องที่อนุญาตเช็คชื่อ/เซ็นย้อนหลัง:
 // กำลังฝึก + อนุมัติแล้วรอออกฝึก (วันเริ่มผ่านแล้วแต่ cron ยังไม่ flip) + เฟสประเมิน/ปิดงาน (เซ็นย้อนหลังได้)
@@ -74,7 +75,7 @@ router.get('/', authenticate, async (req, res) => {
 router.get('/overview', authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT r.id AS requestId, r.studentId, r.studentName, r.department, r.company, r.status,
+      `SELECT r.id AS requestId, r.studentId, r.studentName, r.department, r.company, r.status,${ACTIVE_COMPANY_COLS},
               DATE_FORMAT(r.internship_start_date, '%Y-%m-%d') AS startDate,
               DATE_FORMAT(r.internship_end_date, '%Y-%m-%d') AS endDate,
               (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.studentId = r.studentId) AS submittedDays,
@@ -89,6 +90,7 @@ router.get('/overview', authenticate, async (req, res) => {
                  AND (dc.supervisor_signature IS NULL OR dc.supervisor_signature = '')) AS pendingSignature,
               (SELECT DATE_FORMAT(MAX(dc.date), '%Y-%m-%d') FROM daily_checkins dc WHERE dc.studentId = r.studentId) AS lastCheckinDate
        FROM requests r
+       ${LATEST_COMPLETED_RELOC_JOIN('r')}
        INNER JOIN (
          SELECT studentId, MAX(id) AS latestId
          FROM requests
@@ -126,6 +128,14 @@ router.post('/', authenticate, async (req, res) => {
       if (checkinDateStr > todayBangkok()) {
         return res.status(400).json({ success: false, message: 'ไม่สามารถเช็คชื่อล่วงหน้าได้' });
       }
+      // บันทึกย้อนหลัง — บังคับลายเซ็นพี่เลี้ยงเฉพาะนักศึกษา (admin/advisor bypass จัดการแทนได้)
+      const isStaff = ['admin', 'advisor'].includes(req.user?.role);
+      if (checkinDateStr < todayBangkok() && !supervisorSignature && !isStaff) {
+        return res.status(400).json({
+          success: false,
+          message: 'การบันทึกย้อนหลังจำเป็นต้องได้รับการลงนามรับรองจากพี่เลี้ยงสถานประกอบการ'
+        });
+      }
       const guard = await getCheckinGuard(studentId);
       if (guard.error) {
         return res.status(400).json({ success: false, message: guard.error });
@@ -153,6 +163,29 @@ router.post('/', authenticate, async (req, res) => {
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'คุณเช็คชื่อของวันนี้ไปแล้ว (จะรีเซ็ตในวันถัดไปหลัง 07:00 น.)' });
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/checkins/:id — แอดมิน/อาจารย์แก้ไขรายงานทุกฟิลด์ (staff override — ไม่บังคับลายเซ็น)
+router.put('/:id', authenticate, async (req, res) => {
+  try {
+    if (!['admin', 'advisor'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'เฉพาะผู้ดูแลระบบหรืออาจารย์ที่ปรึกษาเท่านั้น' });
+    }
+    const { date, status, note, workExperience } = req.body;
+    if (!date) return res.status(400).json({ success: false, message: 'กรุณาระบุวันที่' });
+    const [result] = await pool.query(
+      'UPDATE daily_checkins SET date = ?, status = ?, note = ?, work_experience = ? WHERE id = ?',
+      [String(date).split('T')[0], status || 'present', note || null, workExperience || null, req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลเช็คชื่อ' });
+    const [rows] = await pool.query("SELECT *, DATE_FORMAT(date, '%Y-%m-%d') AS date FROM daily_checkins WHERE id = ?", [req.params.id]);
+    res.json({ success: true, message: 'บันทึกข้อมูลสำเร็จเรียบร้อย', data: rows[0] });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ success: false, message: 'นักศึกษาคนนี้มีรายงานในวันที่นี้แล้ว' });
     }
     res.status(500).json({ success: false, message: error.message });
   }
@@ -230,9 +263,12 @@ router.patch('/batch-sign', authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/checkins/:id
+// DELETE /api/checkins/:id — เฉพาะ staff (แอดมิน/อาจารย์)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
+    if (!['admin', 'advisor'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'เฉพาะผู้ดูแลระบบหรืออาจารย์ที่ปรึกษาเท่านั้น' });
+    }
     const [result] = await pool.query('DELETE FROM daily_checkins WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลเช็คชื่อ' });
     res.json({ success: true, message: 'ลบเช็คชื่อสำเร็จ' });
@@ -241,9 +277,12 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/checkins/student/:studentId
+// DELETE /api/checkins/student/:studentId — เฉพาะแอดมิน (ลบทั้งชุดอันตราย)
 router.delete('/student/:studentId', authenticate, async (req, res) => {
   try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'เฉพาะผู้ดูแลระบบเท่านั้น' });
+    }
     await pool.query('DELETE FROM daily_checkins WHERE studentId = ?', [req.params.studentId]);
     res.json({ success: true, message: 'ลบรายงานประจำวันสำเร็จ' });
   } catch (error) {

@@ -33,13 +33,13 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, Menu as MenuIcon } from 'lucide-react';
+import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, Menu as MenuIcon, MoreVertical } from 'lucide-react';
 import NotificationBell from '../../../components/NotificationBell';
 import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import { STAT_ICON } from '../../../utils/statIcons';
 import './AdminDashboardPage.css';
-import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EllipsisVerticalIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import AdminSidebar from '../../../components/AdminSidebar';
 import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
@@ -105,10 +105,14 @@ const RequestActionsMenu = ({ request, onView, onEdit, onApprove, onReject, onSc
         aria-label={`จัดการคำร้อง ${request.id}`}
         aria-haspopup="menu"
         aria-expanded={Boolean(anchorEl)}
-        onClick={(event) => setAnchorEl(event.currentTarget)}
-        sx={{ border: '1px solid #dbe2ea', borderRadius: 1.5 }}
+        title="จัดการ"
+        onClick={(event) => {
+          event.stopPropagation();
+          setAnchorEl(event.currentTarget);
+        }}
+        sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
       >
-        <EllipsisVerticalIcon style={{ width: 20, height: 20 }} />
+        <MoreVertical className="w-4 h-4" />
       </IconButton>
       <Menu
         anchorEl={anchorEl}

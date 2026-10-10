@@ -805,15 +805,16 @@ const StudentListPage = () => {
                         </div>
                       </TableCell>
                       <TableCell align="center">
-                        <button
-                          type="button"
+                        <IconButton
+                          size="small"
                           onClick={(e) => handleToggleActionMenu(e, studentCode)}
-                          className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent outline-none inline-flex items-center justify-center"
+                          className="action-menu-trigger"
                           aria-label="ตัวเลือกการจัดการ"
                           title="การกระทำ"
+                          sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                         >
                           <MoreVertical className="w-4 h-4 stroke-[2]" />
-                        </button>
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   );

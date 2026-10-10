@@ -481,11 +481,12 @@ const AttendanceCalendar = ({
           display: 'flex', 
           flexWrap: 'wrap', 
           alignItems: 'center',
-          gap: { xs: 1, sm: 2 }, 
-          mb: 2, 
+          gap: { xs: 0.75, sm: 1.5 }, 
+          rowGap: { xs: 0.5 },
+          my: 1,
           px: 0.5,
           justifyContent: { xs: 'center', sm: 'flex-start' },
-          fontSize: { xs: '0.75rem', sm: '0.825rem' },
+          fontSize: { xs: '0.625rem', sm: '0.825rem' },
           color: '#475569',
           fontWeight: 600
         }}
@@ -522,16 +523,26 @@ const AttendanceCalendar = ({
           <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#94a3b8' }} />
           <span>ไม่ได้เช็คชื่อ</span>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5 }}>
           <PencilSquareIcon style={{ width: 14, height: 14, color: accent.main }} />
           <span style={{ color: accent.main }}>มีลายเซ็นพี่เลี้ยง</span>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: { xs: '100%', sm: 'auto' }, ml: { sm: 'auto' } }}>
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5, ml: { sm: 'auto' } }}>
           <Box sx={{ width: 10, height: 10, borderRadius: '3px', border: '1.5px dashed #cbd5e1' }} />
           <span>ก่อนเริ่มฝึก / อนาคต</span>
         </Box>
       </Box>
 
+      {/* Calendar + Detail — side-by-side บนจอ lg ขึ้นไป */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: '7fr 5fr' },
+          gap: { lg: 2.5 },
+          alignItems: 'start',
+        }}
+      >
+      <Box sx={{ minWidth: 0 }}>
       {/* Days of Week Header */}
       <Box 
         sx={{ 
@@ -569,7 +580,7 @@ const AttendanceCalendar = ({
                 key={item.key} 
                 sx={{ 
                   aspectRatio: { xs: '1 / 1', sm: 'auto' },
-                  minHeight: { sm: 68 }, 
+                  minHeight: { sm: 56, lg: 64 }, 
                   bgcolor: '#f8fafc', 
                   borderRadius: { xs: 1.5, sm: 2.5 }, 
                   border: '1px border-dashed #f1f5f9',
@@ -688,7 +699,7 @@ const AttendanceCalendar = ({
                 }}
                 sx={{
                   aspectRatio: { xs: '1 / 1', sm: 'auto' },
-                  minHeight: { sm: 70 },
+                  minHeight: { sm: 56, lg: 64 },
                   p: { xs: 0.4, sm: 0.75 },
                   borderRadius: { xs: 1.75, sm: 2.5 },
                   bgcolor: isSelectedInBatch ? accent.bg : bgColor,
@@ -847,21 +858,22 @@ const AttendanceCalendar = ({
           );
         })}
       </Box>
+      </Box>
 
-      {/* Selected Day Detail Box (Normal Mode) — fixed height + scroll ภายใน กัน layout shift */}
+      {/* Selected Day Detail Box (Normal Mode) — วางเคียงปฏิทินบน lg, ไม่ fix ความสูงกัน scroll ซ้อน */}
       {!isBatchMode && (
         <Paper
           elevation={0}
           sx={{
-            mt: 2.5,
-            p: 2.5,
+            mt: { xs: 2.5, lg: 0 },
+            p: { xs: 2, lg: 1.75 },
             borderRadius: 3,
             bgcolor: '#f8fafc',
             border: '1px solid #e2e8f0',
-            height: { xs: 'auto', sm: 220 },
+            height: { xs: 'auto', sm: 220, lg: 'auto' },
             display: 'flex',
             flexDirection: 'column',
-            overflowY: { xs: 'visible', sm: 'auto' },
+            overflowY: { xs: 'visible', sm: 'auto', lg: 'visible' },
             flexShrink: 0,
           }}
         >
@@ -1011,6 +1023,7 @@ const AttendanceCalendar = ({
           )}
         </Paper>
       )}
+      </Box>
 
       {/* Batch Mentor Signature Modal Dialog */}
       <Dialog

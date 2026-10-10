@@ -6,8 +6,8 @@ import {
     Alert, Dialog, DialogContent, Snackbar, TextField,
 } from '@mui/material';
 import {
-    ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, Copy, Download, FileText, FileSignature,
-    FileCheck, Loader2, MapPin, QrCode, User, Upload, XCircle,
+    ArrowLeft, ArrowRight, Building2, Calendar, Check, CheckCircle2, Clock3, Copy, Download, FileText, FileSignature,
+    FileCheck, Loader2, Mail, MapPin, Paperclip, QrCode, Send, User, Upload, XCircle,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import './AdminDashboardPage.css';
@@ -18,6 +18,7 @@ import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import RelocationStepper, { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 import SignaturePad from '../../../components/SignaturePad';
 import { getUploadUrl } from '../../../utils/fileUrl';
+import { downloadFileSmart } from '../../../utils/documentViewer';
 
 const fileUrl = getUploadUrl;
 
@@ -41,7 +42,7 @@ const AdminRelocationDetailPage = () => {
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
-    const [uploadDialog, setUploadDialog] = useState({ open: false, item: null, endpoint: '', title: '', fileName: '', dataUrl: '', comment: '', startDate: '', endDate: '' });
+    const [uploadDialog, setUploadDialog] = useState({ open: false, item: null, endpoint: '', title: '', fileName: '', dataUrl: '', comment: '', startDate: '', endDate: '', deliveryMethod: 'student_delivery', recipientEmail: '' });
     const [rejectDialog, setRejectDialog] = useState({ open: false, item: null, comment: '' });
     const [deanDialog, setDeanDialog] = useState({ open: false, item: null, decision: 'allow', signature: '', comment: '' });
     const [deanQr, setDeanQr] = useState({ open: false, link: '', copied: false });
@@ -143,14 +144,19 @@ const AdminRelocationDetailPage = () => {
         return n;
     };
 
+    // ดึงอีเมลแรกจากข้อความผู้ประสานงาน/พี่เลี้ยง ไว้ prefill ช่องปลายทางอีเมล
+    const extractEmail = (text) => (/[\w.+-]+@[\w-]+\.[\w.]+/.exec(text || '') || [null])[0];
+
     const openUpload = (it, endpoint, title) =>
         setUploadDialog({
             open: true, item: it, endpoint, title, fileName: '', dataUrl: '', comment: '',
-            startDate: toISODate(it.new_start_date), endDate: toISODate(it.new_end_date)
+            startDate: toISODate(it.new_start_date), endDate: toISODate(it.new_end_date),
+            deliveryMethod: it.dispatch_method || 'student_delivery',
+            recipientEmail: it.mentor_email || extractEmail(it.new_company_contact) || ''
         });
 
     const submitUpload = async () => {
-        const { item: it, endpoint, fileName, dataUrl, comment, startDate, endDate } = uploadDialog;
+        const { item: it, endpoint, fileName, dataUrl, comment, startDate, endDate, deliveryMethod, recipientEmail } = uploadDialog;
         if (!dataUrl) { setToast({ open: true, message: 'กรุณาแนบไฟล์เอกสาร (PDF/PNG/JPG ≤10MB)', severity: 'warning' }); return; }
         const needsDates = NEEDS_DATES.includes(endpoint);
         if (needsDates && (!startDate || !endDate)) {
@@ -159,16 +165,21 @@ const AdminRelocationDetailPage = () => {
         if (needsDates && endDate < startDate) {
             setToast({ open: true, message: 'วันสิ้นสุดการฝึกงานต้องไม่ก่อนวันเริ่มต้น', severity: 'warning' }); return;
         }
+        const isRequestLetter = endpoint === 'request-letter';
+        if (isRequestLetter && deliveryMethod === 'admin_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+            setToast({ open: true, message: 'กรุณาระบุอีเมลปลายทางของสถานประกอบการใหม่ให้ถูกต้อง', severity: 'warning' }); return;
+        }
         const res2 = await callApi('patch', `/relocations/${it.id}/${endpoint}`,
             { file_name: fileName, file_data_url: dataUrl, comment,
-              ...(needsDates ? { new_start_date: startDate, new_end_date: endDate } : {}) },
+              ...(needsDates ? { new_start_date: startDate, new_end_date: endDate } : {}),
+              ...(isRequestLetter ? { dispatch_method: deliveryMethod, recipient_email: recipientEmail } : {}) },
             `${uploadDialog.title} เรียบร้อย`);
         const ok = !!res2;
-        // หลังออกหนังสือขอความอนุเคราะห์ → เด้ง QR ลิงก์ตอบรับของที่ใหม่ทันที
-        if (ok && endpoint === 'request-letter' && res2?.data?.acceptance_token) {
+        // หลังออกหนังสือขอความอนุเคราะห์ → เด้ง QR ลิงก์ตอบรับของที่ใหม่ทันที (เฉพาะโหมดให้ นศ. ส่งต่อ — โหมดอีเมลส่งลิงก์ไปทางเมลแล้ว)
+        if (ok && endpoint === 'request-letter' && deliveryMethod === 'student_delivery' && res2?.data?.acceptance_token) {
             setDeanQr({ open: true, copied: false, kind: 'acceptance', link: `${window.location.origin}/coop/public/company-acceptance/${res2.data.acceptance_token}` });
         }
-        if (ok) setUploadDialog({ open: false, item: null, endpoint: '', title: '', fileName: '', dataUrl: '', comment: '', startDate: '', endDate: '' });
+        if (ok) setUploadDialog({ open: false, item: null, endpoint: '', title: '', fileName: '', dataUrl: '', comment: '', startDate: '', endDate: '', deliveryMethod: 'student_delivery', recipientEmail: '' });
     };
 
     const onPickFile = (file) => {
@@ -184,42 +195,47 @@ const AdminRelocationDetailPage = () => {
 
     // ปุ่ม action ตามสถานะ — เหมือนหน้ารายการ แต่ใหญ่กดง่าย
     const renderActions = (r) => {
-        const btn = 'inline-flex items-center justify-center gap-1.5 px-4 h-11 rounded-xl text-sm font-medium border-0 cursor-pointer transition flex-1 disabled:opacity-50';
+        // Clean Violet theme — สูง 48px (h-12) เต็มความกว้าง แตะง่ายบนมือถือ
+        const btn = 'w-full inline-flex items-center justify-center gap-2 px-4 h-12 rounded-xl text-sm font-semibold cursor-pointer transition-all disabled:opacity-50';
+        const btnPrimary = `${btn} bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white shadow-xs border-0`;
+        const btnTool = `${btn} bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200`;
+        const btnReject = `${btn} bg-white hover:bg-rose-50 text-rose-600 border border-rose-200`;
         switch (r.status) {
             case 'advisor_approved_waiting_admin':
                 return (
                     <>
-                        <button type="button" onClick={() => setDeanDialog({ open: true, item: r, decision: 'allow', signature: '', comment: '' })} disabled={submitting} className={`${btn} bg-emerald-600 hover:bg-emerald-700 text-white`}>
+                        {/* ลำดับ: ปุ่มหลัก → เครื่องมือ → ตีกลับล่างสุด */}
+                        <button type="button" onClick={() => setDeanDialog({ open: true, item: r, decision: 'allow', signature: '', comment: '' })} disabled={submitting} className={btnPrimary}>
                             <CheckCircle2 style={{ width: 15, height: 15 }} /> เสนอคณบดีพิจารณา
                         </button>
-                        <button type="button" onClick={() => setRejectDialog({ open: true, item: r, comment: '' })} disabled={submitting} className={`${btn} bg-red-50 hover:bg-red-100 text-red-600 !border !border-red-200`}>
-                            <XCircle style={{ width: 15, height: 15 }} /> ตีกลับ
-                        </button>
-                        <button type="button" onClick={() => openDeanQr(r)} disabled={submitting} title="สร้างลิงก์/QR ส่งให้คณบดีลงนามเอง" className={`${btn} bg-violet-50 hover:bg-violet-100 text-violet-600 !border !border-violet-200 sm:flex-none`}>
+                        <button type="button" onClick={() => openDeanQr(r)} disabled={submitting} title="สร้างลิงก์/QR ส่งให้คณบดีลงนามเอง" className={btnTool}>
                             <QrCode style={{ width: 15, height: 15 }} /> ลิงก์ / QR ลงนาม (คณบดี)
+                        </button>
+                        <button type="button" onClick={() => setRejectDialog({ open: true, item: r, comment: '' })} disabled={submitting} className={btnReject}>
+                            <XCircle style={{ width: 15, height: 15 }} /> ตีกลับ
                         </button>
                     </>
                 );
             case 'admin_approved_generating_request_letter':
                 return (
-                    <button type="button" onClick={() => openUpload(r, 'request-letter', 'ออกหนังสือขอความอนุเคราะห์ (ที่ใหม่)')} disabled={submitting} className={`${btn} bg-violet-600 hover:bg-violet-700 text-white`}>
+                    <button type="button" onClick={() => openUpload(r, 'request-letter', 'ออกหนังสือขอความอนุเคราะห์ (ที่ใหม่)')} disabled={submitting} className={btnPrimary}>
                         <FileSignature style={{ width: 15, height: 15 }} /> ออกหนังสือขอความอนุเคราะห์
                     </button>
                 );
             case 'waiting_company_acceptance':
                 return (
                     <>
-                        <button type="button" onClick={() => openUpload(r, 'acceptance', 'บันทึกการตอบรับจากสถานประกอบการใหม่')} disabled={submitting} className={`${btn} bg-blue-600 hover:bg-blue-700 text-white`}>
+                        <button type="button" onClick={() => openUpload(r, 'acceptance', 'บันทึกการตอบรับจากสถานประกอบการใหม่')} disabled={submitting} className={btnPrimary}>
                             <FileCheck style={{ width: 15, height: 15 }} /> บันทึกผลตอบรับจากสถานประกอบการ
                         </button>
-                        <button type="button" onClick={() => openAcceptanceQr(r)} disabled={submitting} title="สร้างลิงก์/QR ส่งให้สถานประกอบการใหม่ตอบรับออนไลน์" className={`${btn} bg-violet-50 hover:bg-violet-100 text-violet-600 !border !border-violet-200 sm:flex-none`}>
+                        <button type="button" onClick={() => openAcceptanceQr(r)} disabled={submitting} title="สร้างลิงก์/QR ส่งให้สถานประกอบการใหม่ตอบรับออนไลน์" className={btnTool}>
                             <QrCode style={{ width: 15, height: 15 }} /> ลิงก์ / QR ตอบรับ (ที่ใหม่)
                         </button>
                     </>
                 );
             case 'company_accepted_generating_dispatch_letter':
                 return (
-                    <button type="button" onClick={() => openUpload(r, 'dispatch-letter', 'ออกหนังสือส่งตัวฉบับใหม่')} disabled={submitting} className={`${btn} bg-purple-700 hover:bg-purple-800 text-white`}>
+                    <button type="button" onClick={() => openUpload(r, 'dispatch-letter', 'ออกหนังสือส่งตัวฉบับใหม่')} disabled={submitting} className={btnPrimary}>
                         <FileSignature style={{ width: 15, height: 15 }} /> ออกหนังสือส่งตัวใหม่
                     </button>
                 );
@@ -229,9 +245,19 @@ const AdminRelocationDetailPage = () => {
     };
 
     const docLink = (url, label) => url ? (
-        <a key={label} href={fileUrl(url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 no-underline hover:text-violet-800 px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-100">
-            <FileText style={{ width: 13, height: 13 }} /> {label}
-        </a>
+        <span key={label} className="inline-flex items-stretch rounded-xl overflow-hidden border border-violet-200/80 shadow-2xs">
+            <a href={fileUrl(url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 h-11 text-xs font-semibold bg-violet-50/80 hover:bg-violet-100 text-violet-700 no-underline transition-colors">
+                <FileText style={{ width: 14, height: 14 }} /> {label}
+            </a>
+            <button
+                type="button"
+                title="ดาวน์โหลด"
+                onClick={() => downloadFileSmart(fileUrl(url), `${label}${(url.match(/\.[a-z]+$/i) || ['.pdf'])[0]}`)}
+                className="inline-flex items-center px-3.5 h-11 bg-white hover:bg-violet-600 text-violet-500 hover:text-white border-0 border-l border-violet-200/80 transition-colors cursor-pointer"
+            >
+                <Download style={{ width: 14, height: 14 }} />
+            </button>
+        </span>
     ) : null;
 
     const r = item;
@@ -403,7 +429,7 @@ const AdminRelocationDetailPage = () => {
                                 {hasActions && (
                                     <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm sticky bottom-2 md:static z-10">
                                         <h2 className="text-sm font-bold text-slate-800 m-0 mb-3">ดำเนินการ</h2>
-                                        <div className="flex flex-col sm:flex-row gap-2">{renderActions(r)}</div>
+                                        <div className="flex flex-col space-y-2.5">{renderActions(r)}</div>
                                     </section>
                                 )}
                             </div>
@@ -467,53 +493,117 @@ const AdminRelocationDetailPage = () => {
             {/* Dialog แนบไฟล์แต่ละขั้น */}
             <Dialog open={uploadDialog.open} onClose={() => setUploadDialog((p) => ({ ...p, open: false }))} fullWidth maxWidth="xs" PaperProps={{ className: '!rounded-3xl' }}>
                 <DialogContent sx={{ px: 3, py: 3 }}>
-                    <h3 className="text-base font-bold text-slate-800 mt-0 mb-1">{uploadDialog.title}</h3>
-                    <p className="text-xs text-slate-500 mb-3 m-0">{uploadDialog.item?.studentName} → {uploadDialog.item?.new_company_name}</p>
-                    <label className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 cursor-pointer transition ${uploadDialog.dataUrl ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/50 hover:border-violet-300'}`}>
-                        <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0])} />
-                        {uploadDialog.dataUrl ? (
-                            <><FileText style={{ width: 15, height: 15 }} className="text-emerald-600" /><span className="text-[11px] font-semibold text-emerald-700 truncate max-w-[240px]">{uploadDialog.fileName}</span></>
-                        ) : (
-                            <><Upload style={{ width: 15, height: 15 }} className="text-slate-400" /><span className="text-[11px] text-slate-500">แนบไฟล์ PDF/PNG/JPG ≤ 10MB</span></>
+                    {/* Header — ไอคอนเอกสาร + ชื่อเรื่อง */}
+                    <h3 className="text-base font-bold text-slate-800 mt-0 mb-3 flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center flex-none">
+                            <FileText className="w-4 h-4 text-violet-600" />
+                        </span>
+                        {uploadDialog.title}
+                    </h3>
+                    {/* กล่องบริบท: สถานประกอบการใหม่ + นักศึกษา + วันคงเหลือ */}
+                    <div className="bg-violet-50/70 border border-violet-200/60 rounded-2xl p-3 text-xs space-y-1 mb-4">
+                        <p className="m-0 text-slate-600 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-violet-500 flex-none" /> สถานประกอบการใหม่: <strong className="text-violet-900 font-bold">{uploadDialog.item?.new_company_name || '-'}</strong></p>
+                        <p className="m-0 text-slate-600 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-violet-500 flex-none" /> นักศึกษา: <strong className="text-slate-800">{uploadDialog.item?.studentName || '-'}</strong>{uploadDialog.item?.student_id ? ` (${uploadDialog.item.student_id})` : ''}</p>
+                        {typeof uploadDialog.item?.days_remaining === 'number' && (
+                            <p className="m-0 text-slate-600 flex items-center gap-1.5"><Clock3 className="w-3.5 h-3.5 text-violet-500 flex-none" /> ระยะเวลาคงเหลือ: <strong className="text-slate-800">{uploadDialog.item.days_remaining} วัน</strong></p>
                         )}
-                    </label>
-                    {/* ช่วงวันฝึกงาน ณ ที่ใหม่ — บังคับก่อนออกหนังสือขอความอนุเคราะห์/ส่งตัว */}
+                    </div>
+                    {/* ขั้นที่ 1: ช่วงวันฝึกงาน ณ ที่ใหม่ — บังคับก่อนออกหนังสือขอความอนุเคราะห์/ส่งตัว */}
                     {NEEDS_DATES.includes(uploadDialog.endpoint) && (
-                        <div className="mt-3 rounded-xl bg-violet-50/60 border border-violet-100 p-3 space-y-2.5">
-                            <p className="text-[11px] font-bold text-violet-700 m-0">กำหนดช่วงวันฝึกงาน ณ สถานประกอบการใหม่ <span className="text-rose-500">*</span></p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <TextField fullWidth size="small" type="date" label="วันที่เริ่มฝึกงาน" required
+                        <div className="mb-3">
+                            <p className="text-[11px] font-semibold text-slate-600 m-0 mb-2 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-violet-500" /> กำหนดช่วงวันฝึกงาน ณ สถานประกอบการใหม่</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <TextField fullWidth size="small" type="date" label="วันที่เริ่มฝึกงานใหม่" required
                                     InputLabelProps={{ shrink: true }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                                     value={uploadDialog.startDate}
                                     onChange={(e) => setUploadDialog((p) => ({ ...p, startDate: e.target.value }))} />
                                 <TextField fullWidth size="small" type="date" label="วันที่สิ้นสุดการฝึกงาน" required
                                     InputLabelProps={{ shrink: true }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                                     inputProps={{ min: uploadDialog.startDate || undefined }}
                                     value={uploadDialog.endDate}
                                     onChange={(e) => setUploadDialog((p) => ({ ...p, endDate: e.target.value }))} />
                             </div>
                             {uploadDialog.startDate && uploadDialog.endDate && uploadDialog.endDate >= uploadDialog.startDate && (
-                                <p className="text-[11px] text-violet-700 m-0 leading-relaxed">
+                                <p className="text-[11px] text-violet-700 m-0 mt-2 leading-relaxed">
                                     รวม <strong>{countWorkDays(uploadDialog.startDate, uploadDialog.endDate)} วันทำการ</strong>
                                     {' '}(จันทร์–เสาร์) ≈ <strong>{countWorkDays(uploadDialog.startDate, uploadDialog.endDate) * 8} ชั่วโมง</strong>
                                 </p>
                             )}
                             {uploadDialog.startDate && uploadDialog.endDate && uploadDialog.endDate < uploadDialog.startDate && (
-                                <p className="text-[11px] text-rose-600 font-semibold m-0">วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น</p>
+                                <p className="text-[11px] text-rose-600 font-semibold m-0 mt-2">วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น</p>
                             )}
                         </div>
                     )}
+                    {/* ขั้น 1.5: วิธีนำส่งเอกสารถึงสถานประกอบการใหม่ — เฉพาะหนังสือขอความอนุเคราะห์ */}
+                    {uploadDialog.endpoint === 'request-letter' && (
+                        <div className="mb-3">
+                            <p className="text-[11px] font-semibold text-slate-600 m-0 mb-2 flex items-center gap-1.5">
+                                <Send className="w-3.5 h-3.5 text-violet-500" /> วิธีนำส่งหนังสือถึงสถานประกอบการใหม่
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {[
+                                    { val: 'student_delivery', icon: User, title: 'นักศึกษานำส่งด้วยตนเอง', desc: 'นศ. ได้รับลิงก์ + ไฟล์ PDF ไปส่งต่อให้บริษัท' },
+                                    { val: 'admin_email', icon: Mail, title: 'แอดมินส่งอีเมลทางการ', desc: 'ระบบส่งอีเมลพร้อมลิงก์ตอบรับถึงบริษัทโดยตรง' },
+                                ].map((opt) => {
+                                    const on = uploadDialog.deliveryMethod === opt.val;
+                                    return (
+                                        <button key={opt.val} type="button"
+                                            onClick={() => setUploadDialog((p) => ({ ...p, deliveryMethod: opt.val }))}
+                                            className={`text-left rounded-xl border p-3 transition-all cursor-pointer ${on ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-200' : 'border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30'}`}>
+                                            <span className={`flex items-center gap-1.5 text-xs font-bold ${on ? 'text-violet-800' : 'text-slate-700'}`}>
+                                                <opt.icon className={`w-3.5 h-3.5 ${on ? 'text-violet-600' : 'text-slate-400'}`} />
+                                                {opt.title}
+                                                {on && <CheckCircle2 className="w-3.5 h-3.5 text-violet-600 ml-auto" />}
+                                            </span>
+                                            <span className="block text-[10px] text-slate-400 mt-1 leading-relaxed">{opt.desc}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {uploadDialog.deliveryMethod === 'admin_email' && (
+                                <div className="mt-2.5">
+                                    <TextField fullWidth size="small" type="email" label="อีเมลปลายทางสถานประกอบการใหม่" required
+                                        placeholder="hr@company.com"
+                                        InputLabelProps={{ shrink: true }}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                                        value={uploadDialog.recipientEmail}
+                                        onChange={(e) => setUploadDialog((p) => ({ ...p, recipientEmail: e.target.value }))} />
+                                    <p className="text-[10px] text-slate-400 mt-1.5 m-0">ระบบจะส่งอีเมลทางการพร้อมลิงก์ตอบรับออนไลน์ (ใช้ได้ครั้งเดียว) ถึงอีเมลนี้ทันทีที่บันทึก</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {/* ขั้นที่ 2: แนบไฟล์เอกสาร (backend บังคับ) */}
+                    <p className="text-[11px] font-semibold text-slate-600 m-0 mb-2 flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5 text-violet-500" /> แนบหนังสือฉบับลงนาม / เอกสารประกอบ <span className="text-rose-500">*</span></p>
+                    <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer ${uploadDialog.dataUrl ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 hover:border-violet-300 bg-slate-50/60 hover:bg-violet-50/30'}`}>
+                        <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0])} />
+                        {uploadDialog.dataUrl ? (
+                            <><FileText style={{ width: 20, height: 20 }} className="text-emerald-600" /><span className="text-[11px] font-semibold text-emerald-700 truncate max-w-[260px]">{uploadDialog.fileName}</span></>
+                        ) : (
+                            <>
+                                <Upload style={{ width: 20, height: 20 }} className="text-violet-400" />
+                                <span className="text-xs font-medium text-slate-600">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</span>
+                                <span className="text-[10px] text-slate-400">PDF, PNG, JPG (สูงสุด 10MB)</span>
+                            </>
+                        )}
+                    </label>
+                    {/* ขั้นที่ 3: หมายเหตุ */}
                     <div className="mt-3">
-                        <TextField fullWidth size="small" label="หมายเหตุ (ไม่บังคับ)" value={uploadDialog.comment}
+                        <TextField fullWidth size="small" multiline minRows={2}
+                            placeholder="ระบุรายละเอียดเพิ่มเติมถึงสถานประกอบการ (ถ้ามี)..."
+                            InputProps={{ sx: { borderRadius: '12px', fontSize: '12px' } }}
+                            value={uploadDialog.comment}
                             onChange={(e) => setUploadDialog((p) => ({ ...p, comment: e.target.value }))} />
                     </div>
-                    <div className="flex justify-end gap-2 mt-4">
+                    <div className="flex gap-2.5 mt-4">
                         <button type="button" onClick={() => setUploadDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
+                            className="px-4 h-11 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-medium transition-all cursor-pointer">ยกเลิก</button>
                         <button type="button" onClick={submitUpload} disabled={submitting || !uploadDialog.dataUrl}
-                            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
+                            className="flex-1 h-11 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-xl text-xs font-semibold shadow-xs border-0 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer">
                             {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                            ยืนยัน
+                            บันทึกและออกเอกสาร
                         </button>
                     </div>
                 </DialogContent>

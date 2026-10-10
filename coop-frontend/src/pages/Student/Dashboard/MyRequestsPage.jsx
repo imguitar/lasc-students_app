@@ -2,9 +2,9 @@ import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import api from '../../../api/axios';
-import { openDocumentInNewTab, downloadDocument } from '../../../utils/documentViewer';
+import { openDocumentInNewTab, downloadFileSmart } from '../../../utils/documentViewer';
 import { getUploadUrl } from '../../../utils/fileUrl';
 import './DashboardPage.css'; // Reusing layout styles
 import './MyRequestsPage.css';
@@ -52,7 +52,7 @@ export const isStudentEditableStatus = (status) => {
 };
 
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  downloadDocument(dataUrl, fileName);
+  downloadFileSmart(dataUrl, fileName);
 };
 
 const MyRequestsPage = () => {
@@ -211,9 +211,10 @@ const MyRequestsPage = () => {
   const relocationStatus = activeRelocationFor(primaryRequest?.id)?.status || null;
 
   // รอบย้ายที่เสร็จสิ้นล่าสุด = สถานประกอบการที่ฝึกอยู่ปัจจุบัน (รองรับย้ายหลายรอบ)
-  const latestCompletedReloc = relocations
-    .filter((r) => Number(r.internship_request_id) === Number(primaryRequest?.id) && r.status === 'completed')
+  const completedRelocFor = (requestId) => relocations
+    .filter((r) => Number(r.internship_request_id) === Number(requestId) && r.status === 'completed')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
+  const latestCompletedReloc = completedRelocFor(primaryRequest?.id);
   const currentCompanyName = latestCompletedReloc?.new_company_name || primaryRequest?.companyName;
   const currentMentor = latestCompletedReloc?.mentor_name || primaryDetails.contactPerson || primaryDetails.evaluatorName || '-';
   const currentMentorEmail = latestCompletedReloc?.mentor_email || primaryDetails.contactEmail || '-';
@@ -393,8 +394,8 @@ const MyRequestsPage = () => {
                       {primaryRequest.dispatchLetter?.dataUrl ? (
                         <button
                           type="button"
-                          onClick={() => handleDocumentAction(primaryRequest.dispatchLetter.dataUrl, primaryRequest.dispatchLetter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf')}
-                          className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white border-0 cursor-pointer transition-colors shrink-0"
+                          onClick={() => handleDownloadFile(primaryRequest.dispatchLetter.dataUrl, primaryRequest.dispatchLetter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf')}
+                          className="text-xs font-bold px-4 h-11 rounded-xl bg-purple-700 hover:bg-purple-800 text-white border-0 cursor-pointer transition-colors shrink-0"
                         >
                           ดาวน์โหลด
                         </button>
@@ -516,10 +517,16 @@ const MyRequestsPage = () => {
               {filteredRequests.length > 0 ? (
                 filteredRequests.map((req) => {
                   const submitted = formatThaiDateTime(getSubmittedAt(req));
+                  const doneReloc = completedRelocFor(req.id);
                   return (
                     <div key={req.id} className="w-full rounded-xl bg-white border border-slate-100 shadow-sm p-3.5">
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-sm font-bold text-slate-800 leading-snug min-w-0 break-words">{req.companyName}</span>
+                        <span className="text-sm font-bold text-slate-800 leading-snug min-w-0 break-words">
+                          {doneReloc?.new_company_name || req.companyName}
+                        </span>
+                        {doneReloc && (
+                          <span className="text-[10px] text-slate-400 -mt-1">ย้ายจาก {doneReloc.old_company || req.companyName}</span>
+                        )}
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StatusBadge status={getEffectiveInternshipStatus(req)} />
                           <RelocationStatusChip status={activeRelocationFor(req.id)?.status} />
@@ -530,14 +537,15 @@ const MyRequestsPage = () => {
                           <div className="text-xs text-slate-600 truncate">{req.position}</div>
                           <div className="text-[11px] text-slate-400 mt-0.5">{submitted.date} • {submitted.time}</div>
                         </div>
-                        <button
-                          type="button"
+                        <IconButton
+                          size="small"
                           onClick={(e) => handleToggleActionMenu(e, req.id)}
-                          className="action-menu-trigger w-9 h-9 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent inline-flex items-center justify-center shrink-0"
+                          className="action-menu-trigger"
                           aria-label="จัดการคำร้อง"
+                          sx={{ p: 0.75, flexShrink: 0, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                         >
                           <MoreVertical className="w-4 h-4 stroke-[2]" />
-                        </button>
+                        </IconButton>
                       </div>
                     </div>
                   );
@@ -563,7 +571,14 @@ const MyRequestsPage = () => {
                         {filteredRequests.length > 0 ? (
                             filteredRequests.map((req) => (
                       <TableRow key={req.id} hover>
-                        <TableCell className="company-name"><span className="compact-text">{req.companyName}</span></TableCell>
+                        <TableCell className="company-name">
+                          {(() => { const doneReloc = completedRelocFor(req.id); return (
+                            <span className="compact-text">
+                              {doneReloc?.new_company_name || req.companyName}
+                              {doneReloc && <span className="block text-[10px] text-slate-400 font-normal">ย้ายจาก {doneReloc.old_company || req.companyName}</span>}
+                            </span>
+                          ); })()}
+                        </TableCell>
                         <TableCell><span className="compact-text">{req.position}</span></TableCell>
                         <TableCell>
                           {(() => {
@@ -644,7 +659,7 @@ const MyRequestsPage = () => {
               type="button"
               onClick={() => {
                 closeActionMenu();
-                handleDocumentAction(
+                handleDownloadFile(
                   activeMenuRequest.dispatchLetter.dataUrl,
                   activeMenuRequest.dispatchLetter.fileName || `หนังสือส่งตัว_${activeMenuRequest.companyName || 'ฝึกงาน'}.pdf`
                 );

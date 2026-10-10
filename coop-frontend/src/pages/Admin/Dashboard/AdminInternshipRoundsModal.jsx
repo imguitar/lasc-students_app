@@ -22,8 +22,10 @@ import {
   Checkbox,
   Stack,
   MenuItem,
+  Menu,
 } from '@mui/material';
 import { TrashIcon, PencilSquareIcon, PlusIcon, BoltIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MoreVertical } from 'lucide-react';
 import api from '../../../api/axios';
 
 const TERM_LABEL = { '1': 'ภาคเรียนที่ 1', '2': 'ภาคเรียนที่ 2', 'summer': 'ภาคฤดูร้อน' };
@@ -47,6 +49,7 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
   });
 
   const [applyTarget, setApplyTarget] = useState(null);
+  const [actionMenu, setActionMenu] = useState({ anchor: null, round: null });
   const [applyOverwrite, setApplyOverwrite] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -345,15 +348,16 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
                               <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b' }} />
                             )}
                           </TableCell>
-                          <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                            <IconButton size="small" color="warning" onClick={() => setApplyTarget(r)} title="นำไปใช้กับคำร้องที่รอออกฝึก">
-                              <BoltIcon style={{ width: 18, height: 18 }} />
-                            </IconButton>
-                            <IconButton size="small" color="primary" onClick={() => handleOpenForm(r)} title="แก้ไข">
-                              <PencilSquareIcon style={{ width: 18, height: 18 }} />
-                            </IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeleteRound(r.id)} title="ลบ">
-                              <TrashIcon style={{ width: 18, height: 18 }} />
+                          <TableCell align="center">
+                            <IconButton
+                              size="small"
+                              aria-label={`จัดการรอบฝึกงาน ${r.title}`}
+                              aria-haspopup="menu"
+                              title="จัดการ"
+                              onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, round: r }); }}
+                              sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                            >
+                              <MoreVertical className="w-4 h-4" />
                             </IconButton>
                           </TableCell>
                         </TableRow>
@@ -361,6 +365,24 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
                     </TableBody>
                   </Table>
                 </TableContainer>
+
+                <Menu
+                  anchorEl={actionMenu.anchor}
+                  open={Boolean(actionMenu.anchor)}
+                  onClose={() => setActionMenu({ anchor: null, round: null })}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                  <MenuItem onClick={() => { setApplyTarget(actionMenu.round); setActionMenu({ anchor: null, round: null }); }}>
+                    <BoltIcon style={{ width: 16, height: 16, marginRight: 10, color: '#d97706' }} /> นำไปใช้กับคำร้องที่รอออกฝึก
+                  </MenuItem>
+                  <MenuItem onClick={() => { handleOpenForm(actionMenu.round); setActionMenu({ anchor: null, round: null }); }}>
+                    <PencilSquareIcon style={{ width: 16, height: 16, marginRight: 10, color: '#6d28d9' }} /> แก้ไข
+                  </MenuItem>
+                  <MenuItem onClick={() => { handleDeleteRound(actionMenu.round?.id); setActionMenu({ anchor: null, round: null }); }} sx={{ color: '#ef4444' }}>
+                    <TrashIcon style={{ width: 16, height: 16, marginRight: 10 }} /> ลบ
+                  </MenuItem>
+                </Menu>
 
                 {/* Mobile: Card List */}
                 <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>

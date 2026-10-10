@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import {
-    Alert, Box, Dialog, DialogContent, Menu, MenuItem, Paper, Snackbar, Table, TableBody,
-    TableCell, TableContainer, TableHead, TableRow, TextField,
+    Alert, Box, Dialog, DialogContent, IconButton, Menu, MenuItem, Paper, Snackbar, Tab, Table, TableBody,
+    TableCell, TableContainer, TableHead, TableRow, Tabs, TextField,
 } from '@mui/material';
-import { Calendar, Check, CheckCircle2, Copy, Download, Eye, FileText, FileSignature, FileCheck, Loader2, MoreVertical, QrCode, Upload, XCircle } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, Copy, Download, Eye, FileText, FileSignature, FileCheck, History, Inbox, Loader2, MoreVertical, QrCode, Upload, XCircle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import './AdminDashboardPage.css';
 import AdminSidebar from '../../../components/AdminSidebar';
@@ -33,6 +33,7 @@ const AdminRelocationsPage = () => {
     const [qrModal, setQrModal] = useState({ open: false, row: null, link: '', copied: false });
     const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+    const [viewTab, setViewTab] = useState('active');
 
     const load = () => {
         api.get('/relocations').then((res) => setRows(res.data?.data || [])).catch(() => {});
@@ -222,6 +223,20 @@ const AdminRelocationsPage = () => {
         : status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60'
         : 'bg-violet-50 text-violet-600 border-violet-200/60';
 
+    // แท็บทำงาน: คำร้องที่จบแล้ว (completed/rejected) ย้ายไปประวัติ — active เหลือคำร้องล่าสุด 1 รายการต่อคำร้องฝึกงาน กันแถวซ้ำ
+    const RELOC_TERMINAL = ['completed', 'rejected'];
+    const sortedRows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id));
+    const seenActiveKeys = new Set();
+    const activeRows = sortedRows.filter((r) => {
+        if (RELOC_TERMINAL.includes(r.status)) return false;
+        const key = String(r.internship_request_id || r.student_id);
+        if (seenActiveKeys.has(key)) return false;
+        seenActiveKeys.add(key);
+        return true;
+    });
+    const historyRows = sortedRows.filter((r) => RELOC_TERMINAL.includes(r.status));
+    const displayRows = viewTab === 'active' ? activeRows : historyRows;
+
     // ปุ่ม action ตามสถานะ step-by-step (mobile = ปุ่มใหญ่เต็มแถวกดง่าย)
     const renderActions = (r, mobile = false) => {
         const btn = `inline-flex items-center gap-1 rounded-lg font-bold border-0 cursor-pointer transition ${mobile ? 'flex-1 justify-center px-3 py-2.5 text-xs' : 'px-2.5 py-1.5 text-[11px]'}`;
@@ -330,6 +345,47 @@ const AdminRelocationsPage = () => {
                 <Paper className="content-section" elevation={0} sx={{ width: '100%' }}>
                     <div className="section-header"><h2 className="!text-base sm:!text-xl">รายการคำร้อง ({rows.length})</h2></div>
 
+                    {/* Segmented Tabs — แยกงานที่ต้องทำออกจากประวัติที่จบแล้ว */}
+                    <Tabs
+                        value={viewTab}
+                        onChange={(_, v) => { if (v) setViewTab(v); }}
+                        sx={{
+                            minHeight: 0, mb: 2, display: 'inline-flex',
+                            bgcolor: 'rgba(241,245,249,0.7)', p: 0.5, borderRadius: 2.5,
+                            '& .MuiTabs-indicator': { display: 'none' },
+                            '& .MuiTabs-flexContainer': { gap: 0.5 },
+                        }}
+                    >
+                        {[
+                            { key: 'active', icon: <Inbox size={14} />, label: 'คำร้องรอดำเนินการ', count: activeRows.length },
+                            { key: 'history', icon: <History size={14} />, label: 'ประวัติเสร็จสิ้น', count: historyRows.length },
+                        ].map((tab) => (
+                            <Tab
+                                key={tab.key}
+                                value={tab.key}
+                                disableRipple
+                                label={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        {tab.icon}
+                                        <span>{tab.label}</span>
+                                        <Box component="span" sx={{
+                                            px: 0.75, py: 0.125, borderRadius: '999px', fontSize: '10px', fontWeight: 700,
+                                            bgcolor: viewTab === tab.key ? '#ede9fe' : 'rgba(226,232,240,0.8)',
+                                            color: viewTab === tab.key ? '#6d28d9' : '#64748b',
+                                        }}>
+                                            {tab.count}
+                                        </Box>
+                                    </Box>
+                                }
+                                sx={{
+                                    minHeight: 0, py: 0.75, px: 1.5, borderRadius: 2,
+                                    textTransform: 'none', fontSize: '0.75rem', fontWeight: 600, color: '#64748b',
+                                    '&.Mui-selected': { bgcolor: '#fff', color: '#6d28d9', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' },
+                                }}
+                            />
+                        ))}
+                    </Tabs>
+
                     {/* Desktop: table เดิม */}
                     <TableContainer
                         component={Box}
@@ -352,7 +408,7 @@ const AdminRelocationsPage = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {rows.length > 0 ? rows.map((r) => (
+                                {displayRows.length > 0 ? displayRows.map((r) => (
                                     <Fragment key={r.id}>
                                         <TableRow hover onClick={() => setExpandedId(expandedId === r.id ? null : r.id)} sx={{ cursor: 'pointer' }}>
                                             <TableCell>
@@ -382,14 +438,14 @@ const AdminRelocationsPage = () => {
                                                 </span>
                                             </TableCell>
                                             <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    type="button"
+                                                <IconButton
+                                                    size="small"
                                                     aria-label="เมนูจัดการคำร้อง"
                                                     onClick={(e) => { e.stopPropagation(); setMenuAnchor({ el: e.currentTarget, row: r }); }}
-                                                    className="p-1.5 rounded-lg border-0 bg-transparent cursor-pointer text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
+                                                    sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                                                 >
                                                     <MoreVertical style={{ width: 16, height: 16 }} />
-                                                </button>
+                                                </IconButton>
                                             </TableCell>
                                         </TableRow>
                                         {expandedId === r.id && (
@@ -401,7 +457,12 @@ const AdminRelocationsPage = () => {
                                         )}
                                     </Fragment>
                                 )) : (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>ไม่มีคำร้องขอเปลี่ยนสถานที่ฝึกงาน</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                                        <Inbox className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                        <div className="text-sm text-slate-400">
+                                            {viewTab === 'active' ? 'ไม่มีคำร้องขอย้ายที่รอดำเนินการในขณะนี้' : 'ยังไม่มีประวัติคำร้องที่เสร็จสิ้น'}
+                                        </div>
+                                    </TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -409,7 +470,7 @@ const AdminRelocationsPage = () => {
 
                     {/* Mobile: stacked cards — ไม่มี scroll แนวนอน */}
                     <div className="block md:hidden">
-                        {rows.length > 0 ? rows.map((r) => (
+                        {displayRows.length > 0 ? displayRows.map((r) => (
                             <div key={r.id} className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 mb-3">
                                 {/* header: ชื่อ + status badge */}
                                 <div className="flex items-start justify-between gap-2">
@@ -453,7 +514,10 @@ const AdminRelocationsPage = () => {
                                 </div>
                             </div>
                         )) : (
-                            <div className="text-center py-6 text-sm text-slate-400">ไม่มีคำร้องขอเปลี่ยนสถานที่ฝึกงาน</div>
+                            <div className="text-center py-8 text-sm text-slate-400 bg-white rounded-2xl border border-slate-200/80">
+                                <Inbox className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                {viewTab === 'active' ? 'ไม่มีคำร้องขอย้ายที่รอดำเนินการในขณะนี้' : 'ยังไม่มีประวัติคำร้องที่เสร็จสิ้น'}
+                            </div>
                         )}
                     </div>
                 </Paper>

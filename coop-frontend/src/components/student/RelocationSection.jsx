@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import RelocationStepper, { RELOCATION_STATUS_LABEL } from '../RelocationStepper';
 import { getUploadUrl } from '../../utils/fileUrl';
+import { downloadFileSmart } from '../../utils/documentViewer';
 import { QRCodeCanvas } from 'qrcode.react';
-import { ArrowRightLeft, Check, ChevronDown, Copy, Download, History, QrCode } from 'lucide-react';
+import { ArrowRightLeft, Check, ChevronDown, Copy, Download, FileText, History, Mail, QrCode } from 'lucide-react';
 
 const fileUrl = getUploadUrl;
+const extOf = (url) => (url.match(/\.[a-z]+$/i) || ['.pdf'])[0];
+const dlDoc = (url, baseName) => downloadFileSmart(fileUrl(url), `${baseName}${extOf(url)}`);
 
 // การ์ดคำร้องขอเปลี่ยนสถานที่ฝึกงาน + ลิงก์ไปหน้าฟอร์มเต็มจอ — ใช้ในหน้า My Requests
 const RelocationSection = ({ request, daysTrained = 0, items: itemsProp }) => {
@@ -112,6 +115,79 @@ const RelocationSection = ({ request, daysTrained = 0, items: itemsProp }) => {
             </div>
           )}
 
+          {/* ขั้นรอสถานประกอบการใหม่ตอบรับ — แสดงตามวิธีนำส่งที่แอดมินเลือก */}
+          {active.status === 'waiting_company_acceptance' && (
+            active.dispatch_method === 'admin_email' ? (
+              <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+                <p className="text-xs font-bold text-sky-900 m-0 flex items-center gap-1.5">
+                  <Mail style={{ width: 14, height: 14 }} className="shrink-0 text-sky-600" />
+                  คณะได้จัดส่งหนังสือส่งตัวไปยังสถานประกอบการใหม่ทางอีเมลแล้ว (รอการตอบรับ)
+                </p>
+                <p className="text-[11px] text-sky-700 mt-1.5 mb-0 leading-relaxed">
+                  ส่งถึง <span className="font-semibold">{active.recipient_email || '-'}</span>
+                  {active.dispatched_at && ` • ${new Date(active.dispatched_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                </p>
+                {active.new_request_letter_file && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a href={fileUrl(active.new_request_letter_file)} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-white hover:bg-sky-100 text-sky-700 text-xs font-bold no-underline border border-sky-200 transition-colors">
+                      <FileText style={{ width: 14, height: 14 }} /> ดูเอกสาร (สำเนา)
+                    </a>
+                    <button type="button" onClick={() => dlDoc(active.new_request_letter_file, `หนังสือส่งตัว_${active.new_company_name || 'ใหม่'}`)}
+                      className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold border-0 cursor-pointer transition-colors">
+                      <Download style={{ width: 14, height: 14 }} /> ดาวน์โหลด
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                <p className="text-xs font-bold text-violet-900 m-0 flex items-center gap-1.5">
+                  <QrCode style={{ width: 14, height: 14 }} className="shrink-0" />
+                  รอสถานประกอบการใหม่ตอบรับ — ส่งลิงก์/หนังสือให้บริษัท
+                </p>
+                <p className="text-[11px] text-violet-700 mt-1 mb-3 leading-relaxed">
+                  คัดลอกลิงก์ตอบรับส่งให้ {active.new_company_name} หรือดาวน์โหลดหนังสือขอความอนุเคราะห์ไปมอบให้บริษัท — ลิงก์ใช้ได้ครั้งเดียว
+                </p>
+                {active.acceptance_token && (
+                  <div className="flex items-stretch gap-1.5 mb-2.5">
+                    <input
+                      readOnly
+                      value={`${window.location.origin}/coop/public/company-acceptance/${active.acceptance_token}`}
+                      onFocus={(e) => e.target.select()}
+                      className="flex-1 min-w-0 h-9 px-3 text-[11px] text-slate-600 bg-white border border-violet-200 rounded-lg focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(`${window.location.origin}/coop/public/company-acceptance/${active.acceptance_token}`);
+                          setCopied(true); setTimeout(() => setCopied(false), 1800);
+                        } catch { /* noop */ }
+                      }}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold border-none cursor-pointer transition-colors"
+                    >
+                      {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
+                      {copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}
+                    </button>
+                  </div>
+                )}
+                {active.new_request_letter_file && (
+                  <div className="flex flex-wrap gap-2">
+                    <a href={fileUrl(active.new_request_letter_file)} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-white hover:bg-violet-100 text-violet-700 text-xs font-bold no-underline border border-violet-200 transition-colors">
+                      <FileText style={{ width: 14, height: 14 }} /> ดูเอกสาร (PDF)
+                    </a>
+                    <button type="button" onClick={() => dlDoc(active.new_request_letter_file, `หนังสือขอความอนุเคราะห์_${active.new_company_name || 'ใหม่'}`)}
+                      className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold border-0 cursor-pointer transition-colors">
+                      <Download style={{ width: 14, height: 14 }} /> ดาวน์โหลด
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
         </>
       ) : interning && (
         <>
@@ -170,15 +246,25 @@ const RelocationSection = ({ request, daysTrained = 0, items: itemsProp }) => {
                     <p className="text-[11px] text-red-400 mt-1 m-0">เหตุผล: {r.admin_comment || r.advisor_comment}</p>
                   )}
                   {r.status === 'completed' && r.new_dispatch_letter_file && (
-                    <a
-                      href={fileUrl(r.new_dispatch_letter_file)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold no-underline border border-purple-200/70 transition-colors"
-                    >
-                      <Download style={{ width: 12, height: 12 }} />
-                      หนังสือส่งตัวรอบนี้ (PDF)
-                    </a>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a
+                        href={fileUrl(r.new_dispatch_letter_file)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold no-underline border border-purple-200/70 transition-colors"
+                      >
+                        <FileText style={{ width: 14, height: 14 }} />
+                        หนังสือส่งตัวรอบนี้
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => dlDoc(r.new_dispatch_letter_file, `หนังสือส่งตัว_${r.new_company_name || 'รอบใหม่'}`)}
+                        className="inline-flex items-center gap-1.5 px-4 h-11 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold border-0 cursor-pointer transition-colors"
+                      >
+                        <Download style={{ width: 14, height: 14 }} />
+                        ดาวน์โหลด
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

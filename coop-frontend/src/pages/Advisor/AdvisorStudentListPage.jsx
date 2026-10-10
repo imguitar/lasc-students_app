@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
-import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField } from '@mui/material';
+import { Building2, Eye, Mail, Search } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css'; // Reuse styles
 import '../Admin/Dashboard/StudentListPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
@@ -109,6 +110,8 @@ const AdvisorStudentListPage = () => {
         }
     };
 
+    const [search, setSearch] = useState('');
+
     const sortedStudents = [...students].sort((a, b) => {
         if (!sortBy) return 0;
         const va = a[sortBy] ?? '';
@@ -119,6 +122,17 @@ const AdvisorStudentListPage = () => {
             return (na - nb) * (sortDir === 'asc' ? 1 : -1);
         }
         return String(va).localeCompare(String(vb), 'th-TH', { numeric: true }) * (sortDir === 'asc' ? 1 : -1);
+    });
+
+    const visibleStudents = sortedStudents.filter((stu) => {
+        const q = search.trim().toLowerCase();
+        if (!q) return true;
+        return [
+            stu.name || stu.full_name,
+            stu.student_code || stu.studentId || stu.username,
+            displayEmail(stu),
+            stu.active_company_name || stu.company_name,
+        ].some((v) => String(v || '').toLowerCase().includes(q));
     });
 
     return (
@@ -159,7 +173,20 @@ const AdvisorStudentListPage = () => {
                         <h2>นักศึกษาที่มีสิทธิ์ฝึกงาน ({students.length})</h2>
                     </div>
 
-                    <TableContainer component={Box} className="table-responsive" sx={{ px: 2, pb: 2, overflowX: 'auto' }}>
+                    <Box sx={{ px: 2, pb: 1.5 }}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="ค้นหาชื่อ, รหัสนักศึกษา, อีเมล หรือสถานประกอบการ"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            InputProps={{
+                                startAdornment: <Search className="w-4 h-4 text-slate-400" style={{ marginRight: 8, flexShrink: 0 }} />,
+                            }}
+                        />
+                    </Box>
+
+                    <TableContainer component={Box} className="table-responsive" sx={{ px: 2, pb: 2, overflowX: 'auto', display: { xs: 'none', md: 'block' } }}>
                         <Table size="small" className="data-table" stickyHeader>
                             <TableHead>
                                 <TableRow>
@@ -172,8 +199,8 @@ const AdvisorStudentListPage = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {sortedStudents.length > 0 ? (
-                                    sortedStudents.map((stu, index) => (
+                                {visibleStudents.length > 0 ? (
+                                    visibleStudents.map((stu, index) => (
                                         <TableRow key={stu.id || index} hover>
                                             <TableCell>{stu.student_code || stu.studentId || stu.username}</TableCell>
                                             <TableCell>{stu.name || stu.full_name || '-'}</TableCell>
@@ -209,13 +236,75 @@ const AdvisorStudentListPage = () => {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={6} align="center" sx={{ py: 2.5 }}>
-                                            ไม่พบนักศึกษาในสาขานี้
+                                            {search ? 'ไม่พบข้อมูลที่ตรงกับคำค้นหา' : 'ไม่พบนักศึกษาในสาขานี้'}
                                         </TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </TableContainer>
+
+                    {/* Mobile Card Stack View (<768px) — ตามกฎ Table-to-Card ใน skill section 4 */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5, px: 2, pb: 2 }}>
+                        {visibleStudents.length === 0 ? (
+                            <Box sx={{ py: 4, textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>
+                                {search ? 'ไม่พบข้อมูลที่ตรงกับคำค้นหา' : 'ไม่พบนักศึกษาในสาขานี้'}
+                            </Box>
+                        ) : (
+                            visibleStudents.map((stu, index) => {
+                                const badge = getStepBadge(stu);
+                                const code = stu.student_code || stu.studentId || stu.username;
+                                const company = stu.active_company_name || stu.company_name;
+                                return (
+                                    <Box key={stu.id || index} sx={{ bgcolor: '#fff', p: 2, borderRadius: '16px', border: '1px solid rgba(226,232,240,0.8)' }}>
+                                        {/* หัวการ์ด: ชื่อ/รหัส + badge สถานะ */}
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Box sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+                                                    {stu.name || stu.full_name || '-'}
+                                                </Box>
+                                                <Box sx={{ color: '#64748b', fontSize: '0.75rem', fontFamily: 'monospace' }}>{code || '-'}</Box>
+                                            </Box>
+                                            <Box
+                                                component="span"
+                                                title={stu.latest_request_status || ''}
+                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap shrink-0 ${badge.cls}`}
+                                            >
+                                                {badge.label}
+                                            </Box>
+                                        </Box>
+
+                                        {/* เนื้อหาการ์ด: อีเมล + บริษัทล่าสุด */}
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1.5, pt: 1.5, borderTop: '1px solid #f1f5f9', fontSize: '0.75rem', color: '#475569' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <span className="break-all">{displayEmail(stu)}</span>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                <Building2 className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                                                <span className="break-words">{company || '-'}</span>
+                                            </Box>
+                                        </Box>
+
+                                        {/* ปุ่มท้ายการ์ด — full width 44px */}
+                                        <Button
+                                            fullWidth
+                                            variant="outlined"
+                                            startIcon={<Eye className="w-4 h-4" />}
+                                            onClick={() => navigate(`/dashboard/student/${code}`)}
+                                            sx={{
+                                                minHeight: '44px', mt: 1.5, borderRadius: '12px', textTransform: 'none', fontWeight: 700,
+                                                color: '#6d28d9', borderColor: '#ddd6fe', bgcolor: '#faf9ff',
+                                                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
+                                            }}
+                                        >
+                                            ดูรายละเอียดคำร้อง
+                                        </Button>
+                                    </Box>
+                                );
+                            })
+                        )}
+                    </Box>
                 </Paper>
             </main>
         </div>

@@ -6,6 +6,7 @@ const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
 const { sendCompanyEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
 const { sendAdminEvaluationAlertEmail, sendStudentEvaluationNoticeEmail, findStudentEmail } = require('../utils/mailer');
 const { createNotification, findUserIdsByRole } = require('../utils/notificationService');
+const { LATEST_COMPLETED_RELOC_JOIN } = require('../utils/activeCompany');
 
 // รอบการประเมินที่เปิดใช้งานอยู่ — ถ้ายังไม่เคยตั้งรอบไว้เลยจะได้ null (ไม่ปิดกั้นการประเมิน)
 const getActiveEvaluationRound = async () => {
@@ -151,7 +152,12 @@ router.post('/public/evaluate/:requestId', async (req, res) => {
 
     // แจ้งเตือน admin — inbox ในระบบ + อีเมล ทั้งคู่เป็น non-blocking (ล้มเหลวไม่กระทบการบันทึกคะแนน)
     try {
-      const [infoRows] = await pool.query('SELECT studentName, studentId, company FROM requests WHERE id = ?', [reqId]);
+      const [infoRows] = await pool.query(
+        `SELECT studentName, studentId,
+                COALESCE((SELECT rr.new_company_name FROM internship_relocation_requests rr
+                          WHERE rr.internship_request_id = requests.id AND rr.status = 'completed'
+                          ORDER BY rr.created_at DESC, rr.id DESC LIMIT 1), company) AS company
+         FROM requests WHERE id = ?`, [reqId]);
       const info = infoRows[0] || {};
       const companyName = info.company || 'สถานประกอบการ';
       const totalScore = [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20]
@@ -254,12 +260,13 @@ router.get('/evaluations/analytics', authenticate, async (req, res) => {
     const [rows] = await pool.query(`
       SELECT 
         r.department, 
-        r.company,
+        COALESCE(active_reloc.new_company_name, r.company) AS company,
         e.q1, e.q2, e.q3, e.q4, e.q5, e.q6, e.q7, e.q8, e.q9, e.q10,
         e.q11, e.q12, e.q13, e.q14, e.q15, e.q16, e.q17, e.q18, e.q19, e.q20,
         e.hireFuture
       FROM evaluations e
       JOIN requests r ON e.requestId = r.id
+      ${LATEST_COMPLETED_RELOC_JOIN('r')}
       WHERE r.status IN ('ประเมินเสร็จแล้ว', 'ฝึกงานเสร็จแล้ว')
     `);
 

@@ -1,26 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogTitle, DialogActions, Button, Typography, Box } from '@mui/material';
-import { ChartBarIcon, DocumentTextIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { Dialog, DialogContent, Button } from '@mui/material';
+import { ChartBarIcon } from '@heroicons/react/24/outline';
+import { ArrowLeft } from 'lucide-react';
 import api from '../../../api/axios';
 import './RequestDetailsPage.css';
-import { formatAddress } from '../../../utils/formatters';
-import { isMobileDevice, dataUrlToBlobUrl, downloadDocument } from '../../../utils/documentViewer';
-
-const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  downloadDocument(dataUrl, fileName);
-};
+import InternshipRequestDetailView from '../../../components/InternshipRequestDetailView';
 
 const StudentDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState('');
   const [request, setRequest] = useState(null);
+  const [relocations, setRelocations] = useState([]);
   const [evaluation, setEvaluation] = useState(null);
   const [advisorEvaluation, setAdvisorEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [imageModal, setImageModal] = useState(false);
-  const [docModal, setDocModal] = useState({ open: false, dataUrl: '', fileName: '', blobUrl: '' });
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -77,9 +73,10 @@ const StudentDetailsPage = () => {
           // Fetch company and advisor evaluation if available
           if (reqData.id && reqData.id !== '-') {
             try {
-              const [evalRes, advisorEvalRes] = await Promise.all([
+              const [evalRes, advisorEvalRes, relocRes] = await Promise.all([
                 api.get(`/evaluations/request/${reqData.id}`).catch(() => ({ data: { data: null } })),
-                api.get(`/advisor-evaluations/request/${reqData.id}`).catch(() => ({ data: { data: null } }))
+                api.get(`/advisor-evaluations/request/${reqData.id}`).catch(() => ({ data: { data: null } })),
+                api.get('/relocations').catch(() => ({ data: { data: [] } }))
               ]);
               if (evalRes.data && evalRes.data.data) {
                 setEvaluation(evalRes.data.data);
@@ -87,6 +84,11 @@ const StudentDetailsPage = () => {
               if (advisorEvalRes.data && advisorEvalRes.data.data) {
                 setAdvisorEvaluation(advisorEvalRes.data.data);
               }
+              // ประวัติย้ายสถานที่ของคำร้องนี้ — เรียงเก่า→ใหม่ เพื่อหา placement ล่าสุด
+              const relocs = (relocRes.data?.data || [])
+                .filter((r) => String(r.internship_request_id) === String(reqData.id))
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              setRelocations(relocs);
             } catch (_) {}
           }
         } else if (userBaseline) {
@@ -167,24 +169,15 @@ const StudentDetailsPage = () => {
       <div className="request-details-container">
         <div className="details-card">
           <h2>ไม่พบข้อมูลนักศึกษารหัส: {id}</h2>
-          <button type="button" className="btn-back" style={{ marginTop: '1rem' }} onClick={() => navigate(-1)}>
+          <Button variant="outlined" startIcon={<ArrowLeft size={16} />} sx={{ mt: 2 }} onClick={() => navigate(-1)}>
             ย้อนกลับ
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
   const details = request.details || {};
-  const studentAddress = formatAddress(details.student_info?.address);
-  const companyAddress = formatAddress(details.companyAddress || details.address);
-  const internshipTermLabel = details.internshipTerm === 'term1'
-    ? 'ภาคการศึกษาที่ 1'
-    : details.internshipTerm === 'term2'
-      ? 'ภาคการศึกษาที่ 2'
-      : details.internshipTerm === 'summer'
-        ? 'ภาคฤดูร้อน'
-        : (details.internshipTerm || '');
 
   const statusInfo = getStatusBadge(request.status);
 
@@ -217,107 +210,10 @@ const StudentDetailsPage = () => {
           )}
         </header>
 
-        <section className="detail-section">
-          <h3>ข้อมูลนักศึกษา</h3>
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">ชื่อ-นามสกุล</span>
-              <span className="detail-value">{request.studentName}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">รหัสนักศึกษา</span>
-              <span className="detail-value">{request.studentId}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">สาขาวิชา</span>
-              <span className="detail-value">{request.department}</span>
-            </div>
-            {details.student_info?.lastSemesterGrade && (
-              <div className="detail-item">
-                <span className="detail-label">เกรดเฉลี่ยเทอมล่าสุด</span>
-                <span className="detail-value">{details.student_info.lastSemesterGrade}</span>
-              </div>
-            )}
-            <div className="detail-item">
-              <span className="detail-label">โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">{details.student_info?.phone || '-'} / {details.student_info?.email || '-'}</span>
-            </div>
-            {studentAddress && studentAddress !== '-' && (
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">ที่อยู่ปัจจุบัน</span>
-                <span className="detail-value">{studentAddress}</span>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="detail-section">
-          <h3>รายละเอียดสถานประกอบการ</h3>
-          <div className="detail-grid">
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">1. ชื่อบุคคล / ชื่อตำแหน่งงานติดต่อ / ผู้ประสานงานที่ติดต่อ</span>
-              <span className="detail-value">
-                {details.contactPerson || '-'} {details.contactPosition ? `(${details.contactPosition})` : ''}
-              </span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">2. ชื่อหน่วยงาน / บริษัทที่ติดต่อ</span>
-              <span className="detail-value">{details.companyName || request.company || '-'}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">3. ที่อยู่หน่วยงาน</span>
-              <span className="detail-value">{companyAddress}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">4. โทรศัพท์ / อีเมลติดต่อ</span>
-              <span className="detail-value">{details.contactPhone || '-'} / {details.contactEmail || '-'}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">5. ตำแหน่งงานที่ต้องการเข้าฝึกงาน</span>
-              <span className="detail-value">{details.position || request.position || '-'}</span>
-            </div>
-            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-              <span className="detail-label">6. ข้อมูลเพิ่มเติม (ลักษณะงานที่ทำ / ทักษะที่ต้องการ)</span>
-              <p className="detail-value" style={{ whiteSpace: 'pre-wrap', marginTop: '5px' }}>
-                {details.description ? `ลักษณะงาน: ${details.description}\n` : ''}
-                {details.skills ? `ทักษะ: ${details.skills}` : ''}
-                {!details.description && !details.skills && '-'}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="detail-section">
-          <h3>ความประสงค์และกำหนดวันฝึกงาน</h3>
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">ภาคการศึกษา / ช่วงฝึกงาน</span>
-              <span className="detail-value">{internshipTermLabel || '-'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">วันที่เริ่มต้นฝึกงาน</span>
-              <span className="detail-value">
-                {(request.internship_start_date || details.startDate) 
-                  ? new Date(request.internship_start_date || details.startDate).toLocaleDateString('th-TH') 
-                  : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">วันที่สิ้นสุดการฝึกงาน</span>
-              <span className="detail-value">
-                {(request.internship_end_date || details.endDate) 
-                  ? new Date(request.internship_end_date || details.endDate).toLocaleDateString('th-TH') 
-                  : <span style={{ color: '#94a3b8' }}>รอผู้ดูแลระบบกำหนด</span>}
-              </span>
-            </div>
-            {details.internshipDateNote && (
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="detail-label">หมายเหตุวันฝึกงาน</span>
-                <span className="detail-value">{details.internshipDateNote}</span>
-              </div>
-            )}
-          </div>
-        </section>
+        <InternshipRequestDetailView
+          request={request}
+          relocations={relocations}
+        />
 
         {request.supervisionAppointment && (
           <section className="detail-section">
@@ -346,61 +242,6 @@ const StudentDetailsPage = () => {
                   <span className="detail-value">{request.supervisionAppointment.note}</span>
                 </div>
               )}
-            </div>
-          </section>
-        )}
-
-        {request.dispatchLetter && (
-          <section className="detail-section" style={{ backgroundColor: '#fff1f2', border: '1.5px solid #fecdd3', borderRadius: '12px', padding: '20px' }}>
-            <h3 style={{ color: '#be185d', borderLeftColor: '#be185d', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <DocumentTextIcon style={{ width: 22, height: 22 }} /> หนังสือส่งตัวฝึกงาน (Dispatch Letter)
-            </h3>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">ชื่อเอกสาร</span>
-                <span className="detail-value" style={{ fontWeight: 'bold', color: '#881337' }}>{request.dispatchLetter.fileName || 'หนังสือส่งตัวฝึกงาน'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">เอกสารแนบ</span>
-                <span className="detail-value">
-                  {request.dispatchLetter.dataUrl ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<EyeIcon style={{ width: 16, height: 16 }} />}
-                        sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
-                        onClick={() => {
-                          const letter = request.dispatchLetter;
-                          const blobUrl = dataUrlToBlobUrl(letter.dataUrl);
-                          setDocModal({
-                            open: true,
-                            dataUrl: letter.dataUrl,
-                            fileName: letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf',
-                            blobUrl,
-                          });
-                        }}
-                      >
-                        ดูเอกสาร
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
-                        sx={{ borderColor: '#be185d', color: '#be185d', '&:hover': { borderColor: '#9d174d', bgcolor: '#fff1f2' }, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
-                        onClick={() => {
-                          const letter = request.dispatchLetter;
-                          handleDownloadFile(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
-                        }}
-                      >
-                        ดาวน์โหลด
-                      </Button>
-                    </Box>
-                  ) : (
-                    <span style={{ color: '#64748b' }}>มีหนังสือส่งตัวแนบในระบบ</span>
-                  )}
-                </span>
-              </div>
             </div>
           </section>
         )}
@@ -533,7 +374,7 @@ const StudentDetailsPage = () => {
           </section>
         )}
 
-        {(evaluation || request?.hasCompanyEval) && userRole === 'student' && (
+        {Boolean(evaluation || request?.hasCompanyEval) && userRole === 'student' && (
           <section className="detail-section">
             <h3 style={{ color: '#10b981' }}>การประเมินผลจากสถานประกอบการ</h3>
             <div className="detail-grid">
@@ -574,93 +415,10 @@ const StudentDetailsPage = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Document Preview Modal */}
-        <Dialog
-          open={docModal.open}
-          onClose={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })}
-          maxWidth="md"
-          fullWidth
-          disableScrollLock={true}
-          PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
-        >
-          <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid #f1f5f9' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  bgcolor: '#ffe4e6',
-                  color: '#be185d',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <DocumentTextIcon style={{ width: 18, height: 18 }} />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
-                {docModal.fileName || 'หนังสือส่งตัวฝึกงาน'}
-              </Typography>
-            </Box>
-            <Button size="small" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ color: '#64748b', fontWeight: 700 }}>
-              ปิด
-            </Button>
-          </DialogTitle>
-          <DialogContent sx={{ p: 2, bgcolor: '#f8fafc', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '65vh' }}>
-            {docModal.open && (docModal.blobUrl || docModal.dataUrl) && (
-              docModal.dataUrl?.startsWith('data:image/') ? (
-                <img
-                  src={docModal.dataUrl}
-                  alt={docModal.fileName}
-                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
-                />
-              ) : isMobileDevice() ? (
-                // iframe PDF ไม่แสดงผลบนเบราว์เซอร์มือถือ — แสดงปุ่มเปิดแท็บใหม่แทน
-                <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
-                  <DocumentTextIcon style={{ width: 48, height: 48, color: '#94a3b8', margin: '0 auto 16px' }} />
-                  <Typography sx={{ color: '#475569', mb: 3, fontSize: '0.9rem' }}>
-                    เบราว์เซอร์มือถือไม่รองรับการแสดงตัวอย่าง PDF ในหน้านี้
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    component="a"
-                    href={docModal.blobUrl || docModal.dataUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 3 }}
-                  >
-                    เปิดดูเอกสารในแท็บใหม่
-                  </Button>
-                </Box>
-              ) : (
-                <iframe
-                  src={docModal.blobUrl || docModal.dataUrl}
-                  title={docModal.fileName}
-                  style={{ width: '100%', height: '70vh', border: 'none', borderRadius: '8px', backgroundColor: '#fff' }}
-                />
-              )
-            )}
-          </DialogContent>
-          <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between' }}>
-            <Button
-              variant="contained"
-              startIcon={<ArrowDownTrayIcon style={{ width: 18, height: 18 }} />}
-              onClick={() => handleDownloadFile(docModal.dataUrl, docModal.fileName)}
-              sx={{ bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 2.5 }}
-            >
-              ดาวน์โหลดไฟล์
-            </Button>
-            <Button variant="outlined" onClick={() => setDocModal({ open: false, dataUrl: '', fileName: '', blobUrl: '' })} sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b', borderColor: '#cbd5e1' }}>
-              ปิดหน้าต่าง
-            </Button>
-          </DialogActions>
-        </Dialog>
-
         <footer className="actions-footer">
-          <button type="button" className="btn-back" onClick={() => navigate(-1)}>
+          <Button variant="outlined" className="btn-back" startIcon={<ArrowLeft size={16} />} onClick={() => navigate(-1)}>
             ย้อนกลับ
-          </button>
+          </Button>
         </footer>
       </div>
     </div>

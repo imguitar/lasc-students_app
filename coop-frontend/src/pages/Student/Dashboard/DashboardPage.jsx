@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
-import { openDocumentInNewTab, downloadDocument } from '../../../utils/documentViewer';
+import { openDocumentInNewTab, downloadDocument, downloadFileSmart } from '../../../utils/documentViewer';
+import { getUploadUrl } from '../../../utils/fileUrl';
 import './DashboardPage.css';
 import {
   Card,
@@ -45,7 +46,7 @@ import StatusBadge from '../../../components/StatusBadge';
 import { MessageSquareQuote, Info, ArrowRight, CalendarX, User, Video, MapPin } from 'lucide-react';
 
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
-  downloadDocument(dataUrl, fileName);
+  downloadFileSmart(dataUrl, fileName);
 };
 
 const handleViewDocument = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
@@ -59,6 +60,7 @@ const DashboardPage = () => {
   const [studentName, setStudentName] = useState('');
   const [studentAvatar, setStudentAvatar] = useState(null);
   const [internshipRequests, setInternshipRequests] = useState([]);
+  const [relocations, setRelocations] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   // chart refs removed
 
@@ -87,6 +89,8 @@ const DashboardPage = () => {
         
               const studentId = user.student_code || user.studentId || user.username;
               const requestsRes = await api.get(`/requests?studentId=${studentId}`);
+              // รอบย้ายเสร็จสิ้น → แสดงหนังสือส่งตัวฉบับใหม่ในการ์ดคำร้อง
+              api.get('/relocations').then((r) => setRelocations(r.data?.data || [])).catch(() => {});
 
               const myRequests = (requestsRes.data.data || []).map(req => {
                 const effectiveStatus = getEffectiveInternshipStatus(req);
@@ -95,7 +99,8 @@ const DashboardPage = () => {
                   ...req,
                   status: effectiveStatus || req.status,
                   dispatchLetter,
-                  companyName: req.company || req.companyName,
+                  companyName: req.active_company_name || req.company || req.companyName,
+                  has_completed_relocation: req.has_completed_relocation,
                 };
               });
               setInternshipRequests(myRequests);
@@ -220,10 +225,20 @@ const DashboardPage = () => {
     };
   }, [currentRequest]);
 
+  // รอบย้ายสถานที่ฝึกงานที่เสร็จสิ้นล่าสุดของคำร้องปัจจุบัน — ใช้เป็น single source ของช่วงฝึกใหม่
+  const latestCompletedReloc = useMemo(() => {
+    if (!currentRequest) return null;
+    return relocations
+      .filter((r) => Number(r.internship_request_id) === Number(currentRequest.id) && r.status === 'completed')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
+  }, [relocations, currentRequest]);
+
   const scheduleData = useMemo(() => {
     if (!currentRequest) return null;
-    const startDate = currentRequest.startDate || currentRequest.internship_start_date || currentRequest.details?.startDate;
-    const endDate = currentRequest.endDate || currentRequest.internship_end_date || currentRequest.details?.endDate;
+    const startDate = latestCompletedReloc?.new_start_date
+      || currentRequest.startDate || currentRequest.internship_start_date || currentRequest.details?.startDate;
+    const endDate = latestCompletedReloc?.new_end_date
+      || currentRequest.endDate || currentRequest.internship_end_date || currentRequest.details?.endDate;
     const documentDeadline = currentRequest.documentDeadline || currentRequest.reportDeadline || currentRequest.details?.documentDeadline;
     const academicYear = currentRequest.internshipTerm || currentRequest.academicYear || currentRequest.academic_year || null;
 
@@ -236,7 +251,7 @@ const DashboardPage = () => {
       };
     }
     return null;
-  }, [currentRequest]);
+  }, [currentRequest, latestCompletedReloc]);
 
   const hasSchedule = Boolean(scheduleData?.startDate && scheduleData?.endDate);
 
@@ -422,7 +437,9 @@ const DashboardPage = () => {
                     {formatThaiDate(scheduleData.startDate)} – {formatThaiDate(scheduleData.endDate)}
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
-                    ปฏิบัติงานจริง ณ สถานประกอบการที่ได้รับการอนุมัติ
+                    {latestCompletedReloc?.new_company_name
+                      ? `ปฏิบัติงานจริง ณ ${latestCompletedReloc.new_company_name} (ย้ายสถานที่ฝึกงาน)`
+                      : 'ปฏิบัติงานจริง ณ สถานประกอบการที่ได้รับการอนุมัติ'}
                   </Typography>
                 </div>
               </div>
@@ -689,6 +706,9 @@ const DashboardPage = () => {
           <div className="requests-list">
             {internshipRequests.length > 0 ? (
               internshipRequests.map((request) => {
+                const doneReloc = relocations
+                  .filter((r) => Number(r.internship_request_id) === Number(request.id) && r.status === 'completed')
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
                 return (
                   <div
                     key={request.id}
@@ -772,8 +792,45 @@ const DashboardPage = () => {
                       </div>
                     )}
 
-                    {/* Dispatch Letter Box */}
-                    {request.dispatchLetter && (
+                    {/* หนังสือส่งตัวฉบับใหม่จากการย้ายที่อนุมัติแล้ว — แสดงเหนือฉบับเดิม */}
+                    {doneReloc?.new_dispatch_letter_file && (
+                      <div className="mt-3.5 p-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/30 flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
+                            <DocumentTextIcon style={{ width: 20, height: 20 }} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-slate-800">หนังสือส่งตัวฉบับใหม่ ({doneReloc.new_company_name})</div>
+                            <div className="text-xs text-emerald-600/80 font-medium">ออกหลังอนุมัติการย้ายสถานที่ฝึกงาน</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getUploadUrl(doneReloc.new_dispatch_letter_file)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-11 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 no-underline"
+                          >
+                            <EyeIcon style={{ width: 14, height: 14 }} />
+                            <span>ดูเอกสาร</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = getUploadUrl(doneReloc.new_dispatch_letter_file);
+                              downloadFileSmart(url, `หนังสือส่งตัว_${doneReloc.new_company_name || 'ใหม่'}${(url.match(/\.[a-z]+$/i) || ['.pdf'])[0]}`);
+                            }}
+                            className="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-xs h-11 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <ArrowDownTrayIcon style={{ width: 14, height: 14 }} />
+                            <span>ดาวน์โหลด</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dispatch Letter Box — ซ่อนเมื่อมีหนังสือส่งตัวฉบับใหม่จากการย้ายแล้ว */}
+                    {request.dispatchLetter && !doneReloc?.new_dispatch_letter_file && (
                       <div className="mt-3.5 p-3.5 rounded-2xl border border-violet-100 bg-violet-50/30 flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-violet-100/70 text-violet-700 flex items-center justify-center shrink-0">
@@ -797,7 +854,7 @@ const DashboardPage = () => {
                                 const letter = request.dispatchLetter;
                                 handleViewDocument(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
                               }}
-                              className="bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-none"
+                              className="bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs h-11 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer border-none"
                               style={{ backgroundColor: '#7c3aed', color: '#ffffff', border: 'none' }}
                             >
                               <EyeIcon style={{ width: 14, height: 14 }} />
@@ -809,7 +866,7 @@ const DashboardPage = () => {
                                 const letter = request.dispatchLetter;
                                 handleDownloadFile(letter.dataUrl, letter.fileName || 'หนังสือส่งตัวฝึกงาน.pdf');
                               }}
-                              className="border border-violet-200 text-violet-700 hover:bg-violet-50 font-semibold text-xs py-1.5 px-3 rounded-lg transition flex items-center gap-1.5 cursor-pointer bg-white"
+                              className="border border-violet-200 text-violet-700 hover:bg-violet-50 font-semibold text-xs h-11 px-4 rounded-xl transition flex items-center gap-1.5 cursor-pointer bg-white"
                               style={{ border: '1px solid #ddd6fe', color: '#6d28d9', backgroundColor: '#ffffff' }}
                             >
                               <ArrowDownTrayIcon style={{ width: 14, height: 14 }} />

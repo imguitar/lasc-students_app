@@ -9,6 +9,7 @@ const { parseRequestRow, USER_SELECT_SQL, DEPARTMENT_NAME_TO_ID } = require('../
 const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
 const { sendStatusNotifyEmail, findStudentEmail } = require('../utils/mailer');
 const { autoUpdateInternshipStatuses } = require('../utils/internshipAutoUpdate');
+const { LATEST_COMPLETED_RELOC_JOIN, ACTIVE_COMPANY_COLS } = require('../utils/activeCompany');
 
 const getCompanyResponseToken = (details) => {
   if (!details) return '';
@@ -69,10 +70,11 @@ const serializeRequestRow = (row) => {
 const handleGetSingleRequest = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT r.*, 
+      SELECT r.*, ${ACTIVE_COMPANY_COLS},
              IF(e.id IS NOT NULL, true, false) AS hasCompanyEval,
              IF(ae.id IS NOT NULL, true, false) AS hasAdvisorEval
       FROM requests r
+      ${LATEST_COMPLETED_RELOC_JOIN('r')}
       LEFT JOIN evaluations e ON r.id = e.requestId
       LEFT JOIN advisor_evaluations ae ON r.id = ae.requestId
       WHERE r.id = ?
@@ -116,10 +118,11 @@ router.get('/', authenticate, async (req, res) => {
 
     const { studentId, status, department, search } = req.query;
     let sql = `
-      SELECT r.*, 
+      SELECT r.*, ${ACTIVE_COMPANY_COLS},
              IF(e.id IS NOT NULL, true, false) AS hasCompanyEval,
              IF(ae.id IS NOT NULL, true, false) AS hasAdvisorEval
       FROM requests r
+      ${LATEST_COMPLETED_RELOC_JOIN('r')}
       LEFT JOIN evaluations e ON r.id = e.requestId
       LEFT JOIN advisor_evaluations ae ON r.id = ae.requestId
       WHERE 1=1

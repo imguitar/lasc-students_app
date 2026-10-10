@@ -18,10 +18,39 @@ const theme = createTheme({
   },
   palette: {
     primary: {
-      main: '#111111',
+      main: '#7C3AED',
+      light: '#F5F3FF',
+      dark: '#6D28D9',
+      contrastText: '#FFFFFF',
+    },
+    secondary: {
+      main: '#64748B',
+      light: '#F1F5F9',
+      dark: '#334155',
+      contrastText: '#FFFFFF',
     },
   },
   components: {
+    MuiButton: {
+      defaultProps: {
+        disableElevation: true,
+      },
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          textTransform: 'none',
+          fontWeight: 600,
+          fontFamily: '"Prompt", "Noto Sans Thai", "Kanit", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 10,
+        },
+      },
+    },
     MuiModal: {
       defaultProps: {
         disableScrollLock: true,

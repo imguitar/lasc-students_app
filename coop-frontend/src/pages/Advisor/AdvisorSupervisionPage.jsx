@@ -11,6 +11,7 @@ import {
     Dialog,
     DialogContent,
     Menu,
+    IconButton,
     MenuItem,
     Paper,
     Snackbar,
@@ -23,7 +24,7 @@ import {
     TableRow,
     Typography,
 } from '@mui/material';
-import { CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, FileText, Loader2, Trash2, Upload, Users, Video, MapPin, X } from 'lucide-react';
+import { Building2, Calendar, CalendarCheck, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, FileText, Loader2, MoreVertical, Trash2, Upload, Users, Video, MapPin, X } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import AdvisorSidebar from '../../components/AdvisorSidebar';
 import UserProfileMenu from '../../components/UserProfileMenu';
@@ -407,8 +408,8 @@ const AdvisorSupervisionPage = () => {
                 <Box
                     sx={{
                         display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
-                        gap: 2,
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
+                        gap: { xs: 1.25, md: 2 },
                         mb: 3,
                     }}
                 >
@@ -433,7 +434,7 @@ const AdvisorSupervisionPage = () => {
                         <h2>นักศึกษาที่ต้องนิเทศ</h2>
                     </div>
 
-                    <TableContainer component={Box} className="compact-table">
+                    <TableContainer component={Box} className="compact-table" sx={{ display: { xs: 'none', md: 'block' } }}>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
@@ -461,8 +462,8 @@ const AdvisorSupervisionPage = () => {
                                                         <Typography variant="caption" color="text.secondary">{request.studentId || '-'}</Typography>
                                                     </Stack>
                                                 </TableCell>
-                                                <TableCell>{request.company || request.companyName || '-'}</TableCell>
-                                                <TableCell>{formatDate(request.startDate || request.details?.startDate || request.details?.internship_info?.startDate || request.submittedDate || request.created_at)}</TableCell>
+                                                <TableCell>{request.active_company_name || request.company || request.companyName || '-'}</TableCell>
+                                                <TableCell>{formatDate(request.active_start_date || request.startDate || request.details?.startDate || request.details?.internship_info?.startDate || request.submittedDate || request.created_at)}</TableCell>
                                                 <TableCell>
                                                     <Alert severity={statusChipMap[supervisionStatus] || 'default'} sx={{ py: 0, px: 1 }} icon={false}>
                                                         {supervisionStatus}
@@ -483,23 +484,17 @@ const AdvisorSupervisionPage = () => {
                                                         )}
                                                     </Stack>
                                                 </TableCell>
-                                                <TableCell>
-                                                    <Button
+                                                <TableCell align="center">
+                                                    <IconButton
                                                         size="small"
-                                                        variant="outlined"
-                                                        endIcon={<ChevronDown className="w-3.5 h-3.5" />}
-                                                        onClick={(e) => setActionMenu({ anchor: e.currentTarget, request })}
-                                                        sx={{
-                                                            borderColor: '#ddd6fe',
-                                                            color: '#6d28d9',
-                                                            fontWeight: 600,
-                                                            borderRadius: '10px',
-                                                            textTransform: 'none',
-                                                            '&:hover': { borderColor: '#a78bfa', bgcolor: '#f5f3ff' }
-                                                        }}
+                                                        aria-label={`จัดการนิเทศคำร้อง ${request.id}`}
+                                                        aria-haspopup="menu"
+                                                        title="จัดการ"
+                                                        onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, request }); }}
+                                                        sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                                                     >
-                                                        จัดการ
-                                                    </Button>
+                                                        <MoreVertical className="w-4 h-4" />
+                                                    </IconButton>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -514,6 +509,100 @@ const AdvisorSupervisionPage = () => {
                             </TableBody>
                         </Table>
                     </TableContainer>
+
+                    {/* Mobile Card Stack View (<768px) — ตามกฎ Table-to-Card ใน skill section 4 */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5 }}>
+                        {supervisionRows.length === 0 ? (
+                            <Typography variant="body2" sx={{ py: 4, textAlign: 'center', color: '#94a3b8' }}>
+                                ไม่พบนักศึกษาที่ต้องนิเทศในสาขา {advisorDept || '-'}
+                            </Typography>
+                        ) : (
+                            supervisionRows.map((request) => {
+                                const supervisionStatus = getSupervisionStatus(request);
+                                const done = supervisionStatus === 'นิเทศเสร็จสิ้น' || request.hasAdvisorEval;
+                                const mine = isAssignedToMe(request, { id: currentUserId, name: advisorName });
+                                const canEvaluate = done || mine;
+                                const appointmentText = request.supervisionAppointment?.date
+                                    ? `${formatDate(request.supervisionAppointment.date)} (${request.supervisionAppointment.mode})`
+                                    : null;
+                                const startDate = request.active_start_date || request.startDate || request.details?.startDate || request.details?.internship_info?.startDate || request.submittedDate || request.created_at;
+
+                                return (
+                                    <Box key={request.id} sx={{ bgcolor: '#fff', p: 2, borderRadius: '16px', border: '1px solid rgba(226,232,240,0.8)' }}>
+                                        {/* หัวการ์ด: ชื่อ/รหัส + badge + เมนู */}
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b', fontSize: '0.875rem' }}>
+                                                    {request.studentName || '-'}
+                                                </Typography>
+                                                <Typography variant="caption" sx={{ color: '#94a3b8' }}>{request.studentId || '-'}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                                                <Alert severity={statusChipMap[supervisionStatus] || 'default'} sx={{ py: 0, px: 1 }} icon={false}>
+                                                    {supervisionStatus}
+                                                </Alert>
+                                                <IconButton
+                                                    size="small"
+                                                    aria-label={`จัดการนิเทศคำร้อง ${request.id}`}
+                                                    aria-haspopup="menu"
+                                                    title="จัดการ"
+                                                    onClick={(e) => { e.stopPropagation(); setActionMenu({ anchor: e.currentTarget, request }); }}
+                                                    sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
+                                                >
+                                                    <MoreVertical className="w-4 h-4" />
+                                                </IconButton>
+                                            </Box>
+                                        </Box>
+
+                                        {/* เนื้อหาการ์ด: บริษัท + วันเริ่ม (ที่ใหม่ล่าสุด) + นัดหมาย */}
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1.5, pt: 1.5, borderTop: '1px solid #f1f5f9', fontSize: '0.75rem', color: '#475569' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                <Building2 className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                                                <span className="break-words">{request.active_company_name || request.company || request.companyName || '-'}</span>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                <Calendar className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                                <span>เริ่มฝึก: {formatDate(startDate)}</span>
+                                            </Box>
+                                            {appointmentText && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                    <CalendarClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                                    <span>
+                                                        นัดนิเทศ: {appointmentText}
+                                                        {request.supervisionAppointment?.advisorName && ` — ${request.supervisionAppointment.advisorName}`}
+                                                    </span>
+                                                </Box>
+                                            )}
+                                        </Box>
+
+                                        {/* ปุ่มหลักท้ายการ์ด — full width 44px */}
+                                        {isDepartmentHead && !done && (
+                                            <Button
+                                                fullWidth
+                                                variant="contained"
+                                                startIcon={<CalendarCheck className="w-4 h-4" />}
+                                                onClick={() => openAppointmentDialog(request)}
+                                                sx={{ minHeight: '44px', mt: 1.5, borderRadius: '12px', textTransform: 'none', fontWeight: 700, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
+                                            >
+                                                {request.supervisionAppointment?.date ? 'แก้ไขนัดหมายนิเทศงาน' : 'นัดหมายนิเทศงาน'}
+                                            </Button>
+                                        )}
+                                        {!(isDepartmentHead && !done) && canEvaluate && (
+                                            <Button
+                                                fullWidth
+                                                variant="contained"
+                                                startIcon={<ClipboardCheck className="w-4 h-4" />}
+                                                onClick={() => navigate(`/advisor-dashboard/supervision/evaluate/${request.id}`)}
+                                                sx={{ minHeight: '44px', mt: 1.5, borderRadius: '12px', textTransform: 'none', fontWeight: 700, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
+                                            >
+                                                {done ? 'ดูผลนิเทศ' : 'บันทึกผลนิเทศ'}
+                                            </Button>
+                                        )}
+                                    </Box>
+                                );
+                            })
+                        )}
+                    </Box>
                 </Paper>
             </main>
 

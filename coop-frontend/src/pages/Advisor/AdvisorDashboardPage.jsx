@@ -26,6 +26,7 @@ import {
   TableRow,
   MenuItem,
   Checkbox,
+  IconButton,
 } from '@mui/material';
 import { STAT_ICON } from '../../utils/statIcons';
 import '../Admin/Dashboard/AdminDashboardPage.css'; // Reuse Admin styles
@@ -146,10 +147,27 @@ const AdvisorDashboardPage = () => {
     return dept === advisorDepartment;
   });
 
-  // แมพคำร้องเปลี่ยนสถานที่ฝึกงานที่รออาจารย์ → หาเร็วด้วย internship_request_id
-  const relocByRequestId = new Map(
-    pendingRelocations.map((r) => [String(r.internship_request_id), r])
-  );
+  // แมพคำร้องเปลี่ยนสถานที่ฝึกงาน "รอบล่าสุด" → หาเร็วด้วย internship_request_id (API sort ใหม่→เก่า ใช้ตัวแรกที่เจอ)
+  const relocByRequestId = pendingRelocations.reduce((map, r) => {
+    const key = String(r.internship_request_id);
+    if (!map.has(key)) map.set(key, r);
+    return map;
+  }, new Map());
+  // สถานะ reloc ต่อการแสดงผล: pending(รออาจารย์) / approved(อาจารย์เห็นชอบแล้ว) / rejected(ถูกปฏิเสธ) / done
+  const ADVISOR_PENDING_RELOC = ['company_approved_waiting_advisor', 'submitted_waiting_advisor'];
+  const relocMeta = (r) => {
+    if (!r) return null;
+    if (ADVISOR_PENDING_RELOC.includes(r.status)) {
+      return { state: 'pending', label: 'ขอเปลี่ยนที่ฝึกงาน', cls: 'bg-violet-50 border-violet-200 text-violet-700', icon: ArrowRightLeft };
+    }
+    if (r.status === 'advisor_approved_waiting_admin') {
+      return { state: 'approved', label: 'อาจารย์ให้ความเห็นชอบแล้ว', cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', icon: Check };
+    }
+    if (r.status === 'rejected') {
+      return { state: 'rejected', label: 'ไม่อนุมัติการย้าย', cls: 'bg-red-50 border-red-200 text-red-500', icon: X };
+    }
+    return { state: 'done', label: 'ดำเนินการแล้ว', cls: 'bg-slate-50 border-slate-200 text-slate-500', icon: ArrowRightLeft };
+  };
   const relocPendingCount = pendingRelocations.filter((r) =>
     ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status)
   ).length;
@@ -325,6 +343,7 @@ const AdvisorDashboardPage = () => {
   };
 
   const activeMenuRequest = filteredRequests.find((r) => String(r.id) === String(actionMenu.id));
+  const activeMenuReloc = activeMenuRequest ? relocByRequestId.get(String(activeMenuRequest.id)) : null;
   const activeMenuStatus = String(activeMenuRequest?.status || '').trim();
   const activeMenuIsPending = activeMenuStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ';
   const activeMenuIsEvaluated = activeMenuStatus === 'ประเมินเสร็จแล้ว';
@@ -471,6 +490,7 @@ const AdvisorDashboardPage = () => {
             </Paper>
           )}
 
+          <div className="hidden md:block">
           <TableContainer component={Box} className="compact-table">
             <Table size="small">
               <TableHead>
@@ -513,31 +533,40 @@ const AdvisorDashboardPage = () => {
                       </TableCell>
                       <TableCell>{request.studentId}</TableCell>
                       <TableCell>{request.studentName}</TableCell>
-                      <TableCell>{request.company}</TableCell>
+                      <TableCell>
+                        {request.active_company_name || request.company}
+                        {request.active_company_name && (
+                          <span className="block text-[10px] text-slate-400 font-normal">ย้ายจาก {request.company}</span>
+                        )}
+                      </TableCell>
                       <TableCell>{request.position}</TableCell>
                       <TableCell>
                         <StatusBadge status={normalizedStatus} />
-                        {relocByRequestId.has(String(request.id)) && (
-                          <Link
-                            to="/advisor-dashboard/relocations"
-                            title="มีคำร้องขอเปลี่ยนสถานที่ฝึกงานรอพิจารณา"
-                            className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-bold no-underline hover:bg-violet-100 transition"
-                          >
-                            <ArrowRightLeft style={{ width: 10, height: 10 }} />
-                            ขอเปลี่ยนที่ฝึกงาน
-                          </Link>
-                        )}
+                        {(() => {
+                          const rm = relocMeta(relocByRequestId.get(String(request.id)));
+                          return rm && (
+                            <Link
+                              to={`/advisor-dashboard/relocations?focus=${relocByRequestId.get(String(request.id)).id}`}
+                              title={rm.state === 'pending' ? 'มีคำร้องขอเปลี่ยนสถานที่ฝึกงานรอพิจารณา' : 'ผลการพิจารณาคำร้องขอย้าย'}
+                              className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold no-underline hover:opacity-80 transition ${rm.cls}`}
+                            >
+                              <rm.icon style={{ width: 10, height: 10 }} />
+                              {rm.label}
+                            </Link>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="center">
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleActionMenu(e, request.id, isPending ? 150 : isEvaluated ? 110 : 60)}
-                          className="action-menu-trigger p-2 rounded-xl text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer border-none bg-transparent outline-none inline-flex items-center justify-center"
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleToggleActionMenu(e, request.id, (isPending ? 150 : isEvaluated ? 110 : 60) + (relocByRequestId.has(String(request.id)) ? 44 : 0))}
+                          className="action-menu-trigger"
                           aria-label="ตัวเลือกการจัดการ"
                           title="การจัดการ"
+                          sx={{ p: 0.75, color: '#94a3b8', '&:hover': { bgcolor: 'rgba(241,245,249,0.8)', color: '#475569' }, '&:active': { bgcolor: 'rgba(226,232,240,0.6)' } }}
                         >
                           <MoreVertical className="w-4 h-4 stroke-[2]" />
-                        </button>
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   );
@@ -550,6 +579,104 @@ const AdvisorDashboardPage = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          </div>
+
+          {/* Mobile Card View (< md) — การ์ดแนวตั้ง ไม่มี horizontal scroll */}
+          <div className="md:hidden space-y-3 px-1">
+            {filteredRequests.length === 0 && (
+              <div className="text-center text-slate-400 text-sm py-8 bg-white rounded-2xl border border-slate-200/80">ไม่พบข้อมูล</div>
+            )}
+            {filteredRequests.map((request) => {
+              const normalizedStatus = String(request.status || '').trim();
+              const isPending = normalizedStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ';
+              const isEvaluated = normalizedStatus === 'ประเมินเสร็จแล้ว';
+              const isActionable = isPending || isEvaluated;
+              const isSelected = selectedIds.includes(String(request.id));
+              const reloc = relocByRequestId.get(String(request.id));
+
+              return (
+                <div key={request.id} className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
+                      {isActionable && (
+                        <Checkbox size="small" checked={isSelected} onChange={() => handleToggleSelect(request.id)} sx={{ p: 0.25, mt: -0.25 }} />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-slate-900 font-semibold text-sm m-0 truncate">{request.studentName}</p>
+                        <p className="text-slate-500 text-xs m-0 mt-0.5">({request.studentId})</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={normalizedStatus} />
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-xl space-y-1 text-xs">
+                    <p className="m-0 text-slate-600">
+                      <span className="font-semibold text-slate-500">บริษัท:</span> {request.active_company_name || request.company}
+                      {request.active_company_name && <span className="text-slate-400"> (ย้ายจาก {request.company})</span>}
+                    </p>
+                    <p className="m-0 text-slate-600"><span className="font-semibold text-slate-500">ตำแหน่ง:</span> {request.position}</p>
+                    {reloc && (() => {
+                      const rm = relocMeta(reloc);
+                      return (
+                        <p className="m-0 pt-1.5 border-t border-slate-200/70">
+                          <Link to={`/advisor-dashboard/relocations?focus=${reloc.id}`} className={`inline-flex items-center gap-1 font-bold no-underline ${rm.state === 'pending' ? 'text-violet-700' : rm.state === 'approved' ? 'text-emerald-600' : rm.state === 'rejected' ? 'text-red-500' : 'text-slate-500'}`}>
+                            <rm.icon style={{ width: 12, height: 12 }} /> {rm.label}
+                          </Link>
+                        </p>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {reloc ? (
+                      <>
+                        {relocMeta(reloc).state === 'pending' ? (
+                          /* ยังรออาจารย์ตัดสิน → ปุ่มม่วงพาไปเซ็น/พิจารณา */
+                          <Link to={`/advisor-dashboard/relocations?focus=${reloc.id}`}
+                            className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 no-underline shadow-xs transition">
+                            <ArrowRightLeft style={{ width: 14, height: 14 }} /> พิจารณาขอย้ายที่ฝึกงาน
+                          </Link>
+                        ) : (
+                          /* พิจารณาไปแล้ว → ปุ่มเทาอ่านผล/ลายเซ็นแบบ view-only */
+                          <Link to={`/advisor-dashboard/relocations?focus=${reloc.id}`}
+                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 no-underline transition">
+                            <ArrowRightLeft style={{ width: 14, height: 14 }} /> ดูผลการพิจารณาคำร้องขอย้าย
+                          </Link>
+                        )}
+                        <Link to={`/dashboard/request/${request.id}`}
+                          className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 no-underline transition">
+                          <Eye style={{ width: 14, height: 14 }} /> ดูรายละเอียดคำร้องทั่วไป
+                        </Link>
+                      </>
+                    ) : (
+                      <Link to={`/dashboard/request/${request.id}`}
+                        className="flex-1 min-w-[100px] py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 no-underline transition">
+                        <Eye style={{ width: 14, height: 14 }} /> ตรวจสอบ
+                      </Link>
+                    )}
+                    {isPending && (
+                      <>
+                        <button type="button" onClick={() => openApproveModal(request.id, normalizedStatus)}
+                          className="flex-1 min-w-[90px] py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition">
+                          <Check style={{ width: 14, height: 14 }} /> อนุมัติ
+                        </button>
+                        <button type="button" onClick={() => handleReject(request.id)}
+                          className="py-2.5 px-3.5 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition">
+                          <X style={{ width: 14, height: 14 }} /> ปฏิเสธ
+                        </button>
+                      </>
+                    )}
+                    {isEvaluated && (
+                      <button type="button" onClick={() => handleFinishInternship(request.id)}
+                        className="flex-1 min-w-[130px] py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer border-0 transition">
+                        <BadgeCheck style={{ width: 14, height: 14 }} /> เสร็จสิ้นการฝึกงาน
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </Paper>
       </main>
 
@@ -636,7 +763,7 @@ const AdvisorDashboardPage = () => {
       {actionMenu.id && activeMenuRequest && createPortal(
         <div
           ref={menuPanelRef}
-          className="w-44 bg-white rounded-2xl p-1.5 border border-violet-100 z-[99] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+          className="w-56 bg-white rounded-2xl p-1.5 border border-violet-100 z-[99] flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
           style={{
             position: 'fixed',
             top: actionMenu.top,
@@ -654,6 +781,23 @@ const AdvisorDashboardPage = () => {
             <Eye className="w-4 h-4 text-slate-400" />
             <span>ตรวจสอบ</span>
           </Link>
+
+          {activeMenuReloc && (() => {
+            const rm = relocMeta(activeMenuReloc);
+            const isPendingReview = rm?.state === 'pending';
+            return (
+              <Link
+                to={`/advisor-dashboard/relocations?focus=${activeMenuReloc.id}`}
+                onClick={closeActionMenu}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-xl transition text-left no-underline cursor-pointer ${
+                  isPendingReview ? 'text-violet-700 hover:bg-violet-50' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <ArrowRightLeft className={`w-4 h-4 ${isPendingReview ? 'text-violet-500' : 'text-slate-400'}`} />
+                <span>{isPendingReview ? 'พิจารณาคำร้องขอย้ายที่ฝึกงาน' : 'ดูผลการพิจารณาคำร้องขอย้าย'}</span>
+              </Link>
+            );
+          })()}
 
           {activeMenuIsPending && (
             <>
