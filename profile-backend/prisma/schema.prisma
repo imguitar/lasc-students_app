@@ -287,6 +287,7 @@ model User {
   newsEvents         NewsEvent[]
   promotionBatches   PromotionBatch[]
   emailNotifications EventEmailNotification[]
+  notifications      Notification[]
 
   @@map("user")
 }
@@ -656,4 +657,22 @@ model EventEmailNotification {
   @@index([news_event_id, recipient_email])
   @@index([batch_id])
   @@map("event_email_notifications")
+}
+
+model Notification {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  type       String   @db.VarChar(50)
+  title      String   @db.VarChar(255)
+  message    String?  @db.Text
+  link       String?  @db.VarChar(255)
+  request_id Int?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "notifications_user_id_idx")
+  @@index([user_id, is_read], map: "notifications_user_unread_idx")
+  @@map("notifications")
 }

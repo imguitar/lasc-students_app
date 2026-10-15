@@ -22,14 +22,14 @@ const allowedOrigins = process.env.CORS_ORIGIN
 const corsOptions = {
   origin: allowedOrigins
     ? function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
       }
+    }
     : true, // ถ้าไม่ได้ตั้ง CORS_ORIGIN ให้สะท้อน origin กลับทุก domain (เหมือนเดิม)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -69,6 +69,7 @@ const uploadRoutes = require('./routes/upload.routes');
 const newsEventRoutes = require('./routes/newsEvent.routes');
 const chatBoardRoutes = require('./routes/chatBoard.routes');
 const promotionRoutes = require('./routes/promotion.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -87,6 +88,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/news-events', newsEventRoutes);
 app.use('/api/chat-board', chatBoardRoutes);
 app.use('/api/admin/student-promotion', promotionRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve uploaded files as static assets
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -115,8 +117,8 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
-    success: false, 
+  res.status(500).json({
+    success: false,
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });

@@ -20,7 +20,7 @@ const initSocket = (server, corsOptions) => {
       if (!token && socket.handshake.headers?.authorization) {
         token = socket.handshake.headers.authorization.replace('Bearer ', '');
       }
-      
+
       if (!token) {
         return next(new Error('Authentication error: Token required'));
       }
@@ -58,6 +58,11 @@ const initSocket = (server, corsOptions) => {
   });
 
   io.on('connection', (socket) => {
+    // Automatically join user-specific room for real-time notifications
+    if (socket.user && socket.user.id) {
+      socket.join(`user_${socket.user.id}`);
+    }
+
     // Join Department Chat Room
     socket.on('join_room', async (roomId) => {
       try {
@@ -122,4 +127,27 @@ const initSocket = (server, corsOptions) => {
 
 const getIo = () => ioInstance;
 
-module.exports = { initSocket, getIo };
+/**
+ * Emit notification to a single user in real-time
+ */
+const emitNotification = (userId, notification) => {
+  if (ioInstance && userId) {
+    ioInstance.to(`user_${userId}`).emit('new_notification', notification);
+  }
+};
+
+/**
+ * Emit notification to multiple users in real-time
+ */
+const emitNotificationToUsers = (userIds, notification) => {
+  if (ioInstance && Array.isArray(userIds)) {
+    userIds.forEach((userId) => {
+      if (userId) {
+        ioInstance.to(`user_${userId}`).emit('new_notification', notification);
+      }
+    });
+  }
+};
+
+module.exports = { initSocket, getIo, emitNotification, emitNotificationToUsers };
+

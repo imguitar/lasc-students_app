@@ -1,5 +1,6 @@
 const prisma = require('../prismaClient');
 const emailService = require('../services/email.service');
+const notificationService = require('../services/notification.service');
 
 // Helper to convert BE or CE year to CE number
 const parseYearToCE = (yearStr) => {
@@ -367,6 +368,12 @@ exports.createNewsEvent = async (req, res) => {
       }
     });
 
+    if (newEvent.is_published) {
+      autoNotifyEventRecipients(newEvent, req.user.id).catch(err =>
+        console.error('[NewsEvent] Auto-notify error on create:', err.message)
+      );
+    }
+
     res.status(201).json({
       success: true,
       message: 'สร้างข่าวสาร/กิจกรรมเรียบร้อยแล้ว',
@@ -490,6 +497,14 @@ exports.updateNewsEvent = async (req, res) => {
       }
     });
 
+    const wasPublished = existing.is_published;
+    const isNowPublished = updatedEvent.is_published;
+    if (!wasPublished && isNowPublished) {
+      autoNotifyEventRecipients(updatedEvent, req.user.id).catch(err =>
+        console.error('[NewsEvent] Auto-notify error on update:', err.message)
+      );
+    }
+
     res.status(200).json({
       success: true,
       message: 'อัปเดตข้อมูลข่าวสาร/กิจกรรมเรียบร้อยแล้ว',
@@ -593,6 +608,12 @@ exports.togglePublish = async (req, res) => {
       where: { id },
       data: { is_published: !existing.is_published }
     });
+
+    if (!existing.is_published && updated.is_published) {
+      autoNotifyEventRecipients(updated, req.user.id).catch(err =>
+        console.error('[NewsEvent] Auto-notify error on toggle publish:', err.message)
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -797,6 +818,61 @@ const resolveEventRecipients = async (eventId, options = {}) => {
   }
 
   return { event, recipients };
+};
+
+/**
+ * Helper สร้างการแจ้งเตือน in-app สำหรับกิจกรรม/ข่าวสารให้ผู้ใช้กลุ่มเป้าหมายอัตโนมัติ
+ */
+const autoNotifyEventRecipients = async (event, creatorId) => {
+  try {
+    const { recipients } = await resolveEventRecipients(event.id);
+    if (!recipients || recipients.length === 0) return;
+
+    // ตรวจสอบว่าใครเคยได้รับการแจ้งเตือนกิจกรรมนี้แล้วบ้าง เพื่อไม่ให้ส่งซ้ำ
+    const existingNotices = await prisma.notification.findMany({
+      where: {
+        request_id: event.id,
+        type: { in: ['activity', 'news', 'news_event'] }
+      },
+      select: { user_id: true }
+    });
+    const alreadyNotifiedUserIds = new Set(existingNotices.map(n => n.user_id));
+
+    // กรองผู้สร้างออก และกรองคนที่เคยได้รับแจ้งเตือนแล้วออก
+    const targetRecipients = recipients.filter(
+      r => r.userId && r.userId !== creatorId && !alreadyNotifiedUserIds.has(r.userId)
+    );
+
+    if (targetRecipients.length === 0) return;
+
+    const isActivity = event.type === 'activity';
+    const typeLabel = isActivity ? 'กิจกรรมใหม่' : 'ข่าวสารใหม่';
+    const title = `${typeLabel}: ${event.title}`;
+
+    let msg = event.description ? event.description.trim() : '';
+    if (msg.length > 120) {
+      msg = msg.substring(0, 120) + '...';
+    }
+    if (!msg) {
+      msg = isActivity
+        ? `มีกิจกรรมใหม่ "${event.title}" สำหรับคุณ`
+        : `มีข่าวสารใหม่ "${event.title}" สำหรับคุณ`;
+    }
+
+    const items = targetRecipients.map(r => ({
+      userId: r.userId,
+      type: isActivity ? 'activity' : 'news',
+      title,
+      message: msg,
+      link: '/news-events',
+      requestId: event.id
+    }));
+
+    await notificationService.createBatchNotifications(items);
+    console.log(`[NewsEvent] Auto-created in-app notifications for ${items.length} users (Event #${event.id})`);
+  } catch (err) {
+    console.error('[NewsEvent] Failed to auto-notify event recipients:', err.message);
+  }
 };
 
 // @desc    Preview email recipients for an event

@@ -31,29 +31,38 @@ const getGmailAccessToken = async () => {
     throw new Error('การตั้งค่า Google OAuth2 ไม่ครบถ้วน (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET หรือ GMAIL_REFRESH_TOKEN)');
   }
 
-  const response = await axios.post(
-    'https://oauth2.googleapis.com/token',
-    {
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token'
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 10000
+  try {
+    const response = await axios.post(
+      'https://oauth2.googleapis.com/token',
+      {
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      }
+    );
+
+    const { access_token, expires_in } = response.data;
+    if (!access_token) {
+      throw new Error('Google OAuth2 ไม่ส่ง access_token กลับมา');
     }
-  );
 
-  const { access_token, expires_in } = response.data;
-  if (!access_token) {
-    throw new Error('Google OAuth2 ไม่ส่ง access_token กลับมา');
+    cachedGmailToken = access_token;
+    gmailTokenExpiresAt = Date.now() + ((expires_in || 3600) * 1000);
+    return access_token;
+  } catch (err) {
+    const desc = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    if (err.response?.data?.error === 'invalid_grant') {
+      throw new Error(`Google OAuth2 Token หมดอายุหรือถูกเพิกถอน (${desc}) กรุณาอัปเดต GMAIL_REFRESH_TOKEN ใน .env`);
+    }
+    throw new Error(`ขอ Access Token จาก Google ล้มเหลว: ${desc}`);
   }
-
-  cachedGmailToken = access_token;
-  gmailTokenExpiresAt = Date.now() + ((expires_in || 3600) * 1000);
-  return access_token;
 };
+
 
 const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -334,12 +343,18 @@ const sendNewsEventEmail = async ({ to, recipientName, event, clientUrl }) => {
     'ระบบฐานข้อมูลนักศึกษา มรภ.ศรีสะเกษ'
   ).trim();
 
-  let fromEmail = (
-    process.env.GMAIL_USER ||
-    process.env.SMTP_FROM ||
-    process.env.EMAIL_FROM ||
-    'noreply@sskru.ac.th'
-  ).trim();
+  const provider = getActiveProvider();
+
+  let fromEmail = 'noreply@sskru.ac.th';
+  if (provider === 'resend') {
+    fromEmail = (process.env.EMAIL_FROM || 'onboarding@resend.dev').trim();
+  } else if (provider === 'gmail_api') {
+    fromEmail = (process.env.GMAIL_USER || 'noreply@sskru.ac.th').trim();
+  } else if (provider === 'smtp') {
+    fromEmail = (process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@sskru.ac.th').trim();
+  } else {
+    fromEmail = (process.env.EMAIL_FROM || process.env.GMAIL_USER || process.env.SMTP_FROM || 'noreply@sskru.ac.th').trim();
+  }
 
   if (fromEmail.includes('<') && fromEmail.includes('>')) {
     const match = fromEmail.match(/<([^>]+)>/);
@@ -347,8 +362,6 @@ const sendNewsEventEmail = async ({ to, recipientName, event, clientUrl }) => {
   }
 
   const fromAddress = `"${fromName}" <${fromEmail}>`;
-
-  const provider = getActiveProvider();
 
   // 1. Gmail API (OAuth2 ผ่าน HTTPS พอร์ต 443 ไม่พึ่งพอร์ต SMTP)
   if (provider === 'gmail_api') {
@@ -381,7 +394,7 @@ const sendNewsEventEmail = async ({ to, recipientName, event, clientUrl }) => {
         provider: 'gmail_api'
       };
     } catch (err) {
-      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      const errMsg = err.response?.data?.error_description || err.response?.data?.error?.message || err.response?.data?.message || err.message;
       console.error(`[EmailService:GmailAPI] ส่งอีเมลถึง ${cleanEmail} ล้มเหลว:`, errMsg);
       return {
         success: false,

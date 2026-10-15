@@ -478,3 +478,5 @@ export const promotionService = {
   }
 };
 
+export { notificationService } from './notification.service';
+

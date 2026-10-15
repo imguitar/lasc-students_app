@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Toaster } from './components/ui/use-toast';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
@@ -20,7 +21,8 @@ import StudentPromotion from './pages/StudentPromotion';
 function App() {
   return (
     <AuthProvider>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <NotificationProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -48,7 +50,8 @@ function App() {
         </Routes>
       </Router>
       <Toaster />
-    </AuthProvider>
+    </NotificationProvider>
+  </AuthProvider>
   );
 }
 

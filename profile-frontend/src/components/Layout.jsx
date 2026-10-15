@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { coopSsoService } from '../services';
 import { Button } from '../components/ui/button';
+import NotificationBell from './NotificationBell';
 import {
   LayoutDashboard,
   Users,
@@ -123,7 +124,8 @@ const Layout = () => {
               </div>
             </div>
             
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <NotificationBell />
               <Link
                 to="/profile"
                 className="flex items-center space-x-2 sm:space-x-3 pr-1 sm:pr-3 sm:border-r border-gray-100 hover:bg-purple-50/50 p-1 sm:p-1.5 rounded-xl transition-colors cursor-pointer group"
