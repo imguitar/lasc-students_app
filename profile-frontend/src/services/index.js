@@ -340,6 +340,11 @@ export const dashboardService = {
   getProjectReport: async (params) => {
     const response = await api.get('/dashboard/project-report', { params });
     return response.data;
+  },
+
+  getContactInfo: async () => {
+    const response = await api.get('/dashboard/contact-info');
+    return response.data;
   }
 };
 

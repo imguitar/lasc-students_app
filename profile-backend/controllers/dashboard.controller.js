@@ -651,3 +651,57 @@ exports.getProjectReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching project report', error: error.message });
   }
 };
+
+// @desc    Get faculty contact info (reads from site_settings or fallback)
+// @route   GET /api/dashboard/contact-info
+// @access  Public / Private
+exports.getContactInfo = async (req, res) => {
+  try {
+    const defaultInfo = {
+      faculty_name_th: 'คณะศิลปศาสตร์และวิทยาศาสตร์',
+      faculty_name_en: 'Faculty of Liberal Arts and Sciences,\nSisaket Rajabhat University',
+      address: '319 ถนนไทยพันทา ตำบลโพธิ์ อำเภอเมือง จังหวัดศรีสะเกษ 33000',
+      email: 'officescisskru@gmail.com',
+      phone: '045-643-600',
+      facebook_name: 'คณะศิลปศาสตร์และวิทยาศาสตร์',
+      facebook_url: 'https://www.facebook.com/lascsskru',
+      working_hours: 'จันทร์ - ศุกร์ 08:30 - 16:30 น.'
+    };
+
+    try {
+      const rows = await prisma.$queryRawUnsafe(
+        "SELECT setting_value FROM site_settings WHERE setting_key = 'contact_info' LIMIT 1"
+      );
+      if (rows && rows.length > 0 && rows[0].setting_value) {
+        const parsed = typeof rows[0].setting_value === 'string'
+          ? JSON.parse(rows[0].setting_value)
+          : rows[0].setting_value;
+        return res.json({
+          success: true,
+          data: {
+            ...defaultInfo,
+            ...parsed,
+            email: parsed.email || defaultInfo.email,
+            facebook_name: parsed.facebook_name || defaultInfo.facebook_name,
+            facebook_url: parsed.facebook_url || defaultInfo.facebook_url,
+            working_hours: parsed.working_hours || defaultInfo.working_hours
+          }
+        });
+      }
+    } catch (_) {
+      // site_settings table does not exist or query error; proceed with default
+    }
+
+    return res.json({
+      success: true,
+      data: defaultInfo
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching contact info',
+      error: error.message
+    });
+  }
+};
+

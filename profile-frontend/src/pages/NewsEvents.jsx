@@ -1039,137 +1039,170 @@ const NewsEvents = () => {
             const dateParts = formatThaiShortDate(item.event_date);
             const typeStyle = EVENT_TYPE_COLORS[item.type] || EVENT_TYPE_COLORS['อื่น ๆ'];
             const canManageItem = isAdmin || (canManage && item.created_by === user?.id);
+            const imgUrl = item.image_url
+              ? (item.image_url.startsWith('http')
+                  ? item.image_url
+                  : `${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')}${item.image_url.startsWith('/') ? '' : '/'}${item.image_url}`)
+              : null;
 
             return (
               <div
                 key={item.id}
                 onClick={() => setSelectedEvent(item)}
-                className="group relative bg-white border border-gray-100 hover:border-purple-200 rounded-2xl shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden"
+                className="group relative bg-white border border-gray-100 hover:border-purple-200/90 rounded-2xl shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer overflow-hidden"
               >
                 {/* Pinned Accent Header */}
                 {item.is_pinned && (
                   <div className="h-1.5 bg-gradient-to-r from-amber-400 via-purple-500 to-indigo-500" />
                 )}
 
-                {/* Optional Cover Image Banner */}
-                {item.image_url && (
-                  <div className="relative h-44 w-full overflow-hidden bg-gray-100">
+                {/* Cover Image or Graphic Banner */}
+                <div className="relative h-40 sm:h-44 w-full overflow-hidden bg-gradient-to-br from-purple-50 via-indigo-50/60 to-purple-100/50">
+                  {imgUrl ? (
                     <img
-                      src={item.image_url.startsWith('http') ? item.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${item.image_url}`}
+                      src={imgUrl}
                       alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => { e.target.style.display = 'none'; }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextSibling) {
+                          e.currentTarget.nextSibling.style.display = 'flex';
+                        }
+                      }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60" />
-                    <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white text-[11px] font-medium">
-                      <span className="bg-black/40 backdrop-blur-xs px-2 py-0.5 rounded-md">
-                        {formatThaiDate(item.event_date)}{item.end_date ? ` - ${formatThaiDate(item.end_date)}` : ''}
+                  ) : null}
+
+                  {/* Illustrated Aesthetic Placeholder when no image */}
+                  <div
+                    className={`w-full h-full flex flex-col items-center justify-center relative overflow-hidden ${
+                      imgUrl ? 'hidden' : 'flex'
+                    }`}
+                  >
+                    <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-purple-200/30 rounded-full blur-xl pointer-events-none" />
+                    <div className="absolute -left-8 -top-8 w-24 h-24 bg-indigo-200/30 rounded-full blur-lg pointer-events-none" />
+
+                    <div className="w-12 h-12 rounded-2xl bg-white/95 shadow-xs border border-purple-100 flex items-center justify-center text-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 relative z-1">
+                      <Megaphone className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <span className="text-[11px] font-medium text-purple-900/60 mt-2 relative z-1">
+                      ข่าวสารและกิจกรรม
+                    </span>
+                  </div>
+
+                  {/* Top-Left Floating Badges: Category & Target */}
+                  <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shadow-2xs backdrop-blur-xs ${typeStyle}`}>
+                      {item.type}
+                    </span>
+                    {renderTargetBadge(item)}
+                  </div>
+
+                  {/* Top-Right Floating Badges: Pin & Draft Status */}
+                  <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                    {item.is_pinned && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-2xs">
+                        <Pin className="w-2.5 h-2.5 fill-white rotate-45" />
+                        ปักหมุด
                       </span>
-                    </div>
+                    )}
+                    {isAdmin && !item.is_published && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800/85 text-white shadow-2xs backdrop-blur-xs">
+                        <EyeOff className="w-2.5 h-2.5" />
+                        ร่าง
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-3">
-                    {/* Top Row: Date Badge (if no cover) + Type + Target + Pin */}
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {!item.image_url && (
-                          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center justify-center text-purple-900 shrink-0 font-bold">
-                            <span className="text-sm leading-none">{dateParts.day}</span>
-                            <span className="text-[9px] text-purple-600 leading-tight mt-0.5">{dateParts.month}</span>
-                          </div>
-                        )}
-                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${typeStyle}`}>
-                          {item.type}
-                        </span>
-                        {renderTargetBadge(item)}
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {item.is_pinned && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                            <Pin className="w-2.5 h-2.5 fill-amber-500 text-amber-600 rotate-45" />
-                            ปักหมุด
-                          </span>
-                        )}
-                        {isAdmin && !item.is_published && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
-                            <EyeOff className="w-2.5 h-2.5" />
-                            ร่าง
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Title & Description */}
-                    <div>
-                      <h3 className="font-bold text-base text-gray-900 group-hover:text-purple-700 transition-colors line-clamp-2 leading-snug">
-                        {item.title}
-                      </h3>
-                      {item.description && (
-                        <p className="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Metadata: Time & Location */}
-                  <div className="space-y-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <div className="flex items-center gap-2.5 truncate">
-                        {(item.start_time || item.end_time) && (
-                          <span className="inline-flex items-center gap-1 shrink-0">
-                            <Clock className="w-3 h-3 text-purple-500" />
+                {/* Card Content Body */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                  <div className="space-y-2">
+                    {/* Date & Time Meta */}
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                      <Calendar className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                      <span>{formatThaiDate(item.event_date)}{item.end_date ? ` - ${formatThaiDate(item.end_date)}` : ''}</span>
+                      {(item.start_time || item.end_time) && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                            <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
                             {item.start_time || ''}{item.end_time ? ` - ${item.end_time}` : ''} น.
                           </span>
-                        )}
-                        {item.location && (
-                          <span className="inline-flex items-center gap-1 truncate" title={item.location}>
-                            <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                            <span className="truncate">{item.location}</span>
-                          </span>
-                        )}
-                      </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="font-bold text-base text-gray-900 group-hover:text-purple-700 transition-colors line-clamp-2 leading-snug m-0">
+                      {item.title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed m-0">
+                      {item.description || 'คลิกเพื่อดูรายละเอียดกำหนดการและข้อมูลทั้งหมด...'}
+                    </p>
+                  </div>
+
+                  {/* Metadata: Location & Attachment Row */}
+                  <div className="space-y-2.5 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      {item.location ? (
+                        <span className="inline-flex items-center gap-1 text-gray-500 truncate" title={item.location}>
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span className="truncate">{item.location}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">ไม่ระบุสถานที่</span>
+                      )}
 
                       {item.attachment_url && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50/90 border border-indigo-100/60 px-2 py-0.5 rounded shrink-0">
                           <FileText className="w-2.5 h-2.5" />
                           ไฟล์แนบ
                         </span>
                       )}
                     </div>
 
-                    {/* Actions Bar */}
+                    {/* Actions Toolbar for Authorized Users */}
                     {canManageItem && (
                       <div
-                        className="pt-2 flex items-center justify-between border-t border-gray-50"
+                        className="pt-2.5 flex items-center justify-between border-t border-gray-100"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center gap-1">
                           <button
+                            type="button"
                             onClick={(e) => handleTogglePin(e, item.id)}
-                            className={`p-1.5 rounded-lg border transition-colors ${item.is_pinned ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-50 text-gray-400 border-gray-200 hover:text-amber-600'}`}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                              item.is_pinned
+                                ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-2xs'
+                                : 'bg-gray-50 text-gray-400 border-gray-200 hover:text-amber-600 hover:bg-amber-50/50'
+                            }`}
                             title={item.is_pinned ? 'ยกเลิกการปักหมุด' : 'ปักหมุด'}
                           >
                             <Pin className="w-3.5 h-3.5" />
                           </button>
 
                           <button
+                            type="button"
                             onClick={(e) => handleTogglePublish(e, item.id)}
-                            className={`p-1.5 rounded-lg border transition-colors ${item.is_published ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200 hover:text-emerald-600'}`}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                              item.is_published
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs'
+                                : 'bg-gray-50 text-gray-400 border-gray-200 hover:text-emerald-600 hover:bg-emerald-50/50'
+                            }`}
                             title={item.is_published ? 'ยกเลิกเผยแพร่' : 'เผยแพร่'}
                           >
                             {item.is_published ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                           </button>
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           {isAdmin && (
                             <button
+                              type="button"
                               onClick={() => handleOpenEmailModal(item)}
-                              className="p-1.5 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors flex items-center gap-1 text-[11px] font-semibold px-2"
+                              className="p-1.5 px-2.5 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors flex items-center gap-1 text-[11px] font-semibold cursor-pointer shadow-2xs"
                               title="ส่ง Email แจ้งเตือน"
                             >
                               <Mail className="w-3.5 h-3.5 text-purple-600" />
@@ -1177,18 +1210,20 @@ const NewsEvents = () => {
                             </button>
                           )}
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(item)}
-                            className="p-1.5 rounded-lg border border-purple-100 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                            className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors cursor-pointer shadow-2xs"
                             title="แก้ไข"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setItemToDelete(item);
                               setIsDeleteOpen(true);
                             }}
-                            className="p-1.5 rounded-lg border border-red-100 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors cursor-pointer shadow-2xs"
                             title="ลบ"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

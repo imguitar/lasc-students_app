@@ -15,15 +15,18 @@ import {
 } from '../components/ui/dialog';
 import { Link } from 'react-router-dom';
 import MonthlyNewsSection from '../components/MonthlyNewsSection';
+import DashboardFooter from '../components/DashboardFooter';
+
+
 
 const PROJECT_STATUS_LABELS = {
-  draft: { label: 'แบบร่าง', en: 'Draft', color: 'bg-slate-100 text-slate-700 border-slate-200', barColor: 'bg-slate-400' },
-  pending_approval: { label: 'รออนุมัติ', en: 'Pending Approval', color: 'bg-amber-50 text-amber-800 border-amber-200', barColor: 'bg-amber-500' },
-  approved: { label: 'อนุมัติแล้ว', en: 'Approved', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', barColor: 'bg-indigo-500' },
-  in_progress: { label: 'กำลังดำเนินการ', en: 'In Progress', color: 'bg-blue-50 text-blue-700 border-blue-200', barColor: 'bg-blue-500' },
-  waiting_defense: { label: 'รอสอบปริญญานิพนธ์', en: 'Waiting Defense', color: 'bg-purple-50 text-purple-700 border-purple-200', barColor: 'bg-purple-500' },
-  passed_defense: { label: 'ผ่านการสอบปริญญานิพนธ์', en: 'Passed Defense', color: 'bg-teal-50 text-teal-700 border-teal-200', barColor: 'bg-teal-500' },
-  completed: { label: 'เสร็จสมบูรณ์', en: 'Completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', barColor: 'bg-emerald-500' }
+  draft: { label: 'แบบร่าง', en: 'Draft', color: 'bg-slate-100 text-slate-700 border-slate-300 font-semibold', barColor: 'bg-slate-400', dotColor: 'bg-slate-500' },
+  pending_approval: { label: 'รออนุมัติ', en: 'Pending Approval', color: 'bg-amber-50 text-amber-800 border-amber-300 font-semibold', barColor: 'bg-amber-500', dotColor: 'bg-amber-500' },
+  approved: { label: 'อนุมัติแล้ว', en: 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-300 font-semibold', barColor: 'bg-blue-500', dotColor: 'bg-blue-500' },
+  in_progress: { label: 'กำลังดำเนินการ', en: 'In Progress', color: 'bg-indigo-50 text-indigo-700 border-indigo-300 font-semibold', barColor: 'bg-indigo-500', dotColor: 'bg-indigo-500' },
+  waiting_defense: { label: 'รอสอบปริญญานิพนธ์', en: 'Waiting Defense', color: 'bg-purple-50 text-purple-700 border-purple-300 font-semibold', barColor: 'bg-purple-500', dotColor: 'bg-purple-500' },
+  passed_defense: { label: 'ผ่านการสอบปริญญานิพนธ์', en: 'Passed Defense', color: 'bg-teal-50 text-teal-700 border-teal-300 font-semibold', barColor: 'bg-teal-500', dotColor: 'bg-teal-500' },
+  completed: { label: 'เสร็จสมบูรณ์', en: 'Completed', color: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold', barColor: 'bg-emerald-500', dotColor: 'bg-emerald-500' }
 };
 
 const STATUS_STEPS = [
@@ -239,7 +242,100 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Student Personal Project Tracker (Exact match to Image 2!) */}
+      {/* ========================================================================= */}
+      {/* Primary KPI Stats Cards - 5-column responsive grid (Elevated to First Fold) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {/* Card 1: Total Students */}
+        <Card className="border border-purple-100/70 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl bg-white overflow-hidden group">
+          <div className="h-1 w-full bg-gradient-to-r from-purple-500 to-indigo-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-5">
+            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider">นักศึกษาทั้งหมด</CardTitle>
+            <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+              <Users className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <div className="text-3xl font-black text-gray-900 tracking-tight">{stats?.totalStudents ?? 0}</div>
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50/70 border border-emerald-100/80 px-2 py-0.5 rounded-lg w-max">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>กำลังศึกษา: <strong>{stats?.activeStudents ?? 0}</strong> คน</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Total Alumni */}
+        <Card className="border border-purple-100/70 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl bg-white overflow-hidden group">
+          <div className="h-1 w-full bg-gradient-to-r from-indigo-500 to-blue-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-5">
+            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider">ศิษย์เก่าในระบบ</CardTitle>
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-2xs">
+              <GraduationCap className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <div className="text-3xl font-black text-gray-900 tracking-tight">{stats?.totalAlumni ?? 0}</div>
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 bg-indigo-50/70 border border-indigo-100/80 px-2 py-0.5 rounded-lg w-max">
+              <Award className="w-3 h-3 text-indigo-600" />
+              <span>อัตราจบการศึกษา: <strong>{stats?.graduationRate ?? 0}%</strong></span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Senior Projects */}
+        <Card className="border border-purple-100/70 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl bg-white overflow-hidden group">
+          <div className="h-1 w-full bg-gradient-to-r from-amber-500 to-rose-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-5">
+            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider">ปริญญานิพนธ์สะสม</CardTitle>
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
+              <FolderKanban className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <div className="text-3xl font-black text-gray-900 tracking-tight">{stats?.totalProjects || 0}</div>
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50/70 border border-amber-200/80 px-2 py-0.5 rounded-lg w-max">
+              <Sparkles className="w-3 h-3 text-amber-600" />
+              <span>ผลงานดีเด่น: <strong>{stats?.awardedProjects || 0}</strong> โครงการ</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: Internships */}
+        <Card className="border border-purple-100/70 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl bg-white overflow-hidden group">
+          <div className="h-1 w-full bg-gradient-to-r from-teal-500 to-emerald-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-5">
+            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider">การฝึกงาน / สหกิจ</CardTitle>
+            <div className="p-2.5 rounded-xl bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors shadow-2xs">
+              <Briefcase className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <div className="text-3xl font-black text-gray-900 tracking-tight">{stats?.totalInternships || 0}</div>
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-teal-700 bg-teal-50/70 border border-teal-100/80 px-2 py-0.5 rounded-lg w-max">
+              <span>ประวัติสถานประกอบการ</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Portfolio */}
+        <Card className="border border-purple-100/70 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl bg-white overflow-hidden group">
+          <div className="h-1 w-full bg-gradient-to-r from-fuchsia-500 to-purple-600" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-5">
+            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider">ผลงาน / Portfolio</CardTitle>
+            <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+              <FolderGit2 className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <div className="text-3xl font-black text-gray-900 tracking-tight">{stats?.totalStudentProjects || 0}</div>
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-purple-700 bg-purple-50/70 border border-purple-100/80 px-2 py-0.5 rounded-lg w-max">
+              <span>ชิ้นงานและแฟ้มสะสมผลงาน</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Student Personal Project Tracker (Only for students/alumni) */}
       {(() => {
         if (user?.role !== 'student' && user?.role !== 'alumni') return null;
         const myStudentProject = projectReport?.projects?.find(p => 
@@ -313,7 +409,7 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                {/* Tracker Summary (Exact layout of Image 2) */}
+                {/* Tracker Summary */}
                 <div className="text-center mt-7 pt-4 border-t border-gray-100">
                   <h3 className="text-2xl sm:text-3xl font-extrabold text-[#111111] tracking-tight">
                     {statusInfo.title}
@@ -331,90 +427,10 @@ const Dashboard = () => {
         );
       })()}
 
-      {/* Primary KPI Stats Cards - 5-column responsive grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {/* Card 1: Total Students */}
-        <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-gray-500">นักศึกษาทั้งหมด</CardTitle>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-              <Users className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalStudents ?? 0}</div>
-            <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span>กำลังศึกษา: <strong>{stats?.activeStudents ?? 0}</strong> คน</span>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Total Alumni */}
-        <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-gray-500">ศิษย์เก่าในระบบ</CardTitle>
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalAlumni ?? 0}</div>
-            <p className="text-[11px] text-gray-500 mt-1">
-              อัตราจบการศึกษา: <strong>{stats?.graduationRate ?? 0}%</strong>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Senior Projects */}
-        <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-gray-500">ปริญญานิพนธ์สะสม</CardTitle>
-            <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-              <FolderKanban className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalProjects || 0}</div>
-            <p className="text-[11px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
-              <Award className="h-3 w-3" />
-              <span>ผลงานดีเด่น: <strong>{stats?.awardedProjects || 0}</strong> โครงการ</span>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Internships */}
-        <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-gray-500">การฝึกงาน / สหกิจ</CardTitle>
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
-              <Briefcase className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalInternships || 0}</div>
-            <p className="text-[11px] text-gray-500 mt-1">
-              ประวัติสถานประกอบการ
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Semester Projects / Portfolio */}
-        <Card className="border border-purple-100/60 shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-gray-500">ผลงาน / Portfolio</CardTitle>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-              <FolderGit2 className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-gray-900">{stats?.totalStudentProjects || 0}</div>
-            <p className="text-[11px] text-gray-500 mt-1">
-              ชิ้นงานและแฟ้มสะสมผลงาน
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ========================================================================= */}
+      {/* Monthly News & Events Section */}
+      {/* ========================================================================= */}
+      <MonthlyNewsSection />
 
       {/* ========================================================================= */}
       {/* FEATURE 4: รายงานสรุปสถานะนักศึกษา (Student Status Report) */}
@@ -580,24 +596,39 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-purple-50">
                 {/* Year Level Distribution */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-purple-600" />
-                    <span>นักศึกษาปัจจุบันแยกตามระดับชั้นปี</span>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-gray-800 flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-purple-600" />
+                      <span>นักศึกษาปัจจุบันแยกตามระดับชั้นปี</span>
+                    </div>
+                    <span className="text-[11px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-md">
+                      กำลังศึกษา {studentSummary.active ?? 0} คน
+                    </span>
                   </div>
+
                   {studentReport?.byYearLevel && studentReport.byYearLevel.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="bg-gradient-to-b from-purple-50/20 via-white to-white border border-purple-100/70 rounded-2xl p-4 space-y-3">
                       {studentReport.byYearLevel.map(item => {
                         const pct = Math.round((item.count / (studentSummary.active || 1)) * 100);
                         return (
-                          <div key={item.label} className="space-y-1">
-                            <div className="flex justify-between text-xs font-semibold text-gray-700">
-                              <span>{item.label}</span>
-                              <span className="text-purple-700">{item.count} คน ({pct}%)</span>
+                          <div key={item.label} className="space-y-1.5 group">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-gray-700 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 group-hover:scale-125 transition-transform" />
+                                {item.label}
+                              </span>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="font-black text-gray-900">{item.count}</span>
+                                <span className="text-[11px] text-gray-400">คน</span>
+                                <span className="text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-md">
+                                  {pct}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="h-2 w-full bg-purple-50 rounded-full overflow-hidden">
+                            <div className="h-2.5 w-full bg-purple-100/50 rounded-full overflow-hidden p-0.5 shadow-inner">
                               <div 
                                 style={{ width: `${pct}%` }} 
-                                className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500" 
+                                className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-indigo-600 rounded-full transition-all duration-500 shadow-2xs" 
                               />
                             </div>
                           </div>
@@ -605,34 +636,82 @@ const Dashboard = () => {
                       })}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-400 py-4 text-center bg-purple-50/20 rounded-xl">
+                    <div className="text-xs text-gray-400 py-8 text-center bg-purple-50/20 rounded-xl border border-dashed border-purple-100">
                       ไม่มีข้อมูลระดับชั้นปีตามตัวกรองนี้
                     </div>
                   )}
                 </div>
 
-                {/* Graduated By Year */}
+                {/* Graduated By Year — Modern Vertical Bar Chart */}
                 <div className="space-y-3">
-                  <div className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-indigo-600" />
-                    <span>จำนวนผู้สำเร็จการศึกษาแยกตามปี พ.ศ.</span>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-gray-800 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-indigo-600" />
+                      <span>จำนวนผู้สำเร็จการศึกษาแยกตามปี พ.ศ.</span>
+                    </div>
+                    {studentReport?.graduatedByYear && studentReport.graduatedByYear.length > 0 && (
+                      <span className="text-[11px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md">
+                        รวม {studentReport.graduatedByYear.reduce((acc, curr) => acc + (curr.count || 0), 0)} คน
+                      </span>
+                    )}
                   </div>
+
                   {studentReport?.graduatedByYear && studentReport.graduatedByYear.length > 0 ? (
-                    <div className="flex flex-wrap gap-2.5">
-                      {studentReport.graduatedByYear.map(item => (
-                        <div 
-                          key={item.year}
-                          className="bg-indigo-50/60 border border-indigo-100 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-sm"
-                        >
-                          <span className="text-xs font-bold text-indigo-900">พ.ศ. {item.year}</span>
-                          <span className="text-xs font-extrabold bg-white text-indigo-700 px-2 py-0.5 rounded-lg border border-indigo-100">
-                            {item.count} คน
-                          </span>
-                        </div>
-                      ))}
+                    <div className="bg-gradient-to-b from-indigo-50/30 via-purple-50/15 to-white border border-indigo-100/70 rounded-2xl p-4">
+                      {/* Chart Canvas Area */}
+                      <div className="h-32 flex items-end justify-around gap-2 pt-6 pb-2 border-b border-indigo-100/60 relative">
+                        {/* Horizontal dashed grid lines */}
+                        <div className="absolute inset-x-0 top-3 border-b border-dashed border-indigo-100/50 pointer-events-none" />
+                        <div className="absolute inset-x-0 top-16 border-b border-dashed border-indigo-100/40 pointer-events-none" />
+
+                        {(() => {
+                          const maxGrad = Math.max(...studentReport.graduatedByYear.map(d => d.count), 1);
+                          return studentReport.graduatedByYear.map((item) => {
+                            const heightPct = Math.max(18, Math.round((item.count / maxGrad) * 100));
+                            return (
+                              <div 
+                                key={item.year} 
+                                className="flex-1 max-w-[80px] flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                              >
+                                {/* Value Label above Bar */}
+                                <span className="text-[11px] font-black text-indigo-900 mb-1 group-hover:scale-110 group-hover:text-purple-700 transition-all">
+                                  {item.count}
+                                </span>
+
+                                {/* Animated Vertical Bar */}
+                                <div className="w-full h-full flex items-end justify-center">
+                                  <div
+                                    style={{ height: `${heightPct}%` }}
+                                    className="w-8 sm:w-10 rounded-t-xl bg-gradient-to-t from-indigo-600 via-indigo-500 to-purple-400 group-hover:from-indigo-700 group-hover:to-purple-500 transition-all duration-300 shadow-xs relative overflow-hidden"
+                                  >
+                                    {/* Glossy top sheen */}
+                                    <div className="absolute inset-x-0 top-0 h-1 bg-white/40" />
+                                  </div>
+                                </div>
+
+                                {/* Year Label */}
+                                <span className="text-[11px] font-bold text-gray-600 mt-2 group-hover:text-indigo-700 transition-colors whitespace-nowrap">
+                                  พ.ศ. {item.year}
+                                </span>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      {/* Summary footer */}
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 pt-2.5 px-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                          <span>แนวโน้มการสำเร็จการศึกษา</span>
+                        </span>
+                        <span className="text-indigo-700 font-semibold">
+                          {studentReport.graduatedByYear.length} ปีการศึกษาล่าสุด
+                        </span>
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-400 py-4 text-center bg-indigo-50/20 rounded-xl">
+                    <div className="text-xs text-gray-400 py-8 text-center bg-indigo-50/20 rounded-xl border border-dashed border-indigo-100">
                       ไม่มีข้อมูลผู้สำเร็จการศึกษาตามตัวกรองนี้
                     </div>
                   )}
@@ -747,45 +826,85 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
-              {/* Pipeline Cards - 7 Status Stages (แบบเดิม) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                {Object.entries(PROJECT_STATUS_LABELS).map(([key, info], idx) => {
-                  const count = projStatusCounts[key] || 0;
-                  const percentage = projTotal > 0 ? Math.round((count / projTotal) * 100) : 0;
+              {/* Pipeline Flow - 7 Status Stages (Modern Connected Stepper) */}
+              <div className="rounded-2xl border border-purple-100/80 bg-gradient-to-b from-purple-50/30 to-white p-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-gray-500 font-semibold mb-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+                    <span className="text-gray-800 font-bold">กระบวนการดำเนินงานโครงการ (7 ลำดับขั้นตอน)</span>
+                  </div>
+                  <span className="text-[11px] text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-lg border border-purple-100 w-max">
+                    💡 คลิกที่ขั้นตอนเพื่อกรองตารางด้านล่าง
+                  </span>
+                </div>
 
-                  return (
-                    <div 
-                      key={key} 
-                      onClick={() => setProjectFilters(prev => ({
-                        ...prev,
-                        status: prev.status === key ? '' : key
-                      }))}
-                      className={`border p-4 rounded-xl flex flex-col justify-between transition-all hover:shadow-sm cursor-pointer select-none ${
-                        projectFilters.status === key 
-                          ? 'bg-purple-100/70 border-purple-300 ring-2 ring-purple-400' 
-                          : 'bg-purple-50/25 border-purple-100/60 hover:bg-purple-50/50'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between text-[10px] text-gray-400 font-semibold mb-1">
-                          <span>ขั้นที่ {idx + 1}</span>
-                          <span className="font-bold text-gray-500">{percentage}%</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+                  {STATUS_STEPS.map((step, idx) => {
+                    const key = step.key;
+                    const count = projStatusCounts[key] || 0;
+                    const percentage = projTotal > 0 ? Math.round((count / projTotal) * 100) : 0;
+                    const isSelected = projectFilters.status === key;
+                    const hasProjects = count > 0;
+                    const StepIcon = step.icon;
+
+                    return (
+                      <div 
+                        key={key} 
+                        onClick={() => setProjectFilters(prev => ({
+                          ...prev,
+                          status: prev.status === key ? '' : key
+                        }))}
+                        className={`group relative rounded-xl p-3 flex flex-col justify-between transition-all duration-200 cursor-pointer select-none border ${
+                          isSelected 
+                            ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400 -translate-y-0.5' 
+                            : hasProjects
+                              ? 'bg-purple-50/50 border-purple-200/80 hover:bg-purple-100/60 hover:shadow-2xs text-gray-800'
+                              : 'bg-white border-gray-200/70 hover:bg-purple-50/30 text-gray-700'
+                        }`}
+                      >
+                        {/* Step badge and percentage */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-purple-100/70 text-purple-700'
+                          }`}>
+                            <StepIcon className="w-3 h-3" />
+                            <span>ขั้น {idx + 1}</span>
+                          </span>
+                          <span className={`text-[10px] font-extrabold ${isSelected ? 'text-purple-100' : 'text-gray-400'}`}>
+                            {percentage}%
+                          </span>
                         </div>
-                        <div className="text-xs font-bold text-gray-800 leading-tight">
-                          {info.label}
+
+                        {/* Title and English subtitle */}
+                        <div className="my-1">
+                          <div className={`text-xs font-bold leading-tight ${isSelected ? 'text-white' : 'text-gray-800'}`}>
+                            {step.label}
+                          </div>
+                          <div className={`text-[10px] truncate ${isSelected ? 'text-purple-200' : 'text-gray-400'}`}>
+                            {step.en}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-400">{info.en}</div>
+
+                        {/* Count and Unit */}
+                        <div className={`mt-2.5 pt-2 border-t flex items-baseline justify-between ${
+                          isSelected ? 'border-white/20' : 'border-purple-100/60'
+                        }`}>
+                          <span className={`text-xl font-black ${
+                            isSelected ? 'text-white' : hasProjects ? 'text-purple-900' : 'text-gray-400'
+                          }`}>
+                            {count}
+                          </span>
+                          <span className={`text-[10px] ${isSelected ? 'text-purple-200' : 'text-gray-400'}`}>
+                            โครงการ
+                          </span>
+                        </div>
                       </div>
-                      <div className="mt-3 pt-3 border-t border-purple-100/40 flex items-baseline justify-between">
-                        <span className="text-xl font-extrabold text-purple-900">{count}</span>
-                        <span className="text-[10px] text-gray-500">โครงการ</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Progress and Summary Bar (แบบเดิม) */}
+              {/* Progress and Summary Bar */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
                   <span className="flex items-center gap-2">
@@ -841,7 +960,7 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {/* Requirement 6: Matching Project List Table (Read-Only) */}
+              {/* Matching Project List Table (Read-Only) */}
               <div className="pt-4 border-t border-purple-100/60 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -868,7 +987,7 @@ const Dashboard = () => {
                 <div className="rounded-2xl border border-purple-100 overflow-hidden bg-white shadow-2xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-purple-50/50 text-gray-700 font-bold border-b border-purple-100">
+                      <thead className="bg-purple-50/60 text-gray-700 font-bold border-b border-purple-100">
                         <tr>
                           <th className="py-3 px-3.5 whitespace-nowrap">รหัสโครงการ</th>
                           <th className="py-3 px-3.5">ชื่อโครงการวิจัย / ผลงาน</th>
@@ -899,7 +1018,11 @@ const Dashboard = () => {
                                   <div className="text-[10px] text-gray-400 truncate" title={p.title_en}>{p.title_en}</div>
                                 </td>
                                 <td className="py-3 px-3.5 text-gray-600 max-w-[160px] truncate" title={p.members_names || '-'}>
-                                  {p.members_names || '-'}
+                                  {p.members_names ? (
+                                    <span className="font-medium text-gray-800">{p.members_names}</span>
+                                  ) : (
+                                    <span className="text-gray-400 italic text-[11px]">- ยังไม่ระบุ -</span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-3.5 text-gray-600 whitespace-nowrap">
                                   {p.department_name || '-'}
@@ -911,8 +1034,9 @@ const Dashboard = () => {
                                   {p.year}
                                 </td>
                                 <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusInfo.color}`}>
-                                    {statusInfo.label}
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border shadow-2xs ${statusInfo.color}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor || 'bg-gray-400'}`} />
+                                    <span>{statusInfo.label}</span>
                                   </span>
                                 </td>
                                 <td className="py-3 px-3.5 text-center whitespace-nowrap">
@@ -924,7 +1048,7 @@ const Dashboard = () => {
                                       setSelectedProjectForView(p);
                                       setIsProjectDetailModalOpen(true);
                                     }}
-                                    className="h-7 px-2.5 text-[11px] rounded-xl border-purple-200 text-purple-700 hover:bg-purple-50 flex items-center gap-1 mx-auto font-medium"
+                                    className="h-7 px-3 text-[11px] rounded-xl border-purple-200 bg-purple-50/50 text-purple-700 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all shadow-2xs flex items-center gap-1 mx-auto font-semibold"
                                   >
                                     <Eye className="w-3 h-3" />
                                     <span>ดูรายละเอียด</span>
@@ -953,132 +1077,174 @@ const Dashboard = () => {
       {/* ========================================================================= */}
       {/* Tables & Quick Navigation Section */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
         {/* Recent Updates */}
-        <Card className="md:col-span-2 border border-purple-100/40 shadow-sm rounded-2xl bg-white overflow-hidden">
-          <CardHeader className="border-b border-gray-50/80 pb-4">
-            <CardTitle className="text-base font-bold text-gray-800 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-purple-600" />
-              การอัปเดตโครงงานและผลงานล่าสุด
-            </CardTitle>
-            <CardDescription className="text-xs text-gray-500">
-              รายชื่อโครงงานและผลงานที่เพิ่งบันทึกหรือปรับปรุงสถานะในระบบ
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2 px-0">
-            <div className="divide-y divide-purple-50">
-              {recentAlumni.length > 0 ? (
-                recentAlumni.map((item) => (
-                  <div key={item.id} className="p-4 px-6 hover:bg-purple-50/20 transition-colors flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs shadow-sm shrink-0">
-                        <FolderKanban className="w-4 h-4" />
+        <Card className="md:col-span-2 border border-purple-100/60 shadow-xs hover:shadow-sm transition-all rounded-2xl bg-white overflow-hidden flex flex-col justify-between">
+          <div>
+            <CardHeader className="border-b border-gray-50/80 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-purple-600" />
+                    <span>การอัปเดตโครงงานและผลงานล่าสุด</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500 mt-1">
+                    รายชื่อโครงงานและผลงานที่เพิ่งบันทึกหรือปรับปรุงสถานะในระบบ
+                  </CardDescription>
+                </div>
+                {recentAlumni.length > 0 && (
+                  <span className="text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full">
+                    {recentAlumni.length} รายการล่าสุด
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-2 px-0">
+              <div className="divide-y divide-purple-50">
+                {recentAlumni.length > 0 ? (
+                  recentAlumni.map((item) => (
+                    <div key={item.id} className="p-4 px-6 hover:bg-purple-50/20 transition-colors flex items-center justify-between group">
+                      <div className="flex items-center space-x-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100/80 flex items-center justify-center text-purple-700 font-bold text-xs shadow-2xs shrink-0 group-hover:scale-105 group-hover:bg-purple-100 transition-all">
+                          <FolderKanban className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-sm text-gray-900 line-clamp-1 group-hover:text-purple-700 transition-colors">
+                            {item.first_name}
+                          </div>
+                          <div className="text-xs text-purple-600 font-medium flex items-center gap-1.5 mt-0.5">
+                            <span className="text-gray-500">{item.workplace || 'โครงงาน'}</span>
+                            <span>•</span>
+                            <span className="text-purple-700 font-semibold">{item.position || 'แบบร่าง'}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold text-sm text-gray-800 line-clamp-1">
-                          {item.first_name}
-                        </div>
-                        <div className="text-xs text-purple-600 font-medium">
-                          {item.workplace || 'โครงงาน'} • {item.position || '-'}
-                        </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50/80 border border-gray-100 px-2.5 py-1 rounded-lg shrink-0">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        <span>{new Date(item.updatedAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
                       </div>
                     </div>
-                    <span className="text-[11px] text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-lg shrink-0">
-                      {new Date(item.updatedAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    <FolderKanban className="h-8 w-8 mx-auto text-gray-300 mb-2" />
+                    <span>ยังไม่มีข้อมูลการอัปเดตในระบบ</span>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-12 text-gray-400 text-sm">
-                  <FolderKanban className="h-8 w-8 mx-auto text-gray-300 mb-2" />
-                  <span>ยังไม่มีข้อมูลการอัปเดต</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
+                )}
+              </div>
+            </CardContent>
+          </div>
+
+          {/* Footer Bar for Recent Updates */}
+          <div className="p-3.5 bg-purple-50/25 border-t border-purple-50 flex items-center justify-between text-xs px-6 mt-auto">
+            <span className="text-gray-400 text-[11px]">บันทึกความเคลื่อนไหวล่าสุด</span>
+            <Link 
+              to="/projects" 
+              className="text-purple-600 hover:text-purple-800 font-bold inline-flex items-center gap-1 transition-colors"
+            >
+              <span>ดูโครงงานทั้งหมด</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </Card>
 
         {/* Quick Navigation Panel */}
-        <Card className="md:col-span-1 border border-purple-100/40 shadow-sm rounded-2xl bg-white p-6 space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-600" />
-            เมนูด่วนสำหรับคุณ
-          </h3>
-          <div className="space-y-2.5 text-xs">
-            {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'advisor') && (
+        <Card className="md:col-span-1 border border-purple-100/60 shadow-xs hover:shadow-sm transition-all rounded-2xl bg-white p-5 sm:p-6 space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-gray-900 tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span>เมนูด่วนสำหรับคุณ</span>
+              </h3>
+              <span className="text-[10px] text-gray-400">Quick Access</span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'advisor') && (
+                <Link 
+                  to="/departments" 
+                  className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                      🏛️
+                    </div>
+                    <span>ข้อมูลสาขาวิชาและประธานสาขา</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                </Link>
+              )}
               <Link 
-                to="/departments" 
-                className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
+                to="/portfolio" 
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-sm">🏛️</span>
-                  <span>ข้อมูลสาขาวิชาและประธานสาขา</span>
+                  <div className="w-8 h-8 rounded-lg bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                    <Briefcase className="w-4 h-4" />
+                  </div>
+                  <span>ผลงานนักศึกษา & Portfolio</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
               </Link>
-            )}
-            <Link 
-              to="/portfolio" 
-              className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
-            >
-              <div className="flex items-center gap-2.5">
-                <Briefcase className="w-4 h-4 text-purple-600" />
-                <span>ผลงานนักศึกษา & Portfolio</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
 
-            <Link 
-              to="/profile?tab=resume" 
-              className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
-            >
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-4 h-4 text-indigo-600" />
-                <span>จัดการ Resume / CV & ทักษะ</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+              <Link 
+                to="/profile?tab=resume" 
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <span>จัดการ Resume / CV & ทักษะ</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+              </Link>
 
-            <Link 
-              to="/projects" 
-              className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
-            >
-              <div className="flex items-center gap-2.5">
-                <FolderKanban className="w-4 h-4 text-amber-600" />
-                <span>ค้นหาโครงงานและปริญญานิพนธ์</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+              <Link 
+                to="/projects" 
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                    <FolderKanban className="w-4 h-4" />
+                  </div>
+                  <span>ค้นหาโครงงานและปริญญานิพนธ์</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+              </Link>
 
-            <Link 
-              to="/alumni" 
-              className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
-            >
-              <div className="flex items-center gap-2.5">
-                <GraduationCap className="w-4 h-4 text-blue-600" />
-                <span>เครือข่ายศิษย์เก่า & ข้อมูลการทำงาน</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+              <Link 
+                to="/alumni" 
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <span>เครือข่ายศิษย์เก่า & ข้อมูลการทำงาน</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+              </Link>
 
-            <Link 
-              to="/students" 
-              className="flex items-center justify-between p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/50 transition-all font-semibold text-gray-700 group"
-            >
-              <div className="flex items-center gap-2.5">
-                <Users className="w-4 h-4 text-emerald-600" />
-                <span>ทะเบียนประวัตินักศึกษา</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+              <Link 
+                to="/students" 
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl border border-purple-100/70 hover:bg-purple-50/60 hover:border-purple-200 transition-all font-semibold text-gray-700 group shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm shadow-2xs group-hover:scale-105 transition-transform">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <span>ทะเบียนประวัตินักศึกษา</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+              </Link>
+            </div>
           </div>
         </Card>
       </div>
 
-      {/* ========================================================================= */}
-      {/* Monthly News & Events Section */}
-      {/* ========================================================================= */}
-      <MonthlyNewsSection />
+      {/* ข้อมูลติดต่อคณะและลิงก์ด่วน (Dashboard Footer) */}
+      <DashboardFooter />
 
       {/* Requirement 6: Read-Only Project Details Dialog for Dashboard */}
       <Dialog open={isProjectDetailModalOpen} onOpenChange={setIsProjectDetailModalOpen}>

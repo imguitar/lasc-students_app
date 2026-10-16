@@ -11,5 +11,7 @@ router.get('/recent-alumni', auth, dashboardController.getRecentAlumni);
 router.get('/awarded-projects', auth, dashboardController.getAwardedProjects);
 router.get('/student-report', auth, dashboardController.getStudentReport);
 router.get('/project-report', auth, dashboardController.getProjectReport);
+router.get('/contact-info', dashboardController.getContactInfo);
 
 module.exports = router;
+

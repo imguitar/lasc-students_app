@@ -11,7 +11,8 @@ import {
   CheckCheck,
   BellOff,
   ExternalLink,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 
 // Format relative time in Thai
@@ -127,9 +128,9 @@ const NotificationDropdown = ({ onClose }) => {
   };
 
   return (
-    <div className="w-[360px] sm:w-[420px] bg-white rounded-2xl shadow-2xl border border-purple-100/80 overflow-hidden flex flex-col max-h-[580px] animate-in fade-in zoom-in-95 duration-150">
+    <div className="w-full sm:w-[420px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-purple-100/80 overflow-hidden flex flex-col max-h-[82vh] sm:max-h-[580px] animate-in fade-in zoom-in-95 duration-150">
       {/* Header */}
-      <div className="p-4 border-b border-purple-100/60 bg-gradient-to-r from-purple-50/60 via-white to-purple-50/40">
+      <div className="p-3.5 sm:p-4 border-b border-purple-100/60 bg-gradient-to-r from-purple-50/60 via-white to-purple-50/40">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <h3 className="font-bold text-gray-900 text-base">การแจ้งเตือน</h3>
@@ -139,16 +140,26 @@ const NotificationDropdown = ({ onClose }) => {
               </span>
             )}
           </div>
-          {unreadCount > 0 && (
+          <div className="flex items-center space-x-1.5">
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                className="text-xs font-medium text-purple-600 hover:text-purple-800 flex items-center space-x-1 hover:bg-purple-100/60 px-2 sm:px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                title="ทำเครื่องหมายว่าอ่านทั้งหมด"
+              >
+                <CheckCheck size={14} className="mr-0.5" />
+                <span>อ่านทั้งหมด</span>
+              </button>
+            )}
             <button
-              onClick={markAllAsRead}
-              className="text-xs font-medium text-purple-600 hover:text-purple-800 flex items-center space-x-1 hover:bg-purple-100/60 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-              title="ทำเครื่องหมายว่าอ่านทั้งหมด"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 sm:hidden transition-colors cursor-pointer"
+              aria-label="ปิดการแจ้งเตือน"
+              title="ปิด"
             >
-              <CheckCheck size={14} className="mr-0.5" />
-              <span>อ่านทั้งหมด</span>
+              <X size={18} />
             </button>
-          )}
+          </div>
         </div>
 
         {/* Filter Tabs */}
@@ -177,7 +188,7 @@ const NotificationDropdown = ({ onClose }) => {
       </div>
 
       {/* Notifications List */}
-      <div className="overflow-y-auto flex-1 divide-y divide-gray-100/80 max-h-[400px]">
+      <div className="overflow-y-auto flex-1 divide-y divide-gray-100/80 max-h-[calc(82vh-170px)] sm:max-h-[400px]">
         {loading && notifications.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center text-gray-400 space-y-2">
             <Loader2 className="animate-spin text-purple-600" size={24} />

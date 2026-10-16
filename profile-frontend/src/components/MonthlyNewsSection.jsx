@@ -1,24 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Button } from './ui/button';
+import React, { useState, useEffect, useRef } from 'react';
 import { newsEventService } from '../services';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Clock,
   MapPin,
   Pin,
+  ChevronLeft,
   ChevronRight,
-  ExternalLink,
+  ArrowRight,
   FileText,
-  Sparkles,
-  RotateCcw,
-  Plus,
-  X,
-  Megaphone,
   Download,
-  AlertCircle
+  X,
+  Plus,
+  Megaphone,
+  Sparkles
 } from 'lucide-react';
 
 export const THAI_MONTHS = [
@@ -69,37 +66,44 @@ export const formatThaiShortDate = (dateString) => {
   };
 };
 
+const getImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${cleanPath}`;
+};
+
 const MonthlyNewsSection = () => {
   const { user } = useAuth();
-  const currentDate = new Date();
-  const currentCEYear = currentDate.getFullYear();
-  const currentBEYear = currentCEYear + 543;
-  const currentMonthNum = currentDate.getMonth() + 1;
-
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthNum);
-  const [selectedYear, setSelectedYear] = useState(currentBEYear);
+  const navigate = useNavigate();
   const [newsEvents, setNewsEvents] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
-
-  // Generate 7 years around current BE year (current - 3 to current + 3)
-  const availableYears = [];
-  for (let i = currentBEYear - 3; i <= currentBEYear + 3; i++) {
-    availableYears.push(i);
-  }
+  const [activeNewsDot, setActiveNewsDot] = useState(0);
+  const [isCarouselHovered, setIsCarouselHovered] = useState(false);
+  const carouselRef = useRef(null);
 
   const fetchNewsEvents = async () => {
     setLoading(true);
     try {
       const res = await newsEventService.getAll({
-        month: selectedMonth,
-        year: selectedYear
+        is_published: true
       });
-      if (res.success) {
-        setNewsEvents(res.data || []);
+      if (res?.success) {
+        // Sort: Pinned first, then newest date/created_at
+        const sorted = (res.data || []).sort((a, b) => {
+          const aPinned = a.is_pinned === true || a.is_pinned === 1 ? 1 : 0;
+          const bPinned = b.is_pinned === true || b.is_pinned === 1 ? 1 : 0;
+          if (aPinned !== bPinned) return bPinned - aPinned;
+          const dateA = new Date(a.event_date || a.created_at || 0).getTime();
+          const dateB = new Date(b.event_date || b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+        setNewsEvents(sorted);
       }
     } catch (error) {
-      console.error('Error fetching monthly news & events:', error);
+      console.error('Error fetching news & events:', error);
     } finally {
       setLoading(false);
     }
@@ -107,252 +111,270 @@ const MonthlyNewsSection = () => {
 
   useEffect(() => {
     fetchNewsEvents();
-  }, [selectedMonth, selectedYear]);
+  }, []);
 
-  const handleResetToCurrent = () => {
-    setSelectedMonth(currentMonthNum);
-    setSelectedYear(currentBEYear);
+  const handleNewsScroll = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const cardNode = el.querySelector('.news-card');
+    const step = cardNode ? cardNode.offsetWidth + 20 : 310;
+    setActiveNewsDot(Math.max(0, Math.min(newsEvents.length - 1, Math.round(el.scrollLeft / step))));
   };
 
-  const isCurrentMonthSelected = selectedMonth === currentMonthNum && selectedYear === currentBEYear;
+  const scrollToNewsIndex = (idx) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const cardNode = el.querySelector('.news-card');
+    const step = cardNode ? cardNode.offsetWidth + 20 : 310;
+    el.scrollTo({ left: idx * step, behavior: 'smooth' });
+    setActiveNewsDot(idx);
+  };
+
+  const scrollCarousel = (direction) => {
+    if (!carouselRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
+    const cardNode = carouselRef.current.querySelector('.news-card');
+    const scrollAmount = cardNode ? cardNode.offsetWidth + 20 : 310;
+
+    if (direction === 'left') {
+      if (scrollLeft <= 10) {
+        carouselRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' });
+      } else {
+        carouselRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      }
+    } else {
+      if (scrollLeft + clientWidth >= scrollWidth - 10) {
+        carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      }
+    }
+  };
+
+  // Auto scroll every 6s unless hovered
+  useEffect(() => {
+    if (isCarouselHovered || newsEvents.length <= 3) return;
+    const timer = setInterval(() => {
+      scrollCarousel('right');
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [isCarouselHovered, newsEvents.length]);
 
   return (
-    <div className="space-y-4">
-      <Card className="border border-purple-100/50 shadow-sm rounded-2xl bg-white overflow-hidden">
-        {/* Header with Filters */}
-        <CardHeader className="border-b border-gray-100/80 pb-4 bg-gradient-to-r from-purple-50/40 via-white to-indigo-50/20">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm shadow-purple-200">
-                  <Megaphone className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <span>ข่าวสารและกิจกรรมประจำเดือน</span>
-                    {newsEvents.length > 0 && (
-                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                        {newsEvents.length} รายการ
-                      </span>
-                    )}
-                  </CardTitle>
-                  <CardDescription className="text-xs text-gray-500">
-                    ติดตามข่าวสาร ประกาศ กิจกรรม และกำหนดการสำคัญสำหรับนักศึกษาและบุคลากร
-                  </CardDescription>
-                </div>
-              </div>
-            </div>
-
-            {/* Filter Controls */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Month Selector */}
-              <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 shadow-sm text-xs">
-                <Calendar className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="bg-transparent text-gray-700 font-semibold focus:outline-none cursor-pointer text-xs"
-                >
-                  {THAI_MONTHS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year Selector */}
-              <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 shadow-sm text-xs">
-                <span className="text-gray-400 font-medium">พ.ศ.</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-transparent text-gray-700 font-semibold focus:outline-none cursor-pointer text-xs"
-                >
-                  {availableYears.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Reset to Current Month Button */}
-              {!isCurrentMonthSelected && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetToCurrent}
-                  className="h-8 px-2.5 text-xs text-purple-600 border-purple-200 hover:bg-purple-50 rounded-xl flex items-center gap-1"
-                  title="กลับไปยังเดือนปัจจุบัน"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>เดือนนี้</span>
-                </Button>
-              )}
-
-              {/* Link to Full Page */}
-              <Link to="/news-events">
-                <Button
-                  size="sm"
-                  className="h-8 px-3 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-xl flex items-center gap-1 shadow-sm shadow-purple-200"
-                >
-                  <span>ดูทั้งหมด</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
-              </Link>
-            </div>
+    <section className="bg-white rounded-2xl border border-gray-100/90 shadow-xs p-5 sm:p-6 transition-all">
+      {/* Header with Title, Count badge, and Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+            <Megaphone className="w-4 h-4" />
           </div>
-        </CardHeader>
-
-        {/* Content Body */}
-        <CardContent className="pt-6">
-          {loading ? (
-            <div className="py-12 flex flex-col items-center justify-center text-gray-400 space-y-2">
-              <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">กำลังโหลดข้อมูลข่าวสารและกิจกรรม...</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
+              {newsEvents.length > 0 && (
+                <span className="text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded-full">
+                  {newsEvents.length} รายการ
+                </span>
+              )}
             </div>
-          ) : newsEvents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {newsEvents.map((item) => {
-                const dateParts = formatThaiShortDate(item.event_date);
-                const typeStyle = EVENT_TYPE_COLORS[item.type] || EVENT_TYPE_COLORS['อื่น ๆ'];
+            <div className="w-10 h-0.5 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full mt-1" />
+          </div>
+        </div>
 
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedItem(item)}
-                    className="group relative bg-white border border-gray-100 hover:border-purple-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden"
-                  >
-                    {/* Top Accent bar for pinned */}
-                    {item.is_pinned && (
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-purple-500 to-indigo-500" />
-                    )}
-
-                    <div className="space-y-3">
-                      {/* Top Badges: Date Badge + Type + Pin */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          {/* Modern Date Tile */}
-                          <div className="w-12 h-13 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center justify-center text-purple-900 shrink-0 shadow-xs group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                            <span className="text-base font-extrabold leading-none">{dateParts.day}</span>
-                            <span className="text-[10px] font-medium leading-tight mt-0.5">{dateParts.month}</span>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${typeStyle}`}>
-                                {item.type}
-                              </span>
-                              {item.is_pinned && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                  <Pin className="w-2.5 h-2.5 fill-amber-500 text-amber-600 rotate-45" />
-                                  ปักหมุด
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-gray-400 block">
-                              พ.ศ. {dateParts.year}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Optional thumbnail preview */}
-                        {item.image_url && (
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 shrink-0">
-                            <img
-                              src={item.image_url.startsWith('http') ? item.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${item.image_url}`}
-                              alt={item.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Title & Short Description */}
-                      <div>
-                        <h4 className="font-bold text-sm text-gray-800 line-clamp-2 group-hover:text-purple-700 transition-colors leading-snug">
-                          {item.title}
-                        </h4>
-                        {item.description && (
-                          <p className="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed font-normal">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Footer Info: Time, Location, Attachment Indicator */}
-                    <div className="pt-3 mt-3 border-t border-gray-50 text-xs text-gray-500 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-3 text-[11px] text-gray-500 truncate">
-                          {(item.start_time || item.end_time) && (
-                            <span className="inline-flex items-center gap-1 shrink-0">
-                              <Clock className="w-3 h-3 text-purple-500" />
-                              {item.start_time || ''}{item.end_time ? ` - ${item.end_time}` : ''} น.
-                            </span>
-                          )}
-                          {item.location && (
-                            <span className="inline-flex items-center gap-1 truncate" title={item.location}>
-                              <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                              <span className="truncate">{item.location}</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {item.attachment_url && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
-                            <FileText className="w-2.5 h-2.5" />
-                            ไฟล์แนบ
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* Empty State */
-            <div className="py-12 px-4 text-center rounded-2xl bg-purple-50/20 border border-dashed border-purple-100/80 flex flex-col items-center justify-center space-y-3">
-              <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-400">
-                <Calendar className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-gray-700">ยังไม่มีข่าวสารหรือกิจกรรมในเดือนนี้</h4>
-                <p className="text-xs text-gray-400 max-w-sm">
-                  ไม่พบข้อมูลข่าวสารหรือกิจกรรมในเดือน {THAI_MONTHS.find(m => m.value === selectedMonth)?.label} พ.ศ. {selectedYear}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                {!isCurrentMonthSelected ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResetToCurrent}
-                    className="text-xs text-purple-600 border-purple-200 rounded-xl"
-                  >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    ดูเดือนปัจจุบัน
-                  </Button>
-                ) : user?.role === 'admin' ? (
-                  <Link to="/news-events">
-                    <Button
-                      size="sm"
-                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-xl flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>เพิ่มข่าวสารหรือกิจกรรมใหม่</span>
-                    </Button>
-                  </Link>
-                ) : null}
-              </div>
+        {/* View all link + arrow buttons */}
+        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <Link
+            to="/news-events"
+            className="text-purple-600 hover:text-purple-700 text-xs font-semibold flex items-center gap-1 no-underline transition-colors mr-1"
+          >
+            <span>ดูข่าวทั้งหมด</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          {newsEvents.length > 2 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => scrollCarousel('left')}
+                aria-label="เลื่อนซ้าย"
+                className="w-7 h-7 rounded-xl border border-purple-100 bg-purple-50/50 hover:bg-purple-100 flex items-center justify-center text-purple-700 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollCarousel('right')}
+                aria-label="เลื่อนขวา"
+                className="w-7 h-7 rounded-xl border border-purple-100 bg-purple-50/50 hover:bg-purple-100 flex items-center justify-center text-purple-700 transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-12 flex flex-col items-center justify-center text-gray-400 space-y-2">
+          <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs">กำลังโหลดข้อมูลข่าวสารและประกาศ...</span>
+        </div>
+      ) : newsEvents.length > 0 ? (
+        <div>
+          {/* Card Carousel */}
+          <div
+            className="news-carousel-container flex overflow-x-auto gap-5 pb-3 pt-1 px-0.5"
+            ref={carouselRef}
+            onMouseEnter={() => setIsCarouselHovered(true)}
+            onMouseLeave={() => setIsCarouselHovered(false)}
+            onScroll={handleNewsScroll}
+            style={{
+              scrollBehavior: 'smooth',
+              scrollSnapType: 'x mandatory',
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none'
+            }}
+          >
+            {newsEvents.map((item) => {
+              const isPinned = item.is_pinned === true || item.is_pinned === 1;
+              const authorName = item.creator?.username || item.author || 'admin';
+              const formattedDate = formatThaiDate(item.event_date || item.created_at);
+              const imgUrl = getImageUrl(item.image_url);
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className="news-card group rounded-2xl border border-gray-100/90 bg-white hover:border-purple-200/90 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer relative shrink-0 w-[270px] sm:w-[300px] snap-start"
+                >
+                  {/* Cover Image or Graphic Banner */}
+                  <div className="relative w-full h-36 sm:h-38 overflow-hidden bg-gradient-to-br from-purple-50 via-indigo-50/60 to-purple-100/50">
+                    {imgUrl ? (
+                      <img
+                        src={imgUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextSibling) {
+                            e.currentTarget.nextSibling.style.display = 'flex';
+                          }
+                        }}
+                      />
+                    ) : null}
+
+                    {/* Illustrated Aesthetic Placeholder */}
+                    <div
+                      className={`w-full h-full flex flex-col items-center justify-center relative overflow-hidden ${
+                        imgUrl ? 'hidden' : 'flex'
+                      }`}
+                    >
+                      <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-purple-200/30 rounded-full blur-xl pointer-events-none" />
+                      <div className="absolute -left-6 -top-6 w-20 h-20 bg-indigo-200/30 rounded-full blur-lg pointer-events-none" />
+
+                      <div className="w-11 h-11 rounded-2xl bg-white/95 shadow-xs border border-purple-100 flex items-center justify-center text-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 relative z-1">
+                        <Megaphone className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <span className="text-[11px] font-medium text-purple-800/70 mt-2 relative z-1">
+                        ข่าวสารคณะ
+                      </span>
+                    </div>
+
+                    {/* Category Type Badge */}
+                    {item.type && (
+                      <span className="absolute top-2.5 left-2.5 z-10 text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/95 text-purple-800 border border-purple-100 shadow-2xs backdrop-blur-xs">
+                        {item.type}
+                      </span>
+                    )}
+
+                    {/* Pinned Badge */}
+                    {isPinned && (
+                      <span className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
+                        <Pin className="w-2.5 h-2.5 fill-white rotate-45" /> ปักหมุด
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-4 flex flex-col flex-1 justify-between">
+                    <div>
+                      {/* Meta Date & Author */}
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-medium mb-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                        <span className="text-gray-500">{formattedDate}</span>
+                        <span>•</span>
+                        <span className="truncate max-w-[100px]">{authorName}</span>
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="text-sm font-bold text-gray-800 group-hover:text-purple-700 line-clamp-2 leading-snug m-0 mb-1.5 transition-colors">
+                        {item.title}
+                      </h3>
+
+                      {/* Excerpt */}
+                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 m-0 mb-3">
+                        {item.description || 'คลิกเพื่ออ่านรายละเอียดประกาศและข้อมูลเพิ่มเติม'}
+                      </p>
+                    </div>
+
+                    {/* Footer Row */}
+                    <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between mt-auto">
+                      <span className="text-xs font-semibold text-purple-600 group-hover:text-purple-800 inline-flex items-center gap-1 transition-colors">
+                        อ่านต่อ <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                      </span>
+                      {item.attachment_url && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 bg-indigo-50/80 px-1.5 py-0.5 rounded">
+                          <FileText className="w-2.5 h-2.5" /> ไฟล์แนบ
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Pagination dots (Only if more than 2 items) */}
+          {newsEvents.length > 2 && (
+            <div className="flex items-center justify-center gap-1.5 pt-3">
+              {newsEvents.slice(0, 10).map((item, idx) => (
+                <button
+                  key={item.id || idx}
+                  type="button"
+                  onClick={() => scrollToNewsIndex(idx)}
+                  aria-label={`ไปข่าวที่ ${idx + 1}`}
+                  className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${
+                    idx === activeNewsDot ? 'w-4 bg-purple-600' : 'w-1.5 bg-slate-200 hover:bg-slate-300'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="py-12 px-4 text-center rounded-2xl bg-purple-50/20 border border-dashed border-purple-100 flex flex-col items-center justify-center space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-400">
+            <Calendar className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-gray-700">ยังไม่มีข่าวสารหรือประกาศในขณะนี้</h4>
+            <p className="text-xs text-gray-400 max-w-sm">
+              เมื่อมีข่าวสารหรือประกาศใหม่จะปรากฏให้เห็นที่นี่
+            </p>
+          </div>
+          {user?.role === 'admin' && (
+            <Link to="/news-events">
+              <button
+                type="button"
+                className="mt-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-3.5 py-2 font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>เพิ่มข่าวสารหรือประกาศ</span>
+              </button>
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedItem && (
@@ -362,10 +384,12 @@ const MonthlyNewsSection = () => {
             <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-start justify-between gap-4 z-10">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-md border ${EVENT_TYPE_COLORS[selectedItem.type] || EVENT_TYPE_COLORS['อื่น ๆ']}`}>
-                    {selectedItem.type}
-                  </span>
-                  {selectedItem.is_pinned && (
+                  {selectedItem.type && (
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-md border ${EVENT_TYPE_COLORS[selectedItem.type] || EVENT_TYPE_COLORS['อื่น ๆ']}`}>
+                      {selectedItem.type}
+                    </span>
+                  )}
+                  {(selectedItem.is_pinned === true || selectedItem.is_pinned === 1) && (
                     <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                       <Pin className="w-3 h-3 fill-amber-500 text-amber-600 rotate-45" />
                       ปักหมุด
@@ -377,6 +401,7 @@ const MonthlyNewsSection = () => {
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
                 className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors shrink-0"
               >
@@ -390,7 +415,7 @@ const MonthlyNewsSection = () => {
               {selectedItem.image_url && (
                 <div className="rounded-xl overflow-hidden bg-gray-50 border border-gray-100 max-h-72 flex items-center justify-center">
                   <img
-                    src={selectedItem.image_url.startsWith('http') ? selectedItem.image_url : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${selectedItem.image_url}`}
+                    src={getImageUrl(selectedItem.image_url)}
                     alt={selectedItem.title}
                     className="w-full h-full object-contain max-h-72"
                   />
@@ -402,8 +427,8 @@ const MonthlyNewsSection = () => {
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-purple-600 shrink-0" />
                   <div>
-                    <span className="text-gray-400 block text-[10px]">วันที่จัดกิจกรรม</span>
-                    <span className="font-semibold">{formatThaiDate(selectedItem.event_date)}</span>
+                    <span className="text-gray-400 block text-[10px]">วันที่ประกาศ/กิจกรรม</span>
+                    <span className="font-semibold">{formatThaiDate(selectedItem.event_date || selectedItem.created_at)}</span>
                   </div>
                 </div>
 
@@ -461,22 +486,22 @@ const MonthlyNewsSection = () => {
             {/* Modal Footer */}
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
               <span>
-                {selectedItem.creator ? `โพสต์โดย: ${selectedItem.creator.username}` : ''}
+                {selectedItem.creator?.username ? `โพสต์โดย: ${selectedItem.creator.username}` : ''}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
-                className="text-xs"
+                className="px-3.5 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium cursor-pointer transition-colors"
               >
                 ปิด
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
 
 export default MonthlyNewsSection;
+

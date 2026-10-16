@@ -837,45 +837,54 @@ const Profile = () => {
     const printContent = document.getElementById('resume-pdf-content').innerHTML;
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Resume - ${resumeData?.profile?.full_name_th || user?.profile?.firstname || user?.firstName || 'Student'}</title>
-          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <meta charset="utf-8">
+          <title>Resume & Portfolio - ${resumeData?.profile?.full_name_th || user?.profile?.firstname || user?.firstName || 'Student'}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Prompt:wght@400;500;600;700;800&display=swap');
             @page {
-              size: A4;
-              margin: 0;
+              size: A4 portrait;
+              margin: 8mm 10mm;
             }
-            body {
-              font-family: 'Sarabun', sans-serif;
-              background-color: white;
-              width: 210mm;
-              min-height: 297mm;
-              margin: 0;
-              padding: 12mm 15mm;
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
               box-sizing: border-box;
+            }
+            html, body {
+              font-family: 'Sarabun', sans-serif;
+              background-color: white !important;
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              color: #0f172a;
             }
             @media print {
               body {
-                padding: 12mm 15mm;
+                padding: 0;
               }
               .no-print {
-                display: none;
+                display: none !important;
               }
             }
           </style>
         </head>
-        <body>
-          <div class="w-full h-full flex flex-col justify-between">
+        <body class="bg-white">
+          <div class="w-full flex flex-col justify-between text-xs leading-relaxed">
             ${printContent}
           </div>
           <script>
             window.onload = function() {
-              window.print();
               setTimeout(() => {
-                window.close();
-              }, 500);
+                window.print();
+                setTimeout(() => {
+                  window.close();
+                }, 500);
+              }, 600);
             }
           </script>
         </body>
@@ -2196,50 +2205,61 @@ const Profile = () => {
                 </div>
 
                 {/* Miniature Resume Card */}
-                <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 text-xs space-y-3.5 max-h-[650px] overflow-y-auto">
-                  {/* Header */}
-                  <div className="border-b border-slate-200 pb-3 flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-sm flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 text-xs space-y-3.5 max-h-[650px] overflow-y-auto shadow-inner">
+                  {/* Clean Light Header */}
+                  <div className="border-b border-purple-100 pb-3 flex items-start gap-3">
+                    <div className="w-12 h-14 rounded-xl bg-gradient-to-tr from-purple-700 via-indigo-600 to-purple-800 text-white font-black text-sm flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
                       {currentAvatarUrl ? (
                         <img src={getFileUrl(currentAvatarUrl)} alt={userFullName} className="w-full h-full object-cover" />
                       ) : avatarInitials}
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 space-y-0.5">
                       <h5 className="font-extrabold text-slate-900 text-sm truncate">{userFullName}</h5>
-                      <p className="text-[11px] text-purple-700 font-semibold">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
-                      <p className="text-[10px] text-slate-400">{resumeData?.education?.university || 'มหาวิทยาลัยราชภัฏศรีสะเกษ'}</p>
+                      {resumeData?.profile?.full_name_en && (
+                        <p className="text-[10px] text-purple-700 font-semibold truncate uppercase">{resumeData.profile.full_name_en}</p>
+                      )}
+                      <p className="text-[10.5px] text-purple-700 font-medium truncate">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
+                      <div className="pt-0.5 flex items-center gap-2 text-[10px] text-slate-500">
+                        <span>รหัส: <strong className="font-mono text-purple-900">{studentIdentifier}</strong></span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Career Objective */}
-                  <div className="space-y-1">
-                    <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">เป้าหมายในการทำงาน</h6>
-                    <p className="text-[11px] text-slate-600 leading-relaxed text-justify">
+                  <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-3 space-y-1">
+                    <h6 className="text-[11px] font-bold text-purple-950 uppercase tracking-wide flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-purple-600" />
+                      เป้าหมายในการทำงาน
+                    </h6>
+                    <p className="text-[11px] text-slate-600 leading-relaxed text-justify line-clamp-3">
                       {resumeData?.profile?.bio || 'มุ่งมั่นที่จะนำความรู้และทักษะด้านการพัฒนาซอฟต์แวร์มาสร้างสรรค์ผลงานที่มีคุณภาพ'}
                     </p>
                   </div>
 
                   {/* Skills Summary */}
-                  <div className="space-y-1">
-                    <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">ทักษะความเชี่ยวชาญ</h6>
+                  <div className="bg-white border border-slate-200/80 rounded-xl p-3 space-y-1.5">
+                    <h6 className="text-[11px] font-bold text-purple-950 uppercase tracking-wide flex items-center gap-1.5">
+                      <Code2 className="w-3 h-3 text-purple-600" />
+                      ทักษะความเชี่ยวชาญ
+                    </h6>
                     <div className="flex flex-wrap gap-1">
-                      {skillsList.slice(0, 6).map((s, idx) => (
-                        <span key={idx} className="bg-white border border-purple-200 text-purple-900 text-[10px] font-semibold px-1.5 py-0.2 rounded">
+                      {skillsList.slice(0, 8).map((s, idx) => (
+                        <span key={idx} className="bg-slate-50 border border-purple-200 text-purple-950 text-[10px] font-semibold px-2 py-0.5 rounded-md">
                           {s.name}
                         </span>
                       ))}
-                      {skillsList.length > 6 && (
-                        <span className="text-[10px] text-slate-400 self-center">+{skillsList.length - 6} อื่นๆ</span>
+                      {skillsList.length > 8 && (
+                        <span className="text-[10px] text-slate-400 self-center">+{skillsList.length - 8} อื่นๆ</span>
                       )}
                     </div>
                   </div>
 
                   {/* SELECTED PORTFOLIO WORKS (Requirement 3, 7) */}
-                  <div className="space-y-1.5 pt-1 border-t border-slate-200/80">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-white border border-slate-200/80 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between pb-1 border-b border-purple-50">
                       <h6 className="text-[11px] font-extrabold text-purple-950 uppercase tracking-wide flex items-center gap-1.5">
-                        <span className="w-1.5 h-2.5 bg-purple-600 rounded-full inline-block"></span>
-                        ผลงาน (Portfolio Works)
+                        <FolderGit2 className="w-3.5 h-3.5 text-purple-600" />
+                        ผลงานเด่น (Portfolio Works)
                       </h6>
                       <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.2 rounded-full">
                         {selectedResumeProjects.length} ผลงาน
@@ -2248,12 +2268,12 @@ const Profile = () => {
 
                     {/* Preview list or warning text */}
                     {selectedResumeProjects.length > 0 ? (
-                      <div className="space-y-2 pt-1">
+                      <div className="space-y-2 pt-0.5">
                         {selectedResumeProjects.map((p) => (
-                          <div key={p.id} className="p-2.5 rounded-lg bg-white border border-purple-100 shadow-2xs space-y-1">
+                          <div key={p.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
                             <div className="flex items-start justify-between gap-1.5">
                               <span className="font-bold text-slate-900 text-xs leading-snug">{p.title}</span>
-                              <span className="text-[9px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded shrink-0">
+                              <span className="text-[9px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded shrink-0 font-medium">
                                 {p.category || 'ผลงาน'}
                               </span>
                             </div>
@@ -2263,7 +2283,7 @@ const Profile = () => {
                             {p.technologies && (
                               <div className="flex flex-wrap gap-1 pt-0.5">
                                 {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((tech, tidx) => (
-                                  <span key={tidx} className="bg-slate-100 text-slate-700 text-[9px] px-1.5 py-0.2 rounded font-medium">
+                                  <span key={tidx} className="bg-white text-purple-900 border border-purple-200 text-[9px] px-1.5 py-0.2 rounded font-medium">
                                     {String(tech).trim()}
                                   </span>
                                 ))}
@@ -2281,10 +2301,16 @@ const Profile = () => {
 
                   {/* Senior Thesis */}
                   {thesisProject && (
-                    <div className="space-y-1 pt-1 border-t border-slate-200/80">
-                      <h6 className="text-[11px] font-bold text-purple-900 uppercase tracking-wide">โครงงานปริญญานิพนธ์</h6>
-                      <p className="font-bold text-slate-800 text-[11px]">{thesisProject.title_th}</p>
-                      <p className="text-[10px] text-slate-500">ปีการศึกษา {thesisProject.year}</p>
+                    <div className="bg-purple-50/40 border border-purple-100 rounded-xl p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <h6 className="text-[11px] font-bold text-purple-950 uppercase tracking-wide flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-purple-600" />
+                          โครงงานปริญญานิพนธ์
+                        </h6>
+                        <span className="text-[10px] text-purple-700 font-semibold">ปี {thesisProject.year}</span>
+                      </div>
+                      <p className="font-bold text-slate-900 text-xs">{thesisProject.title_th}</p>
+                      {thesisProject.title_en && <p className="text-[10.5px] text-purple-800/70 italic">{thesisProject.title_en}</p>}
                     </div>
                   )}
                 </div>
@@ -3258,49 +3284,58 @@ const Profile = () => {
       {/* DIALOG 5: Master Full Resume Preview & A4 Print Export */}
       {/* ========================================================================= */}
       <Dialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
-        <DialogContent className="sm:max-w-4xl bg-gray-100 rounded-2xl p-6 shadow-2xl border border-purple-100 max-h-[92vh] overflow-y-auto">
-          <DialogHeader className="pb-4 border-b border-purple-200/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <DialogTitle className="text-base font-bold text-purple-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-purple-600" />
-                แฟ้มสะสมงานและประวัติย่อ (Resume & Portfolio CV)
-              </DialogTitle>
-              <DialogDescription className="text-xs text-gray-500 mt-1">
-                สร้างอัตโนมัติจากข้อมูลนักศึกษา ผลงานโครงงานจบ ผลงานระหว่างเทอม และทักษะที่บันทึกในระบบ
-              </DialogDescription>
+        <DialogContent className="sm:max-w-5xl bg-slate-100 rounded-3xl p-6 shadow-2xl border border-purple-150 max-h-[94vh] overflow-y-auto">
+          <DialogHeader className="pb-4 border-b border-purple-200/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-700 text-white flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <DialogTitle className="text-base sm:text-lg font-black text-purple-950">
+                    แฟ้มสะสมงานและประวัติย่อ (Resume & Portfolio CV)
+                  </DialogTitle>
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    A4 Preview
+                  </span>
+                </div>
+                <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                  จัดหน้าพอร์ตโฟลิโอและเรซูเม่อัตโนมัติ พร้อมพิมพ์และส่งออกเป็น PDF ทันที
+                </DialogDescription>
+              </div>
             </div>
-            <div className="flex items-center gap-2 self-end">
+            <div className="flex items-center gap-2.5 self-end sm:self-center">
               <Button
                 onClick={handlePrintCSS}
-                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs h-9 px-4 flex items-center gap-1.5 shadow-md"
+                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs h-9 px-4 flex items-center gap-2 shadow-md shadow-purple-500/20 active:scale-95 transition-all"
               >
-                <Download className="w-3.5 h-3.5" />
-                ดาวน์โหลด PDF / พิมพ์
+                <Printer className="w-4 h-4" />
+                <span>ดาวน์โหลด PDF / พิมพ์</span>
               </Button>
             </div>
           </DialogHeader>
 
           {resumeLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-3">
-              <div className="w-8 h-8 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
-              <span className="text-xs text-gray-500 font-medium">กำลังเตรียมเอกสาร Resume...</span>
+            <div className="flex flex-col items-center justify-center py-24 space-y-3">
+              <div className="w-10 h-10 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
+              <span className="text-xs text-gray-500 font-medium">กำลังเตรียมเอกสาร Portfolio Resume...</span>
             </div>
           ) : (
-            <div className="flex justify-center p-2 bg-gray-300/60 rounded-xl max-h-[65vh] overflow-y-auto shadow-inner">
+            <div className="flex justify-center p-4 sm:p-6 bg-slate-300/80 rounded-2xl max-h-[72vh] overflow-y-auto shadow-inner">
               {/* The A4 Sheet */}
               <div 
                 id="resume-pdf-content" 
-                className="w-[210mm] min-h-[297mm] bg-white text-slate-800 p-[12mm_15mm] shadow-2xl flex flex-col justify-between text-xs leading-relaxed"
+                className="w-[210mm] min-h-[297mm] bg-white text-slate-800 p-8 shadow-2xl rounded-sm flex flex-col justify-between text-xs leading-relaxed"
                 style={{ fontFamily: "'Sarabun', sans-serif" }}
               >
                 <div className="space-y-4">
-                  {/* Header (Avatar + Identity + Contact) */}
-                  <div className="border-b-2 border-purple-700 pb-4">
-                    <div className="flex justify-between items-start gap-4">
-                      {/* Left: Avatar + Names */}
+                  {/* Clean Executive Header */}
+                  <div className="border-b-2 border-purple-600/30 pb-5 mb-5">
+                    <div className="flex items-start justify-between gap-5">
+                      {/* Left: Avatar + Names + Major */}
                       <div className="flex items-center gap-4">
-                        {/* Avatar Image (Requirement 7) */}
-                        <div className="w-20 h-24 rounded-xl border-2 border-purple-600 overflow-hidden shrink-0 shadow-sm bg-purple-50 flex items-center justify-center">
+                        {/* Avatar */}
+                        <div className="w-20 h-24 rounded-2xl overflow-hidden shrink-0 shadow-sm border-2 border-purple-200 bg-purple-50 flex items-center justify-center">
                           {currentAvatarUrl ? (
                             <img
                               src={getFileUrl(currentAvatarUrl)}
@@ -3309,38 +3344,58 @@ const Profile = () => {
                               onError={(e) => { e.target.style.display = 'none'; }}
                             />
                           ) : (
-                            <div className="w-full h-full bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-2xl flex items-center justify-center">
+                            <div className="w-full h-full bg-gradient-to-tr from-purple-700 via-indigo-600 to-purple-800 text-white font-black text-2xl flex items-center justify-center tracking-wider">
                               {avatarInitials}
                             </div>
                           )}
                         </div>
 
-                        <div>
-                          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                        <div className="space-y-1">
+                          <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
                             {userFullName}
                           </h1>
                           {resumeData?.profile?.full_name_en && (
-                            <p className="text-purple-900 font-bold text-xs mt-0.5 tracking-wide">
+                            <p className="text-purple-700 font-bold text-xs tracking-wider uppercase">
                               {resumeData.profile.full_name_en}
                             </p>
                           )}
-                          <p className="text-purple-700 font-bold text-xs mt-1">
-                            {resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}
-                          </p>
-                          <p className="text-gray-500 font-medium text-[11px]">
+                          <div className="pt-1 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-[11px] font-bold">
+                              <GraduationCap className="w-3.5 h-3.5 text-purple-600" />
+                              {resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์'}
+                            </span>
+                          </div>
+                          <p className="text-slate-500 font-medium text-[11px] pt-0.5">
                             {resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'} • มหาวิทยาลัยราชภัฏศรีสะเกษ
                           </p>
                         </div>
                       </div>
 
-                      {/* Right: Contact & Granular Address (Requirement 8) */}
-                      <div className="text-right text-[11px] text-gray-600 space-y-0.5 max-w-[48%] shrink-0">
-                        <p><strong>รหัสนักศึกษา:</strong> <span className="text-purple-800 font-semibold">{studentIdentifier}</span></p>
-                        <p><strong>อีเมล:</strong> {resumeData?.profile?.email || user?.email}</p>
-                        {resumeData?.profile?.phone && <p><strong>โทรศัพท์:</strong> {resumeData.profile.phone}</p>}
-                        {resumeData?.profile?.github_url && <p><strong>GitHub:</strong> {resumeData.profile.github_url}</p>}
-                        {resumeData?.profile?.linkedin_url && <p><strong>LinkedIn:</strong> {resumeData.profile.linkedin_url}</p>}
-                        {/* Granular address (Requirement 8) */}
+                      {/* Right: Contact & Identity Badges */}
+                      <div className="flex flex-col items-end gap-1.5 text-[11px] shrink-0 text-slate-600 max-w-[45%]">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-950 font-bold text-xs">
+                          <span className="text-purple-600 font-medium">รหัส:</span>
+                          <span className="tracking-wide text-purple-900 font-mono font-extrabold">{studentIdentifier}</span>
+                        </div>
+                        {(resumeData?.profile?.email || user?.email) && (
+                          <div className="flex items-center gap-1.5 truncate max-w-full">
+                            <Mail className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <span className="truncate">{resumeData?.profile?.email || user?.email}</span>
+                          </div>
+                        )}
+                        {resumeData?.profile?.phone && (
+                          <div className="flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <span>{resumeData.profile.phone}</span>
+                          </div>
+                        )}
+                        {resumeData?.profile?.github_url && (
+                          <div className="flex items-center gap-1.5 truncate max-w-full">
+                            <Globe className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <span className="truncate text-purple-700">{resumeData.profile.github_url.replace(/^https?:\/\//, '')}</span>
+                          </div>
+                        )}
+                        {/* Granular address */}
                         {(() => {
                           const cur = resumeData?.addresses?.current || resumeData?.address || {
                             house_no: resumeForm.house_no,
@@ -3352,9 +3407,6 @@ const Profile = () => {
                             postal_code: resumeForm.postal_code
                           };
                           const parts = [
-                            cur.house_no ? `บ้านเลขที่ ${cur.house_no}` : '',
-                            cur.village_no ? `หมู่ ${cur.village_no}` : '',
-                            cur.road ? `ถ.${cur.road}` : '',
                             cur.subdistrict ? `ต.${cur.subdistrict}` : '',
                             cur.district ? `อ.${cur.district}` : '',
                             cur.province ? `จ.${cur.province}` : '',
@@ -3362,193 +3414,270 @@ const Profile = () => {
                           ].filter(Boolean);
                           const formatted = parts.length > 0 ? parts.join(' ') : (cur.address_line || '');
                           return formatted ? (
-                            <p className="text-gray-500 pt-0.5 leading-snug">
-                              <strong>ที่อยู่:</strong> {formatted}
-                            </p>
+                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 truncate max-w-full">
+                              <MapPin className="w-3 h-3 text-purple-600 shrink-0" />
+                              <span className="truncate">{formatted}</span>
+                            </div>
                           ) : null;
                         })()}
                       </div>
                     </div>
                   </div>
 
-                  {/* Career Objective */}
-                  <div className="space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                      เป้าหมายในการทำงาน (Career Objective)
-                    </h3>
-                    <p className="text-xs text-gray-700 leading-relaxed text-justify pt-1 pl-2.5">
-                      {resumeData?.profile?.bio || 'มุ่งมั่นที่จะนำความรู้ด้านการวิเคราะห์ ออกแบบ และการพัฒนาซอฟต์แวร์ที่ได้รับจากการศึกษา ตลอดจนทักษะในการพัฒนาโครงงานจบมาประยุกต์ใช้เพื่อแก้ไขปัญหาและส่งมอบนวัตกรรมซอฟต์แวร์ที่มีคุณภาพให้กับองค์กร'}
-                    </p>
-                  </div>
+                  {/* 2-Column Grid Layout */}
+                  <div className="grid grid-cols-12 gap-5 items-start">
+                    {/* LEFT COLUMN: ~40% (Objective, Education, Skills) */}
+                    <div className="col-span-5 space-y-4">
+                      {/* Career Objective */}
+                      <div className="bg-purple-50/60 border border-purple-100 rounded-2xl p-4 space-y-2">
+                        <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                          เป้าหมายในการทำงาน (Objective)
+                        </h3>
+                        <p className="text-xs text-slate-700 leading-relaxed text-justify">
+                          {resumeData?.profile?.bio || 'มุ่งมั่นที่จะนำความรู้ด้านการวิเคราะห์ ออกแบบ และการพัฒนาซอฟต์แวร์ที่ได้รับจากการศึกษา ตลอดจนทักษะในการพัฒนาโครงงานจบมาประยุกต์ใช้เพื่อแก้ไขปัญหาและส่งมอบนวัตกรรมซอฟต์แวร์ที่มีคุณภาพให้กับองค์กร'}
+                        </p>
+                      </div>
 
-                  {/* Education History (Requirement 9) */}
-                  <div className="space-y-1.5">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                      ประวัติการศึกษา (Education History)
-                    </h3>
-                    <div className="space-y-2 pt-1 pl-2.5">
-                      {educationsList && educationsList.length > 0 ? (
-                        educationsList.map((edu) => (
-                          <div key={edu.id} className="flex justify-between items-start text-xs">
-                            <div>
-                              <p className="font-bold text-slate-900">
-                                {edu.institution_name}
-                                {edu.level && <span className="ml-2 text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">{edu.level}</span>}
-                              </p>
-                              {edu.major && <p className="text-purple-700 font-medium text-[11px]">{edu.major}</p>}
+                      {/* Education History */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-purple-100">
+                          <GraduationCap className="w-3.5 h-3.5 text-purple-600" />
+                          ประวัติการศึกษา (Education)
+                        </h3>
+                        <div className="space-y-3">
+                          {educationsList && educationsList.length > 0 ? (
+                            educationsList.map((edu) => (
+                              <div key={edu.id} className="relative pl-3.5 border-l-2 border-purple-300 text-xs space-y-1">
+                                <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
+                                <div className="flex items-start justify-between gap-1">
+                                  <span className="font-bold text-slate-900 leading-snug">{edu.institution_name}</span>
+                                  {edu.level && (
+                                    <span className="text-[9.5px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-100 shrink-0">
+                                      {edu.level.split(' ')[0]}
+                                    </span>
+                                  )}
+                                </div>
+                                {edu.major && <p className="text-purple-700 font-medium text-[11px]">{edu.major}</p>}
+                                <div className="flex items-center justify-between text-[10.5px] text-gray-500 pt-0.5">
+                                  <span>{edu.start_year ? `พ.ศ. ${edu.start_year}` : ''}{edu.end_year ? ` - ${edu.end_year}` : (edu.start_year ? ' - ปัจจุบัน' : '')}</span>
+                                  {edu.gpa !== null && edu.gpa !== undefined && (
+                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">
+                                      GPA {Number(edu.gpa).toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="relative pl-3.5 border-l-2 border-purple-300 text-xs space-y-1">
+                              <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
+                              <span className="font-bold text-slate-900">มหาวิทยาลัยราชภัฏศรีสะเกษ</span>
+                              <p className="text-purple-700 font-medium text-[11px]">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์'}</p>
+                              <p className="text-gray-500 text-[10.5px]">{resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'}</p>
+                              <div className="flex items-center justify-between text-[10.5px] text-gray-500 pt-0.5">
+                                <span>ปีที่เข้า: {resumeData?.education?.entry_year || '2566'}</span>
+                                <span className="font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded text-[10px]">
+                                  {resumeData?.education?.status || 'กำลังศึกษา'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-right text-gray-500 text-[11px] shrink-0">
-                              <p>{edu.start_year ? `พ.ศ. ${edu.start_year}` : ''}{edu.end_year ? ` - ${edu.end_year}` : (edu.start_year ? ' - ปัจจุบัน' : '')}</p>
-                              {edu.gpa !== null && edu.gpa !== undefined && (
-                                <p className="font-bold text-gray-700">เกรดเฉลี่ย (GPA): {Number(edu.gpa).toFixed(2)}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills Section */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-purple-100">
+                          <Code2 className="w-3.5 h-3.5 text-purple-600" />
+                          ทักษะและความเชี่ยวชาญ (Skills)
+                        </h3>
+                        {skillsList.length > 0 ? (
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {skillsList.map((s, idx) => {
+                              const lvl = String(s.level || '').toLowerCase();
+                              const isAdv = lvl.includes('adv') || lvl.includes('เชี่ยวชาญ');
+                              const isInt = lvl.includes('inter') || lvl.includes('ปานกลาง');
+                              return (
+                                <div key={idx} className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                                  <span className="font-semibold text-slate-800 text-[11px]">{s.name}</span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                    isAdv 
+                                      ? 'bg-emerald-100 text-emerald-800' 
+                                      : isInt 
+                                      ? 'bg-purple-100 text-purple-800' 
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {isAdv ? 'เชี่ยวชาญ' : isInt ? 'ปานกลาง' : 'เริ่มต้น'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic text-center py-2 bg-gray-50 rounded-lg">ไม่มีข้อมูลทักษะที่บันทึก</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN: ~60% (Senior Thesis, Selected Portfolio Works, Internships) */}
+                    <div className="col-span-7 space-y-4">
+                      {/* Senior Thesis Project */}
+                      <div className="bg-gradient-to-br from-purple-50/50 via-white to-indigo-50/40 border border-purple-200 rounded-2xl p-4 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-purple-100">
+                          <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-purple-600" />
+                            โครงงานปริญญานิพนธ์ (Senior Thesis)
+                          </h3>
+                          {thesisProject?.year && (
+                            <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                              ปีการศึกษา {thesisProject.year}
+                            </span>
+                          )}
+                        </div>
+
+                        {thesisProject ? (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="font-extrabold text-slate-900 text-xs leading-snug">{thesisProject.title_th}</h4>
+                                {thesisProject.title_en && (
+                                  <p className="text-[11px] text-purple-900/70 italic mt-0.5 font-medium">{thesisProject.title_en}</p>
+                                )}
+                              </div>
+                              {thesisProject.has_award && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                                  🏆 โครงงานดีเด่น
+                                </span>
                               )}
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex justify-between items-start text-xs">
-                          <div>
-                            <p className="font-bold text-slate-900">มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University)</p>
-                            <p className="text-gray-600">{resumeData?.education?.faculty || 'คณะศิลปศาสตร์และวิทยาศาสตร์'}</p>
-                            <p className="text-purple-700 font-semibold">{resumeData?.education?.department || 'สาขาวิชาวิศวกรรมซอฟต์แวร์'}</p>
-                          </div>
-                          <div className="text-right text-gray-500 text-[11px] shrink-0">
-                            <p>ปีที่เข้าศึกษา: {resumeData?.education?.entry_year || '-'}</p>
-                            <p className="font-semibold text-gray-700">{resumeData?.education?.status || 'กำลังศึกษา'}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Skills Section */}
-                  <div className="space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                      ทักษะและความเชี่ยวชาญ (Technical & Professional Skills)
-                    </h3>
-                    <div className="pt-1.5 pl-2.5 flex flex-wrap gap-1.5">
-                      {skillsList.length > 0 ? (
-                        skillsList.map((s, idx) => (
-                          <span key={idx} className="bg-purple-50 border border-purple-200 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded">
-                            {s.name} ({s.level})
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-400 text-xs italic">ไม่มีข้อมูลทักษะ</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Senior Thesis Project */}
-                  <div className="space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                      โครงงานปริญญานิพนธ์ (Senior Thesis Project)
-                    </h3>
-                    {thesisProject ? (
-                      <div className="pt-1 pl-2.5 space-y-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-slate-900 text-xs">{thesisProject.title_th}</h4>
-                          <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
-                            ปีการศึกษา {thesisProject.year}
-                          </span>
-                        </div>
-                        {thesisProject.title_en && (
-                          <p className="text-[11px] text-gray-500 italic">{thesisProject.title_en}</p>
-                        )}
-                        <p className="text-xs text-gray-600 leading-relaxed text-justify">
-                          {thesisProject.description}
-                        </p>
-                        <p className="text-[11px] text-gray-500">
-                          <strong>อาจารย์ที่ปรึกษา:</strong> {thesisProject.advisor || '-'}
-                          {thesisProject.has_award && <span className="text-amber-600 font-bold ml-2">🏆 ได้รับรางวัลโครงงานดีเด่น</span>}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic pt-1 pl-2.5">ไม่มีข้อมูลโครงงานจบ</p>
-                    )}
-                  </div>
-
-                  {/* Course Projects / Portfolio */}
-                  <div className="space-y-1">
-                    <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                      ผลงานจากแฟ้มสะสมผลงาน (Portfolio Works)
-                    </h3>
-                    {selectedResumeProjects.length > 0 ? (
-                      <div className="pt-1 pl-2.5 space-y-2">
-                        {selectedResumeProjects.map((p) => (
-                          <div key={p.id} className="text-xs space-y-0.5">
-                            <div className="flex justify-between items-start">
-                              <span className="font-bold text-slate-800">{p.title}</span>
-                              <span className="text-[10px] text-gray-500">
-                                {p.category ? `${p.category} ` : ''}
-                                {p.semester && p.academic_year ? `(ภาคเรียนที่ ${p.semester}/${p.academic_year})` : (p.year ? `(ปี ${p.year})` : '')}
-                              </span>
-                            </div>
-                            {p.course_name && <p className="text-[11px] text-purple-700 font-medium">วิชา: {p.course_name}</p>}
-                            {p.description && <p className="text-[11px] text-gray-600 text-justify">{p.description}</p>}
-                            {p.technologies && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((t, tidx) => (
-                                  <span key={tidx} className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] px-1.5 py-0.2 rounded font-medium">
-                                    {String(t).trim()}
-                                  </span>
-                                ))}
+                            {thesisProject.description && (
+                              <p className="text-xs text-slate-600 leading-relaxed text-justify line-clamp-3">
+                                {thesisProject.description}
+                              </p>
+                            )}
+                            {thesisProject.advisor && (
+                              <div className="pt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
+                                <User className="w-3.5 h-3.5 text-purple-600" />
+                                <span><strong>อาจารย์ที่ปรึกษา:</strong> {thesisProject.advisor}</span>
                               </div>
                             )}
-                            {p.github_url && <p className="text-[10px] text-gray-400">GitHub: {p.github_url}</p>}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic text-center py-2">ไม่มีข้อมูลโครงงานจบในระบบ</p>
+                        )}
                       </div>
-                    ) : (
-                      <div className="py-2.5 px-3 my-1 bg-amber-50/80 border border-amber-200/80 rounded-lg text-amber-800 text-[11px] text-center font-medium">
-                        ยังไม่ได้เลือกผลงานสำหรับแสดงในเรซูเม่
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Internships with Project Outcome and Attachment (Requirement 10) */}
-                  {internshipsList.length > 0 && (
-                    <div className="space-y-1">
-                      <h3 className="text-xs font-bold text-purple-900 uppercase tracking-wider border-b border-purple-100 pb-0.5 flex items-center gap-1.5">
-                        <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
-                        ประวัติการฝึกงานและสหกิจศึกษา (Internship Experience)
-                      </h3>
-                      <div className="pt-1 pl-2.5 space-y-2">
-                        {internshipsList.map((item) => (
-                          <div key={item.id} className="text-xs space-y-1">
-                            <div className="flex justify-between items-start">
-                              <span className="font-bold text-slate-800">{item.company_name} — {item.position}</span>
-                              <span className="text-[10px] text-gray-500">
-                                {item.start_date ? new Date(item.start_date).toLocaleDateString('th-TH') : ''} - {item.end_date ? new Date(item.end_date).toLocaleDateString('th-TH') : ''}
-                              </span>
-                            </div>
-                            {item.description && <p className="text-[11px] text-gray-600 text-justify">{item.description}</p>}
-                            {item.project_outcome && (
-                              <p className="text-[11px] text-purple-900 bg-purple-50/60 p-1.5 rounded border border-purple-100">
-                                <strong>ผลงานที่ส่งมอบ:</strong> {item.project_outcome}
-                              </p>
-                            )}
-                            {item.attachment_url && (
-                              <p className="text-[10px] text-purple-700 font-medium">
-                                <strong>เอกสารแนบ/ผลงาน:</strong> {item.attachment_url}
-                              </p>
-                            )}
+                      {/* Portfolio Works */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-purple-100">
+                          <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                            <FolderGit2 className="w-3.5 h-3.5 text-purple-600" />
+                            ผลงานเด่นจากแฟ้มสะสมงาน (Portfolio Works)
+                          </h3>
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                            {selectedResumeProjects.length} ผลงานที่เลือก
+                          </span>
+                        </div>
+
+                        {selectedResumeProjects.length > 0 ? (
+                          <div className="space-y-2.5">
+                            {selectedResumeProjects.map((p) => (
+                              <div key={p.id} className="p-3 rounded-xl bg-slate-50/70 border border-slate-200 space-y-1.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-bold text-slate-900 text-xs leading-snug">{p.title}</span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {p.category && (
+                                      <span className="text-[9.5px] font-semibold text-purple-800 bg-purple-100 px-2 py-0.2 rounded-full">
+                                        {p.category}
+                                      </span>
+                                    )}
+                                    {(p.semester || p.academic_year) && (
+                                      <span className="text-[9.5px] text-slate-400">
+                                        {p.semester ? `ภาค ${p.semester}` : ''}{p.academic_year ? `/${p.academic_year}` : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {p.course_name && (
+                                  <p className="text-[10.5px] text-purple-700 font-medium flex items-center gap-1">
+                                    <BookOpen className="w-3 h-3 text-purple-500" />
+                                    วิชา: {p.course_name}
+                                  </p>
+                                )}
+
+                                {p.description && (
+                                  <p className="text-xs text-slate-600 leading-relaxed text-justify line-clamp-2">
+                                    {p.description}
+                                  </p>
+                                )}
+
+                                {p.technologies && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {(Array.isArray(p.technologies) ? p.technologies : String(p.technologies).split(',')).map((t, tidx) => (
+                                      <span key={tidx} className="bg-white text-purple-900 border border-purple-200 text-[9px] px-1.5 py-0.2 rounded font-medium">
+                                        {String(t).trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {p.github_url && (
+                                  <p className="text-[10px] text-slate-400 pt-0.5 flex items-center gap-1">
+                                    <Globe className="w-3 h-3 text-purple-500" />
+                                    <span>GitHub: {p.github_url.replace(/^https?:\/\//, '')}</span>
+                                  </p>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <div className="py-4 px-3 bg-amber-50/70 border border-amber-200 rounded-xl text-amber-800 text-[11px] text-center font-medium">
+                            ยังไม่ได้เลือกผลงานสำหรับแสดงในเรซูเม่ (เลือกได้จากแท็บ "ผลงานที่ต้องการแสดงในเรซูเม่")
+                          </div>
+                        )}
                       </div>
+
+                      {/* Internship Experience (if available) */}
+                      {internshipsList.length > 0 && (
+                        <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-2xs">
+                          <h3 className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-purple-100">
+                            <Briefcase className="w-3.5 h-3.5 text-purple-600" />
+                            ประวัติการฝึกงานและสหกิจศึกษา (Internship)
+                          </h3>
+                          <div className="space-y-2 pt-1">
+                            {internshipsList.map((item) => (
+                              <div key={item.id} className="text-xs space-y-1 p-2.5 rounded-xl bg-purple-50/30 border border-purple-100">
+                                <div className="flex justify-between items-start">
+                                  <span className="font-bold text-slate-800">{item.company_name} — {item.position}</span>
+                                  <span className="text-[10px] text-gray-500">
+                                    {item.start_date ? new Date(item.start_date).toLocaleDateString('th-TH') : ''} - {item.end_date ? new Date(item.end_date).toLocaleDateString('th-TH') : ''}
+                                  </span>
+                                </div>
+                                {item.description && <p className="text-[11px] text-gray-600 text-justify">{item.description}</p>}
+                                {item.project_outcome && (
+                                  <p className="text-[11px] text-purple-900 bg-white p-2 rounded-lg border border-purple-100">
+                                    <strong>ผลงานที่ส่งมอบ:</strong> {item.project_outcome}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                {/* Footer */}
-                <div className="border-t border-purple-200/60 pt-2 text-[9px] text-gray-400 flex justify-between items-center mt-6">
-                  <span>มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University) — เอกสารออกโดยระบบฐานข้อมูลนักศึกษาและโครงงาน</span>
-                  <span>วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}</span>
+                {/* Official Footer Watermark */}
+                <div className="border-t-2 border-purple-200/80 pt-3 text-[9.5px] text-gray-500 flex flex-col sm:flex-row justify-between items-center gap-1 mt-6">
+                  <span className="font-medium text-slate-600">
+                    มหาวิทยาลัยราชภัฏศรีสะเกษ (Sisaket Rajabhat University) • แฟ้มสะสมงานและประวัติย่อดิจิทัล (Digital Portfolio & CV)
+                  </span>
+                  <span className="text-gray-400">
+                    ออกโดยระบบฐานข้อมูลนักศึกษาและโครงงาน • วันที่พิมพ์: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </span>
                 </div>
               </div>
             </div>

@@ -70,9 +70,18 @@ const NotificationBell = () => {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 sm:right-0 mt-2 z-50 origin-top-right">
-          <NotificationDropdown onClose={() => setIsOpen(false)} />
-        </div>
+        <>
+          {/* Mobile Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/25 z-40 sm:hidden backdrop-blur-2xs animate-in fade-in duration-150"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Dropdown Container */}
+          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full mt-2 z-50 origin-top-right">
+            <NotificationDropdown onClose={() => setIsOpen(false)} />
+          </div>
+        </>
       )}
     </div>
   );
