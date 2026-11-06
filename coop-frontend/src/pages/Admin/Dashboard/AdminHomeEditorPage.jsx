@@ -77,19 +77,20 @@ const AdminHomeEditorPage = () => {
     <>
 
       <main className="admin-main" style={{ overflowX: 'hidden' }}>
-        <header className="admin-header">
-          <div>
-            <h1 style={{display:'flex', alignItems:'center', gap:'8px'}}><HomeModernIcon style={{width: 32, height: 32}} /> จัดการเนื้อหาหน้าแรก</h1>
-            <p>ศูนย์รวมแก้ไขเนื้อหาหน้าแรกของระบบ — แถบประกาศด่วน ข้อมูลติดต่อ สไลด์แบนเนอร์ และข่าวสาร</p>
+        <header className="hm-header">
+          <span className="hm-header-icon" aria-hidden="true"><HomeModernIcon style={{ width: 22, height: 22 }} /></span>
+          <div className="min-w-0">
+            <h1 className="hm-title">จัดการเนื้อหาหน้าแรก</h1>
+            <p className="hm-desc">ศูนย์รวมแก้ไขเนื้อหาหน้าแรกของระบบ — แถบประกาศด่วน ข้อมูลติดต่อ สไลด์แบนเนอร์ และข่าวสาร</p>
           </div>
         </header>
 
         {loading ? (
           <Typography sx={{ color: '#94a3b8', py: 4, textAlign: 'center' }}>กำลังโหลด...</Typography>
         ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box className="hm-grid">
             {/* แถบประกาศด่วน */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <MegaphoneIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
@@ -116,7 +117,7 @@ const AdminHomeEditorPage = () => {
                   multiline
                   minRows={4}
                   placeholder="เช่น ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป"
-                  sx={{ '& textarea': { resize: 'vertical', minHeight: '80px' } }}
+                  sx={{ '& textarea': { resize: 'vertical', height: '120px !important', minHeight: '120px !important' } }}
                 />
                 <TextField
                   label="ลิงก์ปลายทาง (ไม่บังคับ — กดที่แถบแล้วเปิดลิงก์นี้)"
@@ -131,7 +132,7 @@ const AdminHomeEditorPage = () => {
                     variant="contained"
                     onClick={saveAnnouncement}
                     disabled={saving}
-                    sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
+                    sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
                   >
                     บันทึกประกาศด่วน
                   </Button>
@@ -140,7 +141,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* ข้อมูลติดต่อ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <PhoneIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
                 <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>ข้อมูลติดต่อ (แถบด้านบนสุดของเว็บ)</Typography>
@@ -189,7 +190,7 @@ const AdminHomeEditorPage = () => {
                   variant="contained"
                   onClick={saveContact}
                   disabled={saving}
-                  sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
+                  sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
                 >
                   บันทึกข้อมูลติดต่อ
                 </Button>
@@ -197,7 +198,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* สไลด์แบนเนอร์ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} className="hm-span-full" sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <RectangleGroupIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
                 <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>สไลด์แบนเนอร์หน้าแรก</Typography>
@@ -207,7 +208,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* ข่าวสารและประกาศ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} className="hm-span-full" sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <AnnouncementManager title="ข่าวสารและประกาศ (News & Announcements)" />
             </Paper>
           </Box>

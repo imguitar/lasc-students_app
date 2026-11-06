@@ -27,6 +27,7 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
+import { UserCircle } from 'lucide-react';
 import api from '../../../api/axios';
 import './DashboardPage.css';
 
@@ -272,7 +273,7 @@ const ProfilePage = () => {
                 <div className="h-6 w-36 bg-slate-200 rounded-lg mx-auto mb-2" />
                 <div className="h-4 w-24 bg-slate-100 rounded-md mx-auto" />
               </div>
-              <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
+              <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white">
                 <div className="h-6 w-44 bg-slate-200 rounded-lg mb-6" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {[...Array(6)].map((_, i) => (
@@ -297,17 +298,26 @@ const ProfilePage = () => {
     <>
 
       <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div>
-            <h1>ข้อมูลส่วนตัว</h1>
-            <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
-          </div>
-        </header>
-
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+          <header className="unified-card-head">
+            <div className="unified-card-title-wrap">
+              <span className="unified-card-icon"><UserCircle className="w-5 h-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h1 className="unified-card-title">ข้อมูลส่วนตัวนักศึกษา</h1>
+                <p className="unified-card-sub">จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
+              </div>
+            </div>
+            <div className="unified-card-user">
+              <span className="unified-card-dot" aria-hidden="true" />
+              <span className="truncate">{user.full_name || user.name || user.username}{user.username ? " (" + user.username + ")" : ""}</span>
+            </div>
+          </header>
+          <div className="unified-card-body">
         <div className="content-wrapper">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Profile Card */}
-            <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
+            <div className="rounded-2xl border border-[#E9E5F5] p-8 text-center relative overflow-hidden bg-white">
               <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
 
               <div className="relative">
@@ -365,7 +375,7 @@ const ProfilePage = () => {
             </div>
 
             {/* Right: Account Details Card */}
-            <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
+            <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
@@ -627,6 +637,9 @@ const ProfilePage = () => {
             </ModalActions>
           </DialogActions>
         </Dialog>
+          </div>
+        </div>
+        </div>
       </main>
     </>
   );

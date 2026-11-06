@@ -293,7 +293,7 @@ const RelocationRequestPage = () => {
             <Link to="/dashboard/my-requests" className="mt-5 inline-block text-sm font-semibold text-purple-600 hover:text-purple-800">← กลับไปหน้าคำร้องของฉัน</Link>
           </div>
         ) : existing ? (
-          <div className="ui-card p-8 max-w-3xl mx-auto">
+          <div className="ui-card p-8 max-w-7xl mx-auto">
             <p className="ty-section-title m-0">มีคำร้องขอเปลี่ยนสถานที่ฝึกงานที่กำลังดำเนินการอยู่</p>
             <p className="ty-body mt-1 mb-6 m-0">ย้ายไป {existing.new_company_name} — ติดตามสถานะหรือลิงก์/QR สำหรับบริษัทเดิมได้ที่หน้าคำร้องของฉัน</p>
             <RelocationStepper status={existing.status} />

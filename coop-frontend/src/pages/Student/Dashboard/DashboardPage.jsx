@@ -20,7 +20,6 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { STAT_ICON } from '../../../utils/statIcons';
 import './ProcessTracker.css';
 import {
   PencilSquareIcon,
@@ -36,9 +35,8 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
-import StatCard from '../../../components/StatCard';
 import StatusBadge from '../../../components/StatusBadge';
-import { MessageSquareQuote, Info, ArrowRight, CalendarX, User, Video, MapPin } from 'lucide-react';
+import { MessageSquareQuote, Info, ArrowRight, CalendarX, User, Video, MapPin, LayoutDashboard } from 'lucide-react';
 
 const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่งตัวฝึกงาน.pdf') => {
   downloadFileSmart(dataUrl, fileName);
@@ -54,6 +52,7 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const [studentName, setStudentName] = useState('');
   const [studentAvatar, setStudentAvatar] = useState(null);
+  const [studentCode, setStudentCode] = useState('');
   const [internshipRequests, setInternshipRequests] = useState([]);
   const [relocations, setRelocations] = useState([]);
   // chart refs removed
@@ -80,6 +79,7 @@ const DashboardPage = () => {
 
               setStudentName(user.full_name || user.name);
               setStudentAvatar(user.avatar);
+              setStudentCode(user.student_code || user.studentId || user.username || '');
         
               const studentId = user.student_code || user.studentId || user.username;
               const requestsRes = await api.get(`/requests?studentId=${studentId}`);
@@ -127,18 +127,7 @@ const DashboardPage = () => {
     return internshipRequests[0];
   }, [internshipRequests]);
 
-  const pendingStatuses = [
-    'รออาจารย์ที่ปรึกษาอนุมัติ',
-    'รอผู้ดูแลระบบตรวจสอบ',
-    'รอผู้ดูแลระบบอนุมัติ',
-    'รอสถานประกอบการตอบรับ',
-    'รออาจารย์อนุมัติเริ่มฝึกงาน',
-    'COMPANY_ACCEPTED',
-    'รอแอดมินออกใบส่งตัว',
-    'อนุมัติแล้ว (รอออกฝึกงาน)',
-  ];
-  
-    // Map extended status to steps (0-5)
+  // Map extended status to steps (0-5)
   const getStepIndex = (status) => {
       if (!status) return 0;
       if (['รออาจารย์ที่ปรึกษาอนุมัติ', 'รอผู้ดูแลระบบตรวจสอบ', 'รอผู้ดูแลระบบอนุมัติ'].includes(status)) return 1;
@@ -184,17 +173,6 @@ const DashboardPage = () => {
   const hasActiveRequest = internshipRequests.some(req => 
     !['ไม่อนุมัติ (อาจารย์)', 'ไม่อนุมัติ (Admin)', 'ปฏิเสธ'].includes(req.status)
   );
-
-  const summaryCards = useMemo(() => {
-    const total = internshipRequests.length;
-    const pending = internshipRequests.filter((request) => pendingStatuses.includes(request.status)).length;
-    const latestStatus = currentRequest?.status || 'ยังไม่มีคำร้อง';
-    return [
-      { label: 'คำร้องทั้งหมด', value: total, color: '#4f46e5', icon: STAT_ICON.DOCUMENT },
-      { label: 'คำร้องที่รอดำเนินการ', value: pending, color: '#d97706', icon: STAT_ICON.PENDING },
-      { label: 'สถานะล่าสุด', value: latestStatus, color: '#0284c7', icon: STAT_ICON.STATUS, isText: true },
-    ];
-  }, [internshipRequests, currentRequest]);
 
   const documentDeadlineInfo = useMemo(() => {
     if (!currentRequest) return null;
@@ -300,6 +278,22 @@ const DashboardPage = () => {
     <>
 
       <main className="dashboard-main">
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+          <header className="unified-card-head">
+            <div className="unified-card-title-wrap">
+              <span className="unified-card-icon"><LayoutDashboard className="w-5 h-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h1 className="unified-card-title">แดชบอร์ดนักศึกษา</h1>
+                <p className="unified-card-sub">ติดตามสถานะคำร้องและกำหนดการฝึกประสบการณ์วิชาชีพของคุณ</p>
+              </div>
+            </div>
+            <div className="unified-card-user">
+              <span className="unified-card-dot" aria-hidden="true" />
+              <span className="truncate">{studentName || 'นักศึกษา'}{studentCode ? ` (${studentCode})` : ''}</span>
+            </div>
+          </header>
+          <div className="unified-card-body">
         {/* Timeline & Important Schedule Card */}
         <div
           className="rounded-[24px] bg-white border border-violet-100 shadow-[0_8px_30px_rgba(124,58,237,0.04)] p-6 mb-6"
@@ -578,26 +572,6 @@ const DashboardPage = () => {
             </div>
           );
         })()}
-
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
-            gap: 2,
-            mb: 3,
-          }}
-        >
-          {summaryCards.map((card) => (
-            <StatCard
-              key={card.label}
-              title={card.label}
-              value={card.value}
-              icon={card.icon}
-              color={card.color}
-              isText={card.isText}
-            />
-          ))}
-        </Box>
 
         {documentDeadlineInfo && documentDeadlineInfo.isUrgent && (
           <Alert severity="warning" sx={{ mb: 2 }}>
@@ -878,6 +852,9 @@ const DashboardPage = () => {
           </div>
         </div>
 
+          </div>
+        </div>
+        </div>
       </main>
     </>
   );

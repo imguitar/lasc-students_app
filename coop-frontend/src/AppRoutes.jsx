@@ -16,6 +16,7 @@ import StudentListPage from './pages/Admin/Dashboard/StudentListPage';
 import PaymentProofPage from './pages/Student/Dashboard/PaymentProofPage';
 import AdminReportsPage from './pages/Admin/Dashboard/AdminReportsPage';
 import AdminHomeEditorPage from './pages/Admin/Dashboard/AdminHomeEditorPage';
+import AdminSchedulesPage from './pages/Admin/Dashboard/AdminSchedulesPage';
 import AdminProfilePage from './pages/Admin/Dashboard/AdminProfilePage';
 import AdminCompanyManagementPage from './pages/Admin/Dashboard/AdminCompanyManagementPage';
 import AdvisorStudentListPage from './pages/Advisor/AdvisorStudentListPage';
@@ -64,6 +65,7 @@ const AppRoutes = () => {
         <Route path="/dashboard/new-request" element={<NewRequestPage />} />
         <Route path="/dashboard/edit-request/:id" element={<NewRequestPage />} />
         <Route path="/dashboard/my-requests" element={<MyRequestsPage />} />
+        <Route path="/student-dashboard/requests" element={<Navigate to="/dashboard/my-requests" replace />} />
         <Route path="/dashboard/payment-proof" element={<PaymentProofPage />} />
         <Route path="/dashboard/check-in" element={<StudentCheckInPage />} />
         <Route path="/dashboard/daily-reports" element={<StudentCheckInPage />} />
@@ -85,6 +87,7 @@ const AppRoutes = () => {
         <Route path="/admin-dashboard/announcements" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
         <Route path="/admin-dashboard/banners" element={<Navigate to="/admin-dashboard/home-editor" replace />} />
         <Route path="/admin-dashboard/home-editor" element={<AdminHomeEditorPage />} />
+        <Route path="/admin-dashboard/schedules" element={<AdminSchedulesPage />} />
 
         {/* Advisor */}
         <Route path="/advisor-dashboard" element={<AdvisorDashboardPage />} />

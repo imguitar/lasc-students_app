@@ -14,6 +14,7 @@ import {
   FileText,
   LayoutTemplate,
   Bell,
+  CalendarRange,
 } from 'lucide-react';
 import MobileNavDrawer from './MobileNavDrawer';
 import UtilityBar from './UtilityBar';
@@ -71,6 +72,7 @@ const MENU_CONFIG = {
       { path: '/admin-dashboard/reports', label: 'รายงาน', icon: DocumentTextIcon },
       { path: '/admin-dashboard/relocations', label: 'คำร้องย้ายที่ฝึกงาน', icon: ArrowPathIcon },
       { path: '/admin-dashboard/home-editor', label: 'จัดการหน้าแรก', icon: HomeModernIcon },
+      { path: '/admin-dashboard/schedules', label: 'จัดการกำหนดการ', icon: CalendarRange },
       { path: '/admin-dashboard/profile', label: 'โปรไฟล์', icon: IdentificationIcon },
     ],
   },
@@ -98,13 +100,22 @@ const MOBILE_ICONS = {
   '/admin-dashboard/relocations': RefreshCw,
   '/admin-dashboard/home-editor': LayoutTemplate,
   '/admin-dashboard/profile': UserRound,
+  '/admin-dashboard/schedules': CalendarRange,
+};
+
+// ป้ายสั้นบนแถบล่างมือถือ (ไม่ตัดคำ) — เมนูอื่นใช้ชื่อเต็มจาก MENU_CONFIG
+const MOBILE_TAB_LABELS = {
+  '/admin-dashboard': 'หน้าหลัก',
+  '/admin-dashboard/students': 'นักศึกษา',
+  '/admin-dashboard/checkins': 'การเข้าฝึกงาน',
+  '/admin-dashboard/schedules': 'กำหนดการ',
 };
 
 // เมนูหลัก 4 รายการที่แสดงบน Mobile Tab Bar (ที่เหลืออยู่ในปุ่ม "เมนู")
 const TAB_PATHS = {
   student: ['/dashboard', '/dashboard/new-request', '/dashboard/my-requests', '/dashboard/check-in'],
   advisor: ['/advisor-dashboard', '/advisor-dashboard/students', '/advisor-dashboard/supervision', '/advisor-dashboard/relocations'],
-  admin: ['/admin-dashboard', '/admin-dashboard/students', '/admin-dashboard/companies', '/admin-dashboard/relocations'],
+  admin: ['/admin-dashboard', '/admin-dashboard/students', '/admin-dashboard/checkins', '/admin-dashboard/schedules'],
 };
 
 const NOTIFICATION_PATHS = {
@@ -182,7 +193,7 @@ const AppSidebar = ({
     .filter(Boolean)
     .map((item) => ({
       key: item.path,
-      label: item.label,
+      label: MOBILE_TAB_LABELS[item.path] || item.label,
       Icon: MOBILE_ICONS[item.path] || Home,
       to: item.path,
       active: activePath === item.path,

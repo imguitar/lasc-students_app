@@ -1,3 +1,4 @@
+import { Receipt } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Alert, Typography, Stack, Paper, Box, Chip } from '@mui/material';
@@ -143,16 +144,22 @@ const PaymentProofPage = () => {
     <>
 
       <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div>
-            <h1>หลักฐานการชำระค่าธรรมเนียมออกฝึก</h1>
-            <p>อัพโหลดใบเสร็จหรือสลิปการโอนเงินเพื่อยืนยัน</p>
-          </div>
-          <div className="user-info">
-            <span>{studentName}</span>
-          </div>
-        </header>
-
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+          <header className="unified-card-head">
+            <div className="unified-card-title-wrap">
+              <span className="unified-card-icon"><Receipt className="w-5 h-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h1 className="unified-card-title">หลักฐานการชำระค่าธรรมเนียมออกฝึก</h1>
+                <p className="unified-card-sub">อัพโหลดใบเสร็จหรือสลิปการโอนเงินเพื่อยืนยัน</p>
+              </div>
+            </div>
+            <div className="unified-card-user">
+              <span className="unified-card-dot" aria-hidden="true" />
+              <span className="truncate">{studentName}</span>
+            </div>
+          </header>
+          <div className="unified-card-body">
         <div className="content-wrapper">
           {/* Approved State */}
           {paymentStatus === 'approved' && (
@@ -361,6 +368,9 @@ const PaymentProofPage = () => {
               )}
             </div>
           )}
+        </div>
+          </div>
+        </div>
         </div>
       </main>
     </>

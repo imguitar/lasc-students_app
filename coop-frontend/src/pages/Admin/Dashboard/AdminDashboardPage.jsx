@@ -40,8 +40,6 @@ import './AdminDashboardPage.css';
 import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
-import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
-import AdminInternshipRoundsModal from './AdminInternshipRoundsModal';
 import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 
 // โทนสี badge ตามขั้นตอนคำร้องเปลี่ยนสถานที่ฝึกงาน
@@ -194,8 +192,6 @@ const RequestActionsMenu = ({ request, onView, onEdit, onApprove, onReject, onSc
 };
 
 const AdminDashboardPage = () => {
-  const [evalRoundsModalOpen, setEvalRoundsModalOpen] = useState(false);
-  const [internshipRoundsModalOpen, setInternshipRoundsModalOpen] = useState(false);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [adminName, setAdminName] = useState('');
@@ -1325,34 +1321,6 @@ const AdminDashboardPage = () => {
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ภาพรวมระบบฝึกประสบการณ์วิชาชีพ</h1>
             <p className="text-sm text-gray-500 mt-1">ติดตาม ตรวจสอบ และจัดการกระบวนการฝึกงานของนักศึกษาแบบเรียลไทม์</p>
           </div>
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              onClick={() => setInternshipRoundsModalOpen(true)}
-              className="rounded-xl inline-flex items-center gap-1.5"
-              sx={{
-                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
-                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
-                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              กำหนดรอบปฏิทินฝึกงาน
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => setEvalRoundsModalOpen(true)}
-              className="rounded-xl inline-flex items-center gap-1.5"
-              sx={{
-                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
-                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
-                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              กำหนดรอบการประเมิน นศ.
-            </Button>
-          </Box>
         </header>
 
         <Box
@@ -3147,17 +3115,6 @@ const AdminDashboardPage = () => {
         </div>
       </Dialog>
 
-      {/* จัดการรอบปฏิทินฝึกงาน */}
-      <AdminInternshipRoundsModal
-        open={internshipRoundsModalOpen}
-        onClose={() => setInternshipRoundsModalOpen(false)}
-      />
-
-      {/* จัดการรอบการประเมินสถานประกอบการ */}
-      <AdminEvaluationRoundsModal
-        open={evalRoundsModalOpen}
-        onClose={() => setEvalRoundsModalOpen(false)}
-      />
     </>
   );
 };

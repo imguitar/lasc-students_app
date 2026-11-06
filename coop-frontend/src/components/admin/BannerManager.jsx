@@ -237,7 +237,7 @@ const BannerManager = () => {
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2 }}>
+        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, width: { xs: '100%', sm: 'auto' }, minHeight: 44 }}>
           + เพิ่มแบนเนอร์
         </Button>
       </Box>

@@ -263,7 +263,7 @@ const AdminRelocationDetailPage = () => {
         <>
 
             <main className="admin-main">
-                <div className="max-w-4xl mx-auto w-full">
+                <div className="max-w-7xl mx-auto w-full">
                     <Link to="/admin-dashboard/relocations" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 no-underline hover:text-violet-700 transition mb-4">
                         <ArrowLeft style={{ width: 14, height: 14 }} /> กลับไปหน้ารายการคำร้อง
                     </Link>

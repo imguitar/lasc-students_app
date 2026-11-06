@@ -1,4 +1,5 @@
 import { ModalActions, ModalCancelButton } from '../../../components/ModalActions';
+import ScheduleShell from './ScheduleShell';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -29,7 +30,7 @@ import { TrashIcon, PencilSquareIcon, PlusIcon, XMarkIcon } from '@heroicons/rea
 import { MoreVertical } from 'lucide-react';
 import api from '../../../api/axios';
 
-const AdminEvaluationRoundsModal = ({ open, onClose }) => {
+const AdminEvaluationRoundsModal = ({ open, onClose, embedded = false }) => {
   const [rounds, setRounds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -138,15 +139,15 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"
+    <ScheduleShell embedded={embedded} open={open} onClose={onClose} fullWidth maxWidth="md"
       PaperProps={{ sx: { m: 2, borderRadius: '1rem', p: 0, boxShadow: 24 } }}>
-      <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.5 }}>
+      <DialogTitle sx={embedded ? { p: 0, pb: 1.5, display: 'flex', justifyContent: 'flex-end' } : { px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.5 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-          <Typography component="span" sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.125rem' }, color: '#1e293b', lineHeight: 1.4 }}>
+          <Typography component="span" style={{ display: embedded ? 'none' : undefined }} sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.125rem' }, color: '#1e293b', lineHeight: 1.4 }}>
             จัดการรอบการประเมินนักศึกษา
             <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>(Evaluation Rounds)</Box>
           </Typography>
-          <IconButton size="small" onClick={onClose} aria-label="ปิด" sx={{ color: '#94a3b8', flexShrink: 0 }}>
+          <IconButton size="small" onClick={onClose} style={{ display: embedded ? 'none' : undefined }} aria-label="ปิด" sx={{ color: '#94a3b8', flexShrink: 0 }}>
             <XMarkIcon style={{ width: 20, height: 20 }} />
           </IconButton>
         </Box>
@@ -167,7 +168,7 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
         )}
       </DialogTitle>
 
-      <DialogContent dividers sx={{ py: 2.5 }}>
+      <DialogContent dividers={!embedded} sx={{ py: 2.5 }}>
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {successMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMsg('')}>{successMsg}</Alert>}
 
@@ -253,7 +254,7 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
         ) : (
           <>
             {rounds.length === 0 ? (
-              <Box sx={{ py: 8, textAlign: 'center', fontSize: { xs: '0.78rem', sm: '0.875rem' }, color: '#64748b' }}>
+              <Box className="sched-empty-panel">
                 {loading ? 'กำลังโหลดข้อมูล...' : 'ยังไม่มีการกำหนดรอบการประเมิน กดปุ่ม "สร้างรอบประเมินใหม่" ด้านบน'}
               </Box>
             ) : (
@@ -360,12 +361,12 @@ const AdminEvaluationRoundsModal = ({ open, onClose }) => {
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+      {!embedded && <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
         <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
           <ModalCancelButton onClick={onClose}>ปิดหน้าต่าง</ModalCancelButton>
         </ModalActions>
-      </DialogActions>
-    </Dialog>
+      </DialogActions>}
+    </ScheduleShell>
   );
 };
 

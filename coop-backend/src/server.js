@@ -40,6 +40,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const internshipRoutes = require('./routes/internshipRoutes');
 const relocationRoutes = require('./routes/relocationRoutes');
 const internshipRoundRoutes = require('./routes/internshipRoundRoutes');
+const holidayRoutes = require('./routes/holidayRoutes');
 
 // Import Cron
 const initCronJobs = require('./cron/internshipCron');
@@ -146,6 +147,7 @@ app.use('/api/relocations', authenticate, relocationRoutes);
 app.use('/api/public/relocations', relocationRoutes.publicRouter); // one-time link บริษัทเดิมลงนาม ไม่ต้อง login
 app.use('/api', evaluationRoutes);
 app.use('/api', internshipRoundRoutes);
+app.use('/api', holidayRoutes);
 app.use('/api', announcementRoutes);
 app.use('/api', bannerRoutes);
 app.use('/api', settingsRoutes);

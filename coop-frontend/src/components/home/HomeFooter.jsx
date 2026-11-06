@@ -69,11 +69,8 @@ const HomeFooter = ({ contactInfo = {}, facebookHref = '' }) => (
     {/* Bottom bar */}
     <div className="border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <span className="text-[11px] text-purple-300/80 text-center sm:text-left">
-          © 2026 Faculty of Liberal Arts and Sciences, SSKRU. All rights reserved.
-        </span>
         <span className="text-[11px] text-purple-300/60 text-center sm:text-right">
-          Developed by AI and Software Engineering Students
+          Developed by Software Engineering & Ai student
         </span>
       </div>
     </div>

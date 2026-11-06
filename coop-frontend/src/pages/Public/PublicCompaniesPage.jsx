@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import UtilityBar from '../../components/UtilityBar';
+import PublicSiteHeader from '../../components/PublicSiteHeader';
 import SubNav from '../../components/SubNav';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
-import logo from '../../assets/LASC-SSKRU-1.png';
 import StatusBadge from '../../components/StatusBadge';
 import {
   Building2,
@@ -195,25 +195,12 @@ const PublicCompaniesPage = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <UtilityBar />
-      {/* Top Navbar */}
-      <header className="site-navbar sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center shrink-0" aria-label="LASC Home">
-            <img src={logo} alt="LASC Logo" className="h-10 w-auto object-contain" />
-          </Link>
-          <Link
-            to="/"
-            className="site-nav-link inline-flex items-center gap-1.5 text-sm font-semibold text-white px-3.5 py-2 rounded-xl transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            กลับหน้าแรก
-          </Link>
-        </div>
-      </header>
+      <PublicSiteHeader />
       <SubNav />
 
       {/* Hero Section — Purple Gradient */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-purple-800 via-indigo-800 to-purple-900 text-white">
+      <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%)' }}>
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] z-10 pointer-events-none" style={{ background: 'linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%)' }} />
         {/* Glow decorations */}
         <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-purple-400/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 right-0 w-96 h-96 rounded-full bg-indigo-400/20 blur-3xl" />
@@ -658,7 +645,7 @@ const PublicCompaniesPage = () => {
 
       {/* Footer */}
       <footer className="footer mt-auto">
-        <p>&copy; 2026 ระบบคำร้องฝึกงานวิชาชีพ. All rights reserved.</p>
+        <p>Developed by Software Engineering & Ai student</p>
       </footer>
     </div>
   );

@@ -279,7 +279,7 @@ const AdvisorEvaluationPage = () => {
     <div className="min-h-screen bg-slate-50/80 pb-28">
       {/* Top bar */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
           <BackButton onClick={() => navigate('/advisor-dashboard/supervision')} />
           <Link to="/" className="flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '34px', width: 'auto', objectFit: 'contain' }} />
@@ -293,7 +293,7 @@ const AdvisorEvaluationPage = () => {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
         {/* Title */}
         <div className="flex items-start gap-3 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center shrink-0 shadow-[0_8px_20px_rgba(124,58,237,0.3)]">
@@ -451,7 +451,7 @@ const AdvisorEvaluationPage = () => {
 
       {/* Sticky submit bar */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2.5 min-w-0 flex-1">
               {answeredCount === totalQuestions ? (

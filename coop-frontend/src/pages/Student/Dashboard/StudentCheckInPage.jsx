@@ -16,12 +16,30 @@ import {
   CalendarCheck,
 } from 'lucide-react';
 import api from '../../../api/axios';
-import { getThaiHoliday } from '../../../utils/thaiHolidays';
+import { getThaiHoliday, getHolidaySet } from '../../../utils/thaiHolidays';
+import { listWorkingDays, addDays } from '../../../utils/workingDays';
 import './DashboardPage.css';
 import '../../Admin/Shared/CheckInPage.css';
-import StatusBadge from '../../../components/StatusBadge';
-import ModernButton from '../../../components/ModernButton';
 import AttendanceCalendar from '../../../components/AttendanceCalendar';
+import DailyReportLockedCard from '../../../components/DailyReportLockedCard';
+
+// รายงานที่กดส่งหลังวันที่ของรายงาน (backend คำนวณ isBackfill จากเวลาที่บันทึกจริง)
+const isBackfillEntry = (e) => Number(e?.isBackfill) === 1 || e?.isBackfill === true;
+// 'YYYY-MM-DD HH:mm:ss' (เวลาไทยจากฐานข้อมูล) → '6 พ.ย. 2569 19:45 น.'
+const formatSubmittedAt = (value) => {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return '-';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} ${m[4]}:${m[5]} น.`;
+};
+// ค่าวันที่จาก API อาจเป็น 'YYYY-MM-DD' หรือ ISO → 'YYYY-MM-DD' ตามเวลาไทย
+const toYMD = (value) => {
+  if (!value) return null;
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(d);
+};
 
 const STATUS_OPTIONS = [
   { value: 'present', label: 'มา' },
@@ -63,8 +81,16 @@ const StudentCheckInPage = () => {
   const [entries, setEntries] = useState([]);
   const [message, setMessage] = useState('');
   const [canCheckIn, setCanCheckIn] = useState(false);
-  const [currentRequestStatus, setCurrentRequestStatus] = useState('ไม่มีคำร้อง');
+  const [currentRequestStatus, setCurrentRequestStatus] = useState('ยังไม่มีคำร้อง');
   const [internshipStartDate, setInternshipStartDate] = useState(null);
+  const [internshipEndDate, setInternshipEndDate] = useState(null);
+  // นับวันขาดบันทึกใหม่เมื่อรายการวันหยุดจากเซิร์ฟเวอร์โหลดเสร็จ
+  const [holidayVersion, setHolidayVersion] = useState(0);
+  useEffect(() => {
+    const onUpdated = () => setHolidayVersion((v) => v + 1);
+    window.addEventListener('holidays-updated', onUpdated);
+    return () => window.removeEventListener('holidays-updated', onUpdated);
+  }, []);
   const [showSignature, setShowSignature] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [dayModal, setDayModal] = useState({ open: false, date: '' });
@@ -139,7 +165,7 @@ const StudentCheckInPage = () => {
         return (Number(b.id) || 0) - (Number(a.id) || 0);
       })[0];
 
-      setCurrentRequestStatus(latestRequest?.status || 'ไม่มีคำร้อง');
+      setCurrentRequestStatus(latestRequest?.status || 'ยังไม่มีคำร้อง');
       const activeStatuses = ['ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP'];
       const completedStatuses = ['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'];
       const isInternshipStarted = ownRequests.some((request) => activeStatuses.includes(request.status));
@@ -150,13 +176,10 @@ const StudentCheckInPage = () => {
       const sDate = approvedRequest?.internship_start_date
         || (activeStatuses.includes(approvedRequest?.status) ? String(approvedRequest.updated_at || approvedRequest.submittedDate || '').split('T')[0] : null);
       setInternshipStartDate(sDate);
+      setInternshipEndDate(approvedRequest?.internship_end_date || null);
 
       if (!isInternshipStarted && !isInternshipCompleted) {
-        setMessage('ยังไม่สามารถใช้งานรายงานประจำวันได้ กรุณารอให้ผู้ดูแลระบบกดเริ่มฝึกงานก่อน');
         return;
-      }
-      if (isInternshipCompleted) {
-        setMessage('การฝึกงานของคุณเสร็จสมบูรณ์เรียบร้อยแล้ว');
       }
 
       // Load checkins from API
@@ -189,6 +212,27 @@ const StudentCheckInPage = () => {
     });
     return s;
   }, [entries]);
+
+  // สถิติการปฏิบัติงาน 4 ช่อง: ตรงเวลา / ลงย้อนหลัง / ลา / ขาดบันทึก
+  const attendance = useMemo(() => {
+    const a = { onTime: 0, backfill: 0, leave: 0, missing: 0 };
+    entries.forEach((e) => {
+      if (['sick', 'personal'].includes(e.status)) a.leave += 1;
+      else if (e.status === 'holiday') return;
+      else if (isBackfillEntry(e)) a.backfill += 1;
+      else a.onTime += 1;
+    });
+    // ขาดบันทึก = วันทำการ (จ.-ศ. ไม่รวมวันหยุด) ตั้งแต่วันเริ่มฝึกถึงเมื่อวาน (หรือวันสิ้นสุดถ้ามาก่อน) ที่ไม่มีรายงาน
+    const start = toYMD(internshipStartDate);
+    if (start) {
+      const yesterday = addDays(todayDate, -1);
+      const end = toYMD(internshipEndDate);
+      const until = end && end < yesterday ? end : yesterday;
+      a.missing = listWorkingDays(start, until, getHolidaySet()).filter((d) => !entriesByDate[d]).length;
+    }
+    return a;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, entriesByDate, internshipStartDate, internshipEndDate, todayDate, holidayVersion]);
 
   const clearSignature = () => {
     if (sigCanvas.current) {
@@ -342,59 +386,63 @@ const StudentCheckInPage = () => {
           minWidth: 0,
         }}
       >
-        <header className="checkin-hero">
-          <div className="checkin-hero-icon" aria-hidden="true">
-            <CalendarDays className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="checkin-hero-title">บันทึกรายงานประจำวัน</h1>
-            <p className="checkin-hero-sub">เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน</p>
-          </div>
-        </header>
+        {!canCheckIn ? (
+          <DailyReportLockedCard
+            requestStatus={currentRequestStatus}
+            isCompleted={['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'].includes(currentRequestStatus)}
+          />
+        ) : (
+          <div className="content-wrapper max-w-7xl mx-auto w-full overflow-x-hidden">
+            {/* ส่วนหัวหน้าเมื่อเปิดใช้งานรายงานประจำวัน */}
+            <div
+              className="bg-[#FAFAFD] border border-[#E9E5F5] rounded-2xl p-5 md:p-6 mb-5 flex items-center gap-3.5"
+              style={{ boxShadow: '0 4px 24px -2px rgba(76, 29, 149, 0.06)' }}
+            >
+              <div className="w-10 h-10 rounded-xl bg-purple-100/70 text-purple-800 flex items-center justify-center shrink-0">
+                <CalendarDays className="w-5 h-5 text-purple-800" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg md:text-xl font-bold text-slate-800 leading-snug m-0">
+                  บันทึกรายงานประจำวัน
+                </h1>
+                <p className="text-xs md:text-sm text-slate-500 m-0 mt-0.5">
+                  เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน
+                </p>
+              </div>
+            </div>
 
-        <div className="content-wrapper max-w-5xl mx-auto w-full overflow-x-hidden">
-          {!canCheckIn ? (
-            ['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'].includes(currentRequestStatus) ? (
-              <div className="checkin-card">
-                <h3>การฝึกงานเสร็จสิ้นแล้ว</h3>
-                <Box sx={{ mt: 1, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" color="text.secondary">สถานะคำร้องปัจจุบัน:</Typography>
-                  <StatusBadge status={currentRequestStatus} />
-                </Box>
-                <p>คุณได้ผ่านการฝึกงานเรียบร้อยแล้ว ไม่จำเป็นต้องรายงานประจำวันอีกต่อไป</p>
-                <div className="checkin-actions" style={{ marginTop: '1.25rem' }}>
-                  <Link to="/dashboard/my-requests" style={{ textDecoration: 'none' }}>
-                    <ModernButton customVariant="primary">ไปที่คำร้องของฉัน</ModernButton>
-                  </Link>
-                </div>
-                {message && <div className="checkin-message" style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }}>{message}</div>}
+            {/* Notice Banner */}
+            <div className="checkin-notice">
+              <InformationCircleIcon className="checkin-notice-icon" />
+              <div className="min-w-0">
+                <p className="checkin-notice-title">ข้อแนะนำการเช็คชื่อรายงานประจำวัน</p>
+                <p className="checkin-notice-text">คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา <strong>07:00 น.</strong></p>
               </div>
-            ) : (
-              <div className="checkin-card">
-                <h3>ยังไม่สามารถรายงานประจำวันได้</h3>
-                <Box sx={{ mt: 1, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" color="text.secondary">สถานะคำร้องปัจจุบัน:</Typography>
-                  <StatusBadge status={currentRequestStatus} />
-                </Box>
-                <p>หน้านี้จะใช้งานได้เมื่อผู้ดูแลระบบกด "เริ่มฝึกงาน" ให้คุณแล้วเท่านั้น</p>
-                <div className="checkin-actions" style={{ marginTop: '1.25rem' }}>
-                  <Link to="/dashboard/my-requests" style={{ textDecoration: 'none' }}>
-                    <ModernButton customVariant="primary">ไปที่คำร้องของฉัน</ModernButton>
-                  </Link>
-                </div>
-                {message && <div className="checkin-message">{message}</div>}
-              </div>
-            )
-          ) : (
-            <>
-              {/* Notice Banner */}
-              <div className="checkin-notice">
-                <InformationCircleIcon className="checkin-notice-icon" />
-                <div className="min-w-0">
-                  <p className="checkin-notice-title">ข้อแนะนำการเช็คชื่อรายงานประจำวัน</p>
-                  <p className="checkin-notice-text">คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา</p>
-                </div>
-              </div>
+            </div>
+
+            {/* สรุปสถิติการปฏิบัติงาน */}
+            <div className="checkin-stats">
+              {[
+                { key: 'onTime', label: 'บันทึกตรงเวลา', value: attendance.onTime, Icon: CheckCircle2, tone: 'green' },
+                { key: 'backfill', label: 'ลงย้อนหลัง / ช้า', value: attendance.backfill, Icon: Clock, tone: 'amber' },
+                { key: 'leave', label: 'ลางาน', value: attendance.leave, Icon: CalendarDays, tone: 'violet' },
+                {
+                  key: 'missing', label: 'ขาดบันทึก', value: attendance.missing, Icon: XCircle, tone: 'red',
+                  hint: 'วันทำการ (จ.-ศ. ไม่รวมวันหยุด) ที่ผ่านมาแล้วแต่ยังไม่มีรายงาน',
+                },
+              ].map((stat) => {
+                const StatIcon = stat.Icon;
+                return (
+                  <div key={stat.key} className={`checkin-stat checkin-stat-${stat.tone}`} title={stat.hint}>
+                    <span className="checkin-stat-icon" aria-hidden="true"><StatIcon className="w-5 h-5" /></span>
+                    <div className="min-w-0">
+                      <p className="checkin-stat-label">{stat.label}</p>
+                      <p className="checkin-stat-value">{stat.value}<span>วัน</span></p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
               {/* Dashboard grid: calendar (main) + summary stats (rail) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
@@ -502,11 +550,19 @@ const StudentCheckInPage = () => {
                           <TableRow key={entry.id} hover>
                             <TableCell sx={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
                               {formatDateDisplay(entry.date)}
+                              {entry.submittedAt && (
+                                <div className={`checkin-submitted ${isBackfillEntry(entry) ? 'is-late' : ''}`}>
+                                  บันทึกเมื่อ {formatSubmittedAt(entry.submittedAt)}
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                {STATUS_LABEL[entry.status] || entry.status}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                  {STATUS_LABEL[entry.status] || entry.status}
+                                </span>
+                                {isBackfillEntry(entry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
+                              </div>
                             </TableCell>
                             <TableCell>{entry.work_experience || entry.workExperience || entry.note || '-'}</TableCell>
                             <TableCell>
@@ -548,6 +604,16 @@ const StudentCheckInPage = () => {
                             {STATUS_LABEL[entry.status] || entry.status}
                           </span>
                         </div>
+                        {(entry.submittedAt || isBackfillEntry(entry)) && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            {isBackfillEntry(entry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
+                            {entry.submittedAt && (
+                              <span className={`checkin-submitted ${isBackfillEntry(entry) ? 'is-late' : ''}`}>
+                                บันทึกเมื่อ {formatSubmittedAt(entry.submittedAt)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {(entry.work_experience || entry.workExperience || entry.note) && (
                           <p className="m-0 mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2 break-words">
                             {entry.work_experience || entry.workExperience || entry.note}
@@ -575,9 +641,8 @@ const StudentCheckInPage = () => {
                   )}
                 </div>
               </Box>
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </Box>
 
       {/* Day Modal */}
@@ -632,7 +697,13 @@ const StudentCheckInPage = () => {
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-bold ${STATUS_CHIP_CLASS[selectedEntry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                     {STATUS_LABEL[selectedEntry.status] || selectedEntry.status}
                   </span>
+                  {isBackfillEntry(selectedEntry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
                 </div>
+                {selectedEntry.submittedAt && (
+                  <div className={`checkin-submitted ${isBackfillEntry(selectedEntry) ? 'is-late' : ''}`}>
+                    บันทึกเมื่อ {formatSubmittedAt(selectedEntry.submittedAt)}
+                  </div>
+                )}
                 {(selectedEntry.work_experience || selectedEntry.workExperience) && (
                   <div>
                     <div className="text-xs font-medium text-slate-500 mb-1">กิจกรรมที่ทำ</div>

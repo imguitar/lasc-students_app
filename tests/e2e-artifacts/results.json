@@ -1,0 +1,897 @@
+{
+  "ctx": {
+    "startedAt": "2026-11-06T15:52:21.802Z",
+    "today": "2026-11-06",
+    "authNote": "Student and admin tokens minted with the server JWT secret (their passwords are not part of the fixture). Advisor uses real login.",
+    "activeHolidaysLoaded": 36,
+    "roundId": 1,
+    "requestId": 1,
+    "advisorFanout": 5,
+    "advisorUserId": "2266",
+    "advisorName": "ศุภชัย ทองสุข",
+    "paymentId": 1,
+    "stats": {
+      "before": {
+        "onTime": 0,
+        "backfill": 0,
+        "leave": 0,
+        "total": 0
+      },
+      "after": {
+        "onTime": 1,
+        "backfill": 1,
+        "leave": 0,
+        "total": 2
+      }
+    },
+    "cwieRequestId": 2,
+    "finishedAt": "2026-11-06T15:52:38.417Z",
+    "allMails": [
+      {
+        "seq": 1,
+        "messageId": "e2e-0001",
+        "at": "2026-11-06T15:52:21.913Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ยื่นคำร้องสำเร็จ (รออาจารย์ที่ปรึกษาอนุมัติ)",
+        "htmlFile": "/tmp/e2e/mails/e2e-0001.html",
+        "htmlBytes": 11527,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 2,
+        "messageId": "e2e-0002",
+        "at": "2026-11-06T15:52:21.921Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad030@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0002.html",
+        "htmlBytes": 11520,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 3,
+        "messageId": "e2e-0003",
+        "at": "2026-11-06T15:52:21.928Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad031@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0003.html",
+        "htmlBytes": 11520,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 4,
+        "messageId": "e2e-0004",
+        "at": "2026-11-06T15:52:21.937Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad032@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0004.html",
+        "htmlBytes": 11520,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 5,
+        "messageId": "e2e-0005",
+        "at": "2026-11-06T15:52:21.958Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad033@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0005.html",
+        "htmlBytes": 11520,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 6,
+        "messageId": "e2e-0006",
+        "at": "2026-11-06T15:52:21.971Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad034@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0006.html",
+        "htmlBytes": 11520,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 7,
+        "messageId": "e2e-0007",
+        "at": "2026-11-06T15:52:28.227Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "admin@lasc.ac.th",
+        "subject": "[LASC Admin] บริษัท ตัวอย่างเทคโนโลยี จำกัด ตอบรับคำร้องของ นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0007.html",
+        "htmlBytes": 11568,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 8,
+        "messageId": "e2e-0008",
+        "at": "2026-11-06T15:52:30.112Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ออกฝึกงาน",
+        "htmlFile": "/tmp/e2e/mails/e2e-0008.html",
+        "htmlBytes": 12855,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 9,
+        "messageId": "e2e-0009",
+        "at": "2026-11-06T15:52:32.071Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "apichatkrompan02668@gmail.com",
+        "subject": "[LASC] ขอความอนุเคราะห์ประเมินผลการฝึกงานของ นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0009.html",
+        "htmlBytes": 12710,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 10,
+        "messageId": "e2e-0010",
+        "at": "2026-11-06T15:52:33.934Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ฝึกงานเสร็จแล้ว",
+        "htmlFile": "/tmp/e2e/mails/e2e-0010.html",
+        "htmlBytes": 12158,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 11,
+        "messageId": "e2e-0011",
+        "at": "2026-11-06T15:52:33.959Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "admin@lasc.ac.th",
+        "subject": "[LASC Admin] สถานประกอบการได้ประเมินผลการฝึกงานของ นายอภิชาติ กรมพันธ์ เรียบร้อยแล้ว",
+        "htmlFile": "/tmp/e2e/mails/e2e-0011.html",
+        "htmlBytes": 10842,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 12,
+        "messageId": "e2e-0012",
+        "at": "2026-11-06T15:52:33.991Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] แจ้งเตือน: สถานประกอบการส่งผลการประเมินการฝึกงานแล้ว",
+        "htmlFile": "/tmp/e2e/mails/e2e-0012.html",
+        "htmlBytes": 8102,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 13,
+        "messageId": "e2e-0013",
+        "at": "2026-11-06T15:52:36.538Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — เสร็จสิ้นสมบูรณ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0013.html",
+        "htmlBytes": 12947,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 14,
+        "messageId": "e2e-0014",
+        "at": "2026-11-06T15:52:38.367Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "stu6610014111@sskru.ac.th",
+        "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #2 — ยื่นคำร้องสำเร็จ (รออาจารย์ที่ปรึกษาอนุมัติ)",
+        "htmlFile": "/tmp/e2e/mails/e2e-0014.html",
+        "htmlBytes": 11512,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 15,
+        "messageId": "e2e-0015",
+        "at": "2026-11-06T15:52:38.381Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad030@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0015.html",
+        "htmlBytes": 11505,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 16,
+        "messageId": "e2e-0016",
+        "at": "2026-11-06T15:52:38.393Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad031@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0016.html",
+        "htmlBytes": 11505,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 17,
+        "messageId": "e2e-0017",
+        "at": "2026-11-06T15:52:38.400Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad032@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0017.html",
+        "htmlBytes": 11505,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 18,
+        "messageId": "e2e-0018",
+        "at": "2026-11-06T15:52:38.408Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad033@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0018.html",
+        "htmlBytes": 11505,
+        "hasHtmlTag": true
+      },
+      {
+        "seq": 19,
+        "messageId": "e2e-0019",
+        "at": "2026-11-06T15:52:38.415Z",
+        "via": "gmail-api(captured)",
+        "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+        "to": "ad034@lasc.ac.th",
+        "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+        "htmlFile": "/tmp/e2e/mails/e2e-0019.html",
+        "htmlBytes": 11505,
+        "hasHtmlTag": true
+      }
+    ]
+  },
+  "results": [
+    {
+      "step": "1.1 คำนวณวันสิ้นสุดอัตโนมัติ (preview)",
+      "api": "GET /internship-rounds/preview-end-date",
+      "expected": "endDate = 2026-12-25 (คำนวณแยก: 2026-11-02, 300 ชม., 38 วันทำการ, หักเสาร์-อาทิตย์และวันหยุด 36 วัน)",
+      "actual": "HTTP 200, endDate = 2026-12-25, skipped holidays = [\"2026-12-07\",\"2026-12-10\"]",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "1.2 แอดมินสร้างรอบฝึกงาน",
+      "api": "POST /admin/internship-rounds",
+      "expected": "201 และ endDate ฝั่งเซิร์ฟเวอร์ = 2026-12-25",
+      "actual": "HTTP 201, round #1, endDate = 2026-12-25",
+      "status": "PASS",
+      "note": "endDate อ่านจาก DATE column ผ่าน mysql2 อาจเลื่อนตามเขตเวลา จึงตรวจซ้ำในขั้น 1.3"
+    },
+    {
+      "step": "1.3 รอบเปิดรับและอยู่ในช่วงเวลา",
+      "api": "GET /internship-rounds/active",
+      "expected": "รอบที่สร้างอยู่ในรายการ isActive และ isInPeriod = true",
+      "actual": "HTTP 200, found = true, isInPeriod = true",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "2.1 นักศึกษายื่นคำร้อง (การฝึกงานทั่วไป)",
+      "api": "POST /requests",
+      "expected": "201 และสถานะเริ่มต้น = รออาจารย์ที่ปรึกษาอนุมัติ (แม้ส่ง status อื่นมา)",
+      "actual": "HTTP 201, request #1, status = รออาจารย์ที่ปรึกษาอนุมัติ, company_email = apichatkrompan02668@gmail.com",
+      "status": "PASS",
+      "note": "ส่ง status = อนุมัติแล้ว มาด้วยเพื่อทดสอบว่าเซิร์ฟเวอร์ไม่เชื่อค่าจากนักศึกษา"
+    },
+    {
+      "step": "2.2 Email Check 1: ยืนยันการยื่นถึงนักศึกษา",
+      "api": "mailer.sendStatusNotifyEmail",
+      "expected": "มีอีเมล 1 ฉบับถึงอีเมลนักศึกษาในระบบ",
+      "actual": "1 ฉบับ → stu6610014111@sskru.ac.th | subject: [LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ยื่นคำร้องสำเร็จ (รออาจารย์ที่ปรึกษาอนุมัติ)",
+      "status": "PASS",
+      "note": "อีเมลในฐานข้อมูลคือ 6610014111@student.sskru.ac.th ไม่ใช่ stu6610014111@sskru.ac.th ตามสเปก"
+    },
+    {
+      "step": "2.3 Email Check 1: แจ้งอาจารย์ที่ปรึกษา",
+      "api": "mailer.notifyAdvisorsNewRequest",
+      "expected": "อาจารย์ AD034 ได้รับแจ้งคำร้องใหม่",
+      "actual": "ส่งถึงอาจารย์ 5 คน (รวม AD034: ใช่)",
+      "status": "PASS",
+      "note": "ระบบส่งหาอาจารย์ทุกคนในสาขา ไม่ได้เลือกเฉพาะ AD034 และใช้อีเมล ad034@lasc.ac.th ไม่ใช่ apichatkrompan75@gmail.com"
+    },
+    {
+      "step": "2.4 Email Check 1: แจ้งสถานประกอบการ (พี่เลี้ยง)",
+      "api": "ไม่มีจุดส่งในโค้ด",
+      "expected": "มีอีเมลถึง apichatkrompan02668@gmail.com",
+      "actual": "0 ฉบับ",
+      "status": "FAIL",
+      "note": "ระบบไม่ได้ส่งอีเมลถึงสถานประกอบการตอนยื่นคำร้อง ลิงก์ตอบรับออกผ่าน QR/ลิงก์ที่แอดมินคัดลอกไปส่งเองในขั้น 3"
+    },
+    {
+      "step": "2.5 [Security] นักศึกษาเรียก PATCH สถานะคำร้องตัวเอง",
+      "api": "PATCH /requests/:id/status (student token)",
+      "expected": "403 ห้ามนักศึกษาเปลี่ยนสถานะ",
+      "actual": "HTTP 200 อัปเดตสถานะสำเร็จ",
+      "status": "FAIL",
+      "note": "ส่งค่าเดิมเพื่อไม่ให้กระทบ flow"
+    },
+    {
+      "step": "3.1 อาจารย์ล็อกอิน AD034 / Password123",
+      "api": "POST /auth/login",
+      "expected": "200 และได้ JWT role = advisor",
+      "actual": "HTTP 200, token = ได้รับ, role = advisor, id = 2266",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.2 อาจารย์เห็นคำร้องของ 6610014111",
+      "api": "GET /requests (advisor)",
+      "expected": "คำร้องปรากฏในรายการของอาจารย์",
+      "actual": "HTTP 200, รายการทั้งหมด 1, พบคำร้อง #1 = true",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.3 อาจารย์อนุมัติคำร้อง (payload เดียวกับปุ่มบนแดชบอร์ดอาจารย์)",
+      "api": "PATCH /requests/:id/status",
+      "expected": "200 และสถานะ = รอผู้ดูแลระบบอนุมัติ",
+      "actual": "HTTP 200, status = รอผู้ดูแลระบบอนุมัติ",
+      "status": "PASS",
+      "note": "ระบบไม่มีช่องแนบลายมือชื่ออาจารย์ในขั้นนี้"
+    },
+    {
+      "step": "3.4 Email Check 2: แจ้งนักศึกษาว่าอาจารย์อนุมัติ",
+      "api": "mailer.notifyStudentStatusChange",
+      "expected": "มีอีเมลถึงนักศึกษา",
+      "actual": "0 ฉบับ",
+      "status": "FAIL",
+      "note": "สถานะ รอผู้ดูแลระบบอนุมัติ ไม่อยู่ใน shouldEmailStudentForStatus จึงไม่ส่ง"
+    },
+    {
+      "step": "3.5 Email Check 2: แจ้งแอดมินให้ตรวจสอบ",
+      "api": "mailer.notifyAdminsPendingReview",
+      "expected": "มีอีเมลถึงแอดมิน",
+      "actual": "0 ฉบับ",
+      "status": "FAIL",
+      "note": "backend ส่งเฉพาะเมื่อ status = รอผู้ดูแลระบบตรวจสอบ แต่ปุ่มบนแดชบอร์ดอาจารย์ส่ง รอผู้ดูแลระบบอนุมัติ"
+    },
+    {
+      "step": "3.6 แอดมินอนุมัติและแนบหนังสือขอความอนุเคราะห์",
+      "api": "PATCH /requests/:id/status (admin)",
+      "expected": "200 และสถานะ = รอสถานประกอบการตอบรับ",
+      "actual": "HTTP 200, status = รอสถานประกอบการตอบรับ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.7 แอดมินออกลิงก์ตอบรับของสถานประกอบการ",
+      "api": "POST /requests/:id/response-qr",
+      "expected": "200 และได้ token แบบใช้ครั้งเดียว",
+      "actual": "HTTP 200, token = ได้รับ (64 ตัวอักษร), expiresAt = 2026-11-13T15:52:28.167Z",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.8 สถานประกอบการเปิดลิงก์ตอบรับ",
+      "api": "GET /public/requests/:id?responseToken",
+      "expected": "200",
+      "actual": "HTTP 200",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.9 ตอบรับโดยไม่ลงนาม (negative)",
+      "api": "PATCH /public/requests/:id/status",
+      "expected": "400 ต้องลงนามหรือแนบเอกสาร",
+      "actual": "HTTP 400 กรุณากรอกชื่อ-ตำแหน่งผู้ลงนาม ลงนามลายมือชื่อ หรือแนบไฟล์เอกสารตอบรับจากสถานประกอบการ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.10 สถานประกอบการตอบรับพร้อมลายมือชื่อ",
+      "api": "PATCH /public/requests/:id/status",
+      "expected": "200 และสถานะ = สถานประกอบการตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)",
+      "actual": "HTTP 200, status = สถานประกอบการตอบรับแล้ว (รอผู้ดูแลระบบกำหนดวัน)",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "3.11 แจ้งแอดมินเรื่องผลตอบรับ",
+      "api": "mailer.notifyAdminsCompanyResponse",
+      "expected": "มีอีเมลถึงแอดมิน",
+      "actual": "1 ฉบับ → admin@lasc.ac.th",
+      "status": "PASS",
+      "note": "ผู้รับมาจาก ADMIN_EMAIL และบัญชี role=admin ไม่ใช่ apichatkrompan471@gmail.com ตามสเปก"
+    },
+    {
+      "step": "3.12 ใช้ลิงก์ตอบรับซ้ำ (negative)",
+      "api": "PATCH /public/requests/:id/status",
+      "expected": "403 ลิงก์ใช้ได้ครั้งเดียว",
+      "actual": "HTTP 403",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "4.1 นักศึกษาอัปโหลดสลิป",
+      "api": "POST /payments",
+      "expected": "201 สถานะสลิป = pending",
+      "actual": "HTTP 201, payment #1, status = pending",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "4.2 [Security] นักศึกษาอนุมัติสลิปตัวเอง",
+      "api": "PATCH /payments/:id/approve (student token)",
+      "expected": "403",
+      "actual": "HTTP 200, status = approved",
+      "status": "FAIL",
+      "note": ""
+    },
+    {
+      "step": "4.3 แอดมินอนุมัติสลิป",
+      "api": "PATCH /payments/:id/approve (admin)",
+      "expected": "200 สถานะ = approved",
+      "actual": "HTTP 200, status = approved",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "4.4 รายงานประจำวันยังล็อกก่อนเริ่มฝึก (negative)",
+      "api": "POST /checkins",
+      "expected": "400 คำร้องยังไม่ถึงช่วงออกฝึกงาน",
+      "actual": "HTTP 400 ยังไม่สามารถเช็คชื่อได้ — คำร้องยังไม่ถึงช่วงออกฝึกงาน",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "4.5 แอดมินกดเริ่มฝึกงาน",
+      "api": "PATCH /requests/:id/status (admin, payload เดียวกับหน้าภาพรวมคำร้อง)",
+      "expected": "200, สถานะ = ออกฝึกงาน, วันเริ่ม = 2026-11-02",
+      "actual": "HTTP 200, status = ออกฝึกงาน, start = 2026-11-02, end = 2026-12-25",
+      "status": "PASS",
+      "note": "ระบบไม่ได้ผูกการอนุมัติสลิปกับการเริ่มฝึกงาน แอดมินเริ่มฝึกได้แม้ยังไม่มีสลิป"
+    },
+    {
+      "step": "4.6 Email Check 3: แจ้งเริ่มฝึกงานถึงนักศึกษา",
+      "api": "mailer.notifyStudentStatusChange",
+      "expected": "มีอีเมล 1 ฉบับถึงนักศึกษา",
+      "actual": "1 ฉบับ | subject: [LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ออกฝึกงาน",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.1 บันทึกรายงานตรงวัน",
+      "api": "POST /checkins",
+      "expected": "201",
+      "actual": "HTTP 201 บันทึกการเช็คชื่อเรียบร้อยแล้ว",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.2 บันทึกย้อนหลังโดยไม่มีลายเซ็นพี่เลี้ยง (negative)",
+      "api": "POST /checkins",
+      "expected": "400 ต้องมีลายเซ็นพี่เลี้ยง",
+      "actual": "HTTP 400 การบันทึกย้อนหลังจำเป็นต้องได้รับการลงนามรับรองจากพี่เลี้ยงสถานประกอบการ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.3 บันทึกย้อนหลัง 2026-11-04 พร้อมลายเซ็นพี่เลี้ยง",
+      "api": "POST /checkins",
+      "expected": "201",
+      "actual": "HTTP 201 บันทึกการเช็คชื่อเรียบร้อยแล้ว",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.4 บันทึกซ้ำวันเดิม (negative)",
+      "api": "POST /checkins",
+      "expected": "409",
+      "actual": "HTTP 409",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.5 บันทึกล่วงหน้า (negative)",
+      "api": "POST /checkins",
+      "expected": "400",
+      "actual": "HTTP 400",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.6 บันทึกก่อนวันเริ่มฝึก (negative)",
+      "api": "POST /checkins",
+      "expected": "400",
+      "actual": "HTTP 400 ไม่สามารถบันทึกรายงานก่อนวันเริ่มฝึกงานได้ (วันเริ่มฝึกงานคือ: 2026-11-02)",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.7 ธงตรงเวลา: รายงานวันนี้",
+      "api": "GET /checkins",
+      "expected": "isBackfill = 0 (เทียบ is_late_submission === false), status = present (เทียบ attendance_status)",
+      "actual": "isBackfill = 0, status = present, submittedAt = 2026-11-06 22:52:31",
+      "status": "PASS",
+      "note": "ชื่อฟิลด์จริงคือ isBackfill และ status ไม่ใช่ is_late_submission และ attendance_status"
+    },
+    {
+      "step": "5.8 ธงย้อนหลัง: รายงานสองวันก่อน",
+      "api": "GET /checkins",
+      "expected": "isBackfill = 1 และมี submittedAt จริง",
+      "actual": "isBackfill = 1, submittedAt = 2026-11-06 22:52:31",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "5.9 การ์ดสถิติ: ตรงเวลา +1 และย้อนหลัง +1",
+      "api": "สูตรเดียวกับ StudentCheckInPage",
+      "expected": "ตรงเวลา 0→1, ย้อนหลัง 0→1",
+      "actual": "ตรงเวลา 0→1, ย้อนหลัง 0→1, ลา 0",
+      "status": "PASS",
+      "note": "คำนวณจากข้อมูล API ด้วยสูตรเดียวกับหน้าจอ ช่องขาดขึ้นกับวันทำการที่ผ่านมาและไม่ได้ตรวจในขั้นนี้"
+    },
+    {
+      "step": "6.1 สถานประกอบการประเมินก่อนวันสิ้นสุดฝึก (negative)",
+      "api": "POST /public/evaluate/:id",
+      "expected": "400 ยังไม่ถึงวันสิ้นสุด",
+      "actual": "HTTP 400 ไม่สามารถส่งแบบประเมินก่อนกำหนดได้ กรุณาประเมินตั้งแต่วันที่ 25 ธันวาคม 2569 เป็นต้นไป",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.2 แอดมินมอบหมายผู้นิเทศ (payload เดียวกับหน้าภาพรวมคำร้อง)",
+      "api": "PATCH /requests/:id/appointment",
+      "expected": "200 มอบหมายสำเร็จ",
+      "actual": "HTTP 400 โปรดระบุวันที่นิเทศให้ตรงกับวันที่ในเอกสารราชการ/หนังสือนิเทศ",
+      "status": "FAIL",
+      "note": "หน้าจอส่งแค่ advisorId และ advisorName ไม่มีวันที่"
+    },
+    {
+      "step": "6.3 นัดนิเทศด้วย payload แบบหน้า AdvisorSupervisionPage (advisor_id ไม่มีชื่อ)",
+      "api": "PATCH /requests/:id/appointment",
+      "expected": "200",
+      "actual": "HTTP 500 Table 'lascstudent.users' doesn't exist",
+      "status": "FAIL",
+      "note": ""
+    },
+    {
+      "step": "6.4 แอดมินกำหนดผู้นิเทศ AD034 พร้อมวันนิเทศ",
+      "api": "PATCH /requests/:id/appointment",
+      "expected": "200",
+      "actual": "HTTP 200 บันทึกวันนัดหมายและอาจารย์นิเทศสำเร็จ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.5 [จำลองเวลา] แอดมินปรับวันสิ้นสุดฝึกเป็นวันนี้",
+      "api": "PATCH /requests/:id/internship-period",
+      "expected": "200 (จำเป็นต่อการทดสอบขั้นประเมินในวันเดียว)",
+      "actual": "HTTP 200 บันทึกกำหนดวันฝึกงานสำเร็จ",
+      "status": "PASS",
+      "note": "ช่วงจริง 2026-11-02 ถึง 2026-12-25 ยาวเกินกว่าจะรอได้"
+    },
+    {
+      "step": "6.6 อาจารย์ AD034 บันทึกผลนิเทศรอบที่ 1",
+      "api": "POST /advisor-evaluations/request/:id",
+      "expected": "201 และส่งลิงก์แบบประเมินถึงพี่เลี้ยง",
+      "actual": "HTTP 201, emailSent = true, recipient = apichatkrompan02668@gmail.com",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.7 ลิงก์แบบประเมินถึงพี่เลี้ยง",
+      "api": "emailService.sendCompanyEvaluationEmail",
+      "expected": "มีอีเมลถึง apichatkrompan02668@gmail.com",
+      "actual": "1 ฉบับ | subject: [LASC] ขอความอนุเคราะห์ประเมินผลการฝึกงานของ นายอภิชาติ กรมพันธ์",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.8 บันทึกผลนิเทศซ้ำ (negative)",
+      "api": "POST /advisor-evaluations/request/:id",
+      "expected": "409",
+      "actual": "HTTP 409",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.9 สถานประกอบการส่งแบบประเมิน (ไม่มี token)",
+      "api": "POST /public/evaluate/:id",
+      "expected": "201",
+      "actual": "HTTP 201 บันทึกและส่งผลการประเมินเรียบร้อยแล้ว",
+      "status": "PASS",
+      "note": "endpoint นี้รับข้อมูลโดยไม่ต้องมี token ใด ๆ"
+    },
+    {
+      "step": "6.10 Email Check 4: แจ้งนักศึกษาเรื่องผลประเมินและสิ้นสุดการฝึก",
+      "api": "mailer.sendStudentEvaluationNoticeEmail + notifyStudentStatusChange",
+      "expected": "มีอีเมลถึงนักศึกษาอย่างน้อย 1 ฉบับ",
+      "actual": "2 ฉบับ: [LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ฝึกงานเสร็จแล้ว | [LASC] แจ้งเตือน: สถานประกอบการส่งผลการประเมินการฝึกงานแล้ว",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.11 แจ้งแอดมินว่ามีผลประเมินใหม่",
+      "api": "mailer.sendAdminEvaluationAlertEmail",
+      "expected": "มีอีเมลถึงแอดมิน",
+      "actual": "1 ฉบับ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.12 ประเมินครบสองฝ่ายแล้วปิดสถานะอัตโนมัติ",
+      "api": "GET /requests/:id",
+      "expected": "สถานะ = ฝึกงานเสร็จแล้ว",
+      "actual": "HTTP 200, status = ฝึกงานเสร็จแล้ว",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "6.13 อาจารย์ตัดเกรด (S / ผ่าน)",
+      "api": "-",
+      "expected": "มีช่องบันทึกเกรด",
+      "actual": "ไม่พบ endpoint หรือคอลัมน์สำหรับเกรดในระบบ",
+      "status": "SKIPPED",
+      "note": "ฟีเจอร์ยังไม่มีในระบบ"
+    },
+    {
+      "step": "7.1 ตรวจชั่วโมงฝึกครบ 300",
+      "api": "GET /checkins (admin)",
+      "expected": ">= 300 ชั่วโมง",
+      "actual": "2 รายงาน x 8 ชม. = 16 ชั่วโมง",
+      "status": "BLOCKED",
+      "note": "ทดสอบได้แค่ 2 วันทำการ ไม่สามารถสะสมครบ 300 ชั่วโมงภายในการทดสอบ และระบบไม่มีจุดตรวจชั่วโมงอัตโนมัติก่อนปิดงาน"
+    },
+    {
+      "step": "7.2 แอดมินปิดสถานะสุดท้าย",
+      "api": "PATCH /requests/:id/status (admin)",
+      "expected": "200 และสถานะ = เสร็จสิ้นสมบูรณ์",
+      "actual": "HTTP 200, status = เสร็จสิ้นสมบูรณ์",
+      "status": "PASS",
+      "note": "ไม่มีปุ่มนี้บนหน้าจอ ใช้ API โดยตรง และชื่อสถานะในระบบคือ เสร็จสิ้นสมบูรณ์"
+    },
+    {
+      "step": "7.3 แจ้งสถานะสุดท้ายถึงนักศึกษา",
+      "api": "mailer.notifyStudentStatusChange",
+      "expected": "มีอีเมลถึงนักศึกษา",
+      "actual": "1 ฉบับ",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "R2.1 ยื่นคำร้องสหกิจศึกษา (CWIE)",
+      "api": "POST /requests",
+      "expected": "201 และ internshipType = cwie",
+      "actual": "HTTP 201, request #2, internshipType = cwie",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "step": "R2.2 คำนวณช่วงฝึก CWIE 16 สัปดาห์",
+      "api": "GET /internship-rounds/preview-end-date (640 ชม.)",
+      "expected": "ระบบมีรูปแบบคำนวณแบบสัปดาห์สำหรับ CWIE",
+      "actual": "HTTP 200, endDate = 2027-02-25 (คำนวณจากชั่วโมงเท่านั้น)",
+      "status": "SKIPPED",
+      "note": "ไม่มีตรรกะเฉพาะ CWIE ฝั่งเซิร์ฟเวอร์ ใช้ชั่วโมง 640 = 16 สัปดาห์ x 5 วัน x 8 ชม. แทน"
+    },
+    {
+      "step": "R2.3 ยื่นคำร้องซ้อนขณะมีคำร้องอื่นอยู่",
+      "api": "POST /requests",
+      "expected": "ระบบควรป้องกันคำร้องซ้อน",
+      "actual": "สร้างคำร้องที่ 2 ได้ (HTTP 201)",
+      "status": "FAIL",
+      "note": "ไม่มีการตรวจคำร้องที่ยังเปิดอยู่ของนักศึกษาคนเดียวกัน"
+    }
+  ],
+  "emails": [
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "stu6610014111@sskru.ac.th",
+      "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ยื่นคำร้องสำเร็จ (รออาจารย์ที่ปรึกษาอนุมัติ)",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0001",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11527,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "ad030@lasc.ac.th",
+      "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0002",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11520,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "ad031@lasc.ac.th",
+      "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0003",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11520,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "ad032@lasc.ac.th",
+      "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0004",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11520,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "ad033@lasc.ac.th",
+      "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0005",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11520,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "ยื่นคำร้องสำเร็จ (Email Check 1)",
+      "to": "ad034@lasc.ac.th",
+      "subject": "[LASC] มีคำร้องฝึกงานใหม่รออนุมัติ — นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0006",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11520,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับอีเมลยืนยัน, อาจารย์ในสาขาได้รับแจ้งคำร้องใหม่, สถานประกอบการ (พี่เลี้ยง) ได้รับแจ้ง"
+    },
+    {
+      "event": "อาจารย์อนุมัติ (Email Check 2)",
+      "to": "-",
+      "subject": "-",
+      "status": "NOT SENT",
+      "messageId": "-",
+      "expectation": "นักศึกษาได้รับแจ้งว่าอาจารย์อนุมัติแล้ว และแอดมินได้รับแจ้งให้ตรวจสอบ"
+    },
+    {
+      "event": "แอดมินส่งต่อให้สถานประกอบการ",
+      "to": "-",
+      "subject": "-",
+      "status": "NOT SENT",
+      "messageId": "-",
+      "expectation": "ไม่มีข้อกำหนดในสเปก (บันทึกเพื่อ audit)"
+    },
+    {
+      "event": "สถานประกอบการตอบรับ",
+      "to": "admin@lasc.ac.th",
+      "subject": "[LASC Admin] บริษัท ตัวอย่างเทคโนโลยี จำกัด ตอบรับคำร้องของ นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0007",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 11568,
+      "hasHtmlTag": true,
+      "expectation": "แอดมินได้รับแจ้งผลตอบรับ"
+    },
+    {
+      "event": "เริ่มฝึกงาน (Email Check 3)",
+      "to": "stu6610014111@sskru.ac.th",
+      "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ออกฝึกงาน",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0008",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 12855,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับแจ้งเริ่มฝึกงาน"
+    },
+    {
+      "event": "อาจารย์บันทึกผลนิเทศ",
+      "to": "apichatkrompan02668@gmail.com",
+      "subject": "[LASC] ขอความอนุเคราะห์ประเมินผลการฝึกงานของ นายอภิชาติ กรมพันธ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0009",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 12710,
+      "hasHtmlTag": true,
+      "expectation": "พี่เลี้ยงได้รับลิงก์แบบประเมินผลการปฏิบัติงาน"
+    },
+    {
+      "event": "สถานประกอบการส่งแบบประเมิน (Email Check 4)",
+      "to": "stu6610014111@sskru.ac.th",
+      "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — ฝึกงานเสร็จแล้ว",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0010",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 12158,
+      "hasHtmlTag": true,
+      "expectation": "แอดมินได้รับแจ้ง, นักศึกษาได้รับแจ้งผลประเมินและการสิ้นสุดการฝึก"
+    },
+    {
+      "event": "สถานประกอบการส่งแบบประเมิน (Email Check 4)",
+      "to": "admin@lasc.ac.th",
+      "subject": "[LASC Admin] สถานประกอบการได้ประเมินผลการฝึกงานของ นายอภิชาติ กรมพันธ์ เรียบร้อยแล้ว",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0011",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 10842,
+      "hasHtmlTag": true,
+      "expectation": "แอดมินได้รับแจ้ง, นักศึกษาได้รับแจ้งผลประเมินและการสิ้นสุดการฝึก"
+    },
+    {
+      "event": "สถานประกอบการส่งแบบประเมิน (Email Check 4)",
+      "to": "stu6610014111@sskru.ac.th",
+      "subject": "[LASC] แจ้งเตือน: สถานประกอบการส่งผลการประเมินการฝึกงานแล้ว",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0012",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 8102,
+      "hasHtmlTag": true,
+      "expectation": "แอดมินได้รับแจ้ง, นักศึกษาได้รับแจ้งผลประเมินและการสิ้นสุดการฝึก"
+    },
+    {
+      "event": "ปิดการฝึกงาน",
+      "to": "stu6610014111@sskru.ac.th",
+      "subject": "[LASC] อัปเดตสถานะคำร้องฝึกงาน #1 — เสร็จสิ้นสมบูรณ์",
+      "status": "CAPTURED (not delivered)",
+      "messageId": "e2e-0013",
+      "from": "ระบบงานฝึกงาน LASC <e2e-sender@example.invalid>",
+      "htmlBytes": 12947,
+      "hasHtmlTag": true,
+      "expectation": "นักศึกษาได้รับแจ้งสถานะสุดท้าย"
+    }
+  ],
+  "issues": [
+    {
+      "severity": "Critical",
+      "title": "PATCH /api/requests/:id/status ไม่ตรวจบทบาทหรือเจ้าของคำร้อง",
+      "detail": "route ใช้แค่ authenticate โดยไม่มี authorize หรือการตรวจ state transition นักศึกษาที่ล็อกอินจึงเปลี่ยนสถานะคำร้องเป็นค่าใดก็ได้ (เช่น อนุมัติแล้ว หรือ ฝึกงานเสร็จแล้ว) ข้ามขั้นอาจารย์และแอดมินได้ ทดสอบด้วยการส่งค่าเดิมและได้ 200"
+    },
+    {
+      "severity": "Major",
+      "title": "อาจารย์อนุมัติจากแดชบอร์ดแล้วแอดมินไม่ได้รับอีเมล",
+      "detail": "AdvisorDashboardPage ตั้งสถานะ \"รอผู้ดูแลระบบอนุมัติ\" ส่วน RequestDetailsPage ตั้ง \"รอผู้ดูแลระบบตรวจสอบ\" แต่ requestRoutes.js เรียก notifyAdminsPendingReview เฉพาะ \"รอผู้ดูแลระบบตรวจสอบ\" อนุมัติจากแดชบอร์ดจึงไม่มีอีเมลถึงแอดมิน และสถานะสองชื่อทำให้ข้อมูลไม่สม่ำเสมอ"
+    },
+    {
+      "severity": "Minor",
+      "title": "นักศึกษาไม่ได้รับอีเมลเมื่ออาจารย์อนุมัติ",
+      "detail": "shouldEmailStudentForStatus ไม่รวมสถานะ รอผู้ดูแลระบบอนุมัติ / รอผู้ดูแลระบบตรวจสอบ นักศึกษาได้รับแค่แจ้งเตือนในแอป (ถ้ามี) ตรงข้ามกับความคาดหวังในสเปก"
+    },
+    {
+      "severity": "Critical",
+      "title": "นักศึกษาอนุมัติหลักฐานการชำระเงินของตัวเองได้",
+      "detail": "PATCH /api/payments/:id/approve และ /reject ใช้แค่ authenticate ไม่มี authorize(\"admin\") ทดสอบด้วย token นักศึกษาแล้วสถานะเปลี่ยนเป็น approved"
+    },
+    {
+      "severity": "Major",
+      "title": "ปุ่มมอบหมายผู้นิเทศในหน้าภาพรวมคำร้องใช้งานไม่ได้",
+      "detail": "AllRequestsOverviewPage ส่ง { advisorId, advisorName } แต่ handleSupervisionAppointment บังคับให้มี date จึงได้ 400 \"โปรดระบุวันที่นิเทศ...\" ทุกครั้ง"
+    },
+    {
+      "severity": "Major",
+      "title": "นัดนิเทศจากหน้าอาจารย์ล้มด้วย 500 (ค้นตาราง users ที่ไม่มีอยู่)",
+      "detail": "handleSupervisionAppointment เรียก \"SELECT name, username FROM users\" แต่ตารางจริงชื่อ user เมื่อส่ง advisor_id โดยไม่มี advisorName จึงได้ 500: Table 'lascstudent.users' doesn't exist"
+    },
+    {
+      "severity": "Major",
+      "title": "แบบประเมินของสถานประกอบการรับข้อมูลได้โดยไม่ต้องยืนยันตัวตน",
+      "detail": "POST /api/public/evaluate/:requestId ไม่ตรวจ token เหมือนลิงก์ตอบรับ ใครที่รู้เลขคำร้อง (เลขเรียงลำดับ) ส่งคะแนนแทนพี่เลี้ยงได้ ในการทดสอบนี้ส่งสำเร็จโดยไม่มี token"
+    },
+    {
+      "severity": "Minor",
+      "title": "ไม่มีการกันคำร้องซ้อน",
+      "detail": "POST /api/requests ไม่ตรวจว่านักศึกษามีคำร้องที่ยังดำเนินการอยู่หรือไม่ ยื่นซ้ำได้ไม่จำกัด"
+    }
+  ]
+}

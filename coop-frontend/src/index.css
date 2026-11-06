@@ -777,7 +777,7 @@ body.has-subnav {
 @media (max-width: 1023px) {
   body.has-subnav .admin-dashboard-container,
   body.has-subnav .dashboard-container {
-    padding-top: calc(var(--navbar-h, 60px) + var(--breadcrumb-h, 32px)) !important;
+    padding-top: var(--navbar-h, 60px) !important; /* ไม่มี Breadcrumb/SubNav บนมือถือ จึงไม่เผื่อพื้นที่ */
   }
 }
 
@@ -1315,11 +1315,11 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
 /* ---- ช่องค้นหา / ตัวกรอง ---- */
 :is(.admin-main, .dashboard-main) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus {
   border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.4) !important;
+  box-shadow: none !important;
   outline: none !important;
 }
 :is(.admin-main, .dashboard-main) .MuiOutlinedInput-root.Mui-focused {
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.4);
+  box-shadow: none;
 }
 :is(.admin-main, .dashboard-main) .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline { border-color: #8b5cf6 !important; }
 @media (max-width: 767px) {
@@ -1802,3 +1802,567 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
 
 /* ไม่ใช้แผ่นทึบใต้แถบแล้ว (เคยเป็น .m-tabbar::after สูง 240px ทำให้แถบดูลอยสูงกว่าขอบล่าง)
    แถบชิดขอบล่างด้วย bottom: 0 และเผื่อ safe area ด้วย padding-bottom ที่กำหนดไว้ด้านบนแล้ว */
+
+/* แถบบนของหน้าแดชบอร์ดให้ระยะซ้าย-ขวาและขนาดปุ่มแฮมเบอร์เกอร์เท่ากับหน้าหลัก
+   (เดิมระยะ 16px และปุ่ม 36px ทำให้ชื่อเว็บขยับตอนสลับหน้า) */
+@media (max-width: 639px) {
+  .mobile-top-navbar { padding-left: 12px !important; padding-right: 12px !important; }
+  .mobile-top-navbar .mobile-menu-btn { width: 40px !important; height: 40px !important; }
+}
+
+/* มือถือ/แท็บเล็ต: SubNav ถูกซ่อนแล้ว จึงไม่ต้องเผื่อพื้นที่ความสูงของ SubNav ด้านบนเนื้อหา */
+@media (max-width: 1023px) {
+  body.has-subnav { --subnav-h: 0px; }
+}
+
+/* มือถือ/แท็บเล็ต: แถบติดต่อ (UtilityBar) ถูกซ่อน จึงไม่เผื่อความสูงด้านบนเนื้อหา */
+@media (max-width: 1023px) {
+  body.has-utility-bar { --utility-h: 0px; }
+}
+
+/* ปุ่ม .btn-primary ในหน้าแดชบอร์ด: ใช้ไล่สีม่วงของธีม (ไฟล์ HomePage.css มีกฎ .btn-primary สีดำที่ทับอยู่)
+   ใช้ตัวเลือกที่เจาะจงกว่าเพื่อไม่ให้ถูกทับ */
+.dashboard-container .btn-primary,
+.dashboard-main .btn-primary {
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
+  color: #ffffff;
+}
+
+/* ===== หน้าต่างเลือกสถานประกอบการแนะนำ (คำร้องฝึกงาน) — Deep Violet & Gold ===== */
+.rec-trigger {
+  color: #6d28d9;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(196, 181, 253, 0.8);
+  box-shadow: 0 4px 12px -6px rgba(76, 29, 149, 0.25);
+}
+.rec-trigger:hover { border-color: #eab308; color: #4c1d95; box-shadow: 0 6px 16px -6px rgba(109, 40, 217, 0.35); }
+.rec-backdrop { background: rgba(30, 27, 75, 0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.rec-modal {
+  position: relative;
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 25px 50px -12px rgba(76, 29, 149, 0.25);
+}
+.rec-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4c1d95 0%, #6d28d9 60%, #eab308 100%);
+  z-index: 2;
+}
+.rec-modal-head {
+  background: linear-gradient(135deg, #1e1b4b 0%, #3b0764 55%, #4c1d95 100%);
+  border-bottom: 2px solid #eab308;
+}
+.rec-modal-icon {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  color: #fde68a;
+}
+.rec-modal-title { color: #ffffff; }
+.rec-modal-sub { color: rgba(233, 213, 255, 0.85); }
+.rec-modal-close { color: rgba(233, 213, 255, 0.85); background: transparent; }
+.rec-modal-close:hover { color: #ffffff; background: rgba(255, 255, 255, 0.12); }
+.rec-search {
+  border: 1px solid #e9e5f5;
+  background: #faf9ff;
+  color: #334155;
+}
+.rec-search:focus { border-color: #8b5cf6; background: #ffffff; }
+.rec-card {
+  border: 1px solid #ece8f7;
+  background: #ffffff;
+}
+.rec-card:hover { border-color: #eab308; background: #fdfbf3; box-shadow: 0 10px 22px -14px rgba(76, 29, 149, 0.35); }
+.rec-card-icon { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+.rec-card:hover .rec-card-icon { background: linear-gradient(135deg, #4c1d95, #6d28d9); color: #ffffff; border-color: transparent; }
+.rec-modal-foot { background: #faf9ff; border-top: 1px solid #ece8f7; }
+.rec-btn-close { color: #4c1d95; background: #ffffff; border: 1px solid #ddd6fe; }
+.rec-btn-close:hover { border-color: #eab308; background: #fefce8; }
+
+/* ===== สเปก 1.2: ชื่อระบบใน Navbar แบบ Fluid และตราสัญลักษณ์ 32px / 40px (md) ระยะห่าง 10px =====
+   วางท้ายไฟล์เพื่อทับกฎขนาดเดิมที่แยกตามจอหลายช่วง ทั้งหน้าโฮม หน้าสาธารณะ และแดชบอร์ด */
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo,
+.site-navbar a:has(.site-nav-title) {
+  gap: 0.625rem !important;
+  align-items: center !important;
+}
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+.site-navbar img[alt*="โลโก้"] {
+  width: 2rem !important;
+  height: 2rem !important;
+  max-width: none !important;
+}
+@media (min-width: 768px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+  .site-navbar img[alt*="โลโก้"] {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+}
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+.site-navbar .site-nav-title {
+  font-size: clamp(1rem, 1.15vw + 0.5rem, 1.45rem) !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+/* ===== สเปก 1.4: ตัดเส้น outline เริ่มต้นและเส้นโฟกัสซ้อน + สีพื้นช่องที่เบราว์เซอร์เติมอัตโนมัติ ===== */
+input, select, textarea, button { outline: none !important; }
+input:focus, select:focus, textarea:focus { outline: none !important; }
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1e293b !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+/* มือถือ: ช่องกรอกอย่างน้อย 16px กัน iOS ซูมเองเมื่อแตะพิมพ์ */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ===== สเปก 2.2: Bottom Sheet กลาง (components/common/Modal.jsx) ใช้คลาสของตัวเองเพื่อไม่ชนกฎ modal เดิม ===== */
+.ui-sheet-overlay { align-items: flex-end; }
+@media (min-width: 768px) { .ui-sheet-overlay { align-items: center; } }
+
+/* ===== หน้ารายงานประจำวัน: การ์ดสถิติ 4 ช่อง + ป้ายลงย้อนหลัง ===== */
+.checkin-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto 20px;
+}
+@media (min-width: 1024px) { .checkin-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
+.checkin-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid #E9E5F5;
+  box-shadow: 0 10px 24px -18px rgba(76, 29, 149, 0.35);
+}
+.checkin-stat-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.checkin-stat-label { margin: 0; font-size: 12px; font-weight: 600; color: #64748b; line-height: 1.3; }
+.checkin-stat-value { margin: 2px 0 0; font-size: 24px; font-weight: 800; line-height: 1.1; color: #0f172a; }
+.checkin-stat-value span { margin-left: 4px; font-size: 12px; font-weight: 600; color: #94a3b8; }
+.checkin-stat-green .checkin-stat-icon { background: #ecfdf5; color: #059669; }
+.checkin-stat-green .checkin-stat-value { color: #047857; }
+.checkin-stat-amber .checkin-stat-icon { background: #fffbeb; color: #d97706; }
+.checkin-stat-amber .checkin-stat-value { color: #b45309; }
+.checkin-stat-violet .checkin-stat-icon { background: #f5f3ff; color: #6d28d9; }
+.checkin-stat-violet .checkin-stat-value { color: #5b21b6; }
+.checkin-stat-red .checkin-stat-icon { background: #fff1f2; color: #e11d48; }
+.checkin-stat-red .checkin-stat-value { color: #be123c; }
+.checkin-badge-backfill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.checkin-submitted { margin-top: 2px; font-size: 11px; font-weight: 500; color: #94a3b8; white-space: nowrap; }
+.checkin-submitted.is-late { color: #c2410c; font-weight: 600; }
+
+/* ===== หน้าเลือกประเภทการฝึก (ยื่นคำร้องใหม่) — Deep Violet & Gold ===== */
+.type-select {
+  position: relative;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+.type-select::before { display: none; content: none;
+
+  content: '';
+  position: absolute;
+  top: 0; left: 24px; right: 24px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, #4c1d95 0%, #6d28d9 60%, #eab308 100%);
+}
+.type-steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.type-step { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #94a3b8; }
+.type-step.is-current { color: #3b0764; }
+.type-step-dot {
+  width: 22px; height: 22px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800;
+  background: #EDE9FE; color: #6d28d9;
+}
+.type-step.is-current .type-step-dot { background: linear-gradient(135deg, #4c1d95, #6d28d9); color: #fde68a; }
+.type-step-line { flex: 1 1 24px; max-width: 48px; height: 2px; border-radius: 2px; background: #E9E5F5; }
+.type-head { margin-bottom: 20px; }
+.type-title { margin: 0; font-size: 20px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.01em; }
+.type-sub { margin: 6px 0 0; font-size: 13.5px; line-height: 1.6; color: #64748b; max-width: 640px; }
+.type-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 768px) { .type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } }
+.type-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  padding: 20px;
+  border-radius: 20px;
+  border: 2px solid #E9E5F5;
+  background: #FAFAFD;
+  cursor: pointer;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease, background-color .2s ease;
+}
+.type-card:hover { border-color: #C4B5FD; transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(76, 29, 149, 0.35); }
+.type-card:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5); }
+.type-card.is-selected {
+  border-color: #4C1D95;
+  background: linear-gradient(180deg, #faf5ff 0%, #ffffff 100%);
+  box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.25), 0 16px 32px -18px rgba(76, 29, 149, 0.45);
+}
+.type-card-top { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.type-card-icon {
+  width: 44px; height: 44px; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #F5F3FF; color: #4c1d95; border: 1px solid #E9E5F5;
+}
+.type-card.is-selected .type-card-icon { background: linear-gradient(135deg, #4c1d95, #6d28d9); color: #fde68a; border-color: transparent; }
+.type-radio {
+  width: 24px; height: 24px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid #CBD5E1; background: #ffffff; color: transparent;
+  transition: all .2s ease;
+}
+.type-radio.is-on { border-color: #eab308; background: #fefce8; color: #a16207; }
+.type-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+}
+.type-card-title { margin-top: 4px; font-size: 17px; font-weight: 800; color: #1e1b4b; }
+.type-card-en { font-size: 12px; font-weight: 600; color: #94a3b8; }
+.type-card-desc { margin-top: 6px; font-size: 13.5px; line-height: 1.65; color: #475569; }
+.type-card-foot {
+  margin-top: auto; padding-top: 14px; width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; font-weight: 700; color: #6d28d9;
+  border-top: 1px dashed #E9E5F5;
+}
+.type-card:not(.is-selected) .type-card-foot { color: #94a3b8; }
+.type-actions {
+  margin-top: 24px; padding-top: 18px;
+  border-top: 1px solid #F1EEF9;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.type-hint { margin: 0; font-size: 13px; color: #64748b; }
+.type-continue {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 24px; border: none; border-radius: 12px;
+  font-size: 14px; font-weight: 700; color: #ffffff; cursor: pointer;
+  background: linear-gradient(135deg, #3b0764 0%, #4c1d95 50%, #5b21b6 100%);
+  box-shadow: 0 8px 20px -8px rgba(76, 29, 149, 0.6);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+.type-continue:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 12px 24px -8px rgba(76, 29, 149, 0.65); }
+.type-continue:active:not(:disabled) { transform: scale(0.98); }
+.type-continue:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.6); }
+.type-continue:disabled { background: #CBD5E1; box-shadow: none; cursor: not-allowed; color: #f8fafc; }
+@media (max-width: 640px) {
+  .type-select { padding: 22px 16px 18px; border-radius: 22px; }
+  .type-actions { flex-direction: column-reverse; align-items: stretch; }
+  .type-continue { width: 100%; }
+  .type-hint { text-align: center; }
+}
+
+/* ===== จัดการกำหนดการและปฏิทิน (AdminSchedulesPage) — Deep Violet & Gold ===== */
+.sched-page { width: 100%; }
+.sched-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.sched-header-icon {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #3b0764, #5b21b6); color: #fde68a;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.45) inset, 0 10px 22px -12px rgba(76, 29, 149, 0.6);
+}
+.sched-title { margin: 0; font-size: 22px; font-weight: 800; color: #1e1b4b; }
+.sched-desc { margin: 4px 0 0; font-size: 13.5px; color: #64748b; }
+.sched-tabs {
+  display: flex; gap: 6px; padding: 6px; margin-bottom: 18px;
+  border-radius: 18px; background: #FAFAFD; border: 1px solid #E9E5F5;
+  overflow-x: auto; scrollbar-width: none;
+}
+.sched-tabs::-webkit-scrollbar { display: none; }
+.sched-tab {
+  flex: 1 0 auto; min-height: 44px; padding: 0 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid transparent; border-radius: 13px; background: transparent;
+  font-size: 13.5px; font-weight: 600; color: #64748b; white-space: nowrap; cursor: pointer;
+  transition: all .2s ease;
+}
+.sched-tab:hover { color: #4c1d95; background: rgba(255, 255, 255, 0.7); }
+.sched-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5); }
+.sched-tab.is-active {
+  color: #3b0764; font-weight: 800; background: #ffffff;
+  border-color: rgba(234, 179, 8, 0.55);
+  box-shadow: 0 6px 16px -10px rgba(76, 29, 149, 0.45), 0 0 0 1px rgba(234, 179, 8, 0.15);
+}
+.sched-tab.is-active svg { color: #a16207; }
+.sched-card {
+  position: relative; padding: 24px; border-radius: 24px;
+  background: #ffffff; border: 1px solid #E9E5F5;
+  box-shadow: 0 18px 40px -26px rgba(76, 29, 149, 0.35);
+}
+.sched-card::before {
+  content: ''; position: absolute; top: 0; left: 24px; right: 24px; height: 3px; border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, #4c1d95 0%, #6d28d9 60%, #eab308 100%);
+}
+.sched-card-title { margin: 0 0 16px; font-size: 16px; font-weight: 800; color: #1e1b4b; }
+@media (max-width: 640px) { .sched-card { padding: 18px 14px; border-radius: 20px; } .sched-card-title { display: none; } }
+.sched-embed { min-width: 0; }
+@media (min-width: 640px) { .sched-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.sched-tabs .sched-tab { width: 100%; }
+.sched-tab-select-wrap { display: none; position: relative; margin-bottom: 18px; }
+.sched-tab-select {
+  appearance: none; -webkit-appearance: none; width: 100%; height: 48px; padding: 0 44px 0 16px;
+  border-radius: 14px; border: 1px solid #E9E5F5; background: #ffffff;
+  font-size: 15px; font-weight: 700; color: #3b0764; cursor: pointer;
+}
+.sched-tab-select:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5); border-color: #eab308; }
+.sched-tab-select-icon {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; color: #6d28d9; pointer-events: none;
+}
+@media (max-width: 639px) {
+  .sched-tab-select-wrap { display: block; }
+  .sched-tabs { display: none; }
+}
+.sched-empty-panel {
+  padding: 48px 16px; text-align: center; font-size: 14px; color: #64748b;
+  border: 1px dashed #d8d1f0; border-radius: 16px; background: #FAFAFD;
+}
+
+/* แถบคำสั่งด่วนและสรุป */
+.sched-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.sched-toolbar .MuiButton-root, .sched-toolbar button { min-width: 0; }
+.sched-btn-sync { box-shadow: 0 0 0 1px #eab308 inset, 0 8px 18px -8px rgba(76, 29, 149, 0.6) !important; }
+.sched-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: #475569; margin-bottom: 14px; }
+.sched-summary strong { color: #3b0764; }
+.sched-summary-note { color: #94a3b8; }
+
+/* สลับมุมมองปฏิทิน/ตาราง */
+.sched-view-switch {
+  display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 14px;
+  border-radius: 14px; background: #f5f3ff; border: 1px solid #E9E5F5;
+}
+.sched-view-switch button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px;
+  border: none; border-radius: 10px; background: transparent; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer;
+}
+.sched-view-switch button.is-active { background: #ffffff; color: #3b0764; box-shadow: 0 4px 12px -8px rgba(76, 29, 149, 0.5); }
+
+/* ปฏิทินรายเดือน */
+.sched-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sched-cal-title { font-size: 15px; font-weight: 800; color: #1e1b4b; }
+.sched-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.sched-cal-wd { text-align: center; font-size: 12px; font-weight: 700; color: #94a3b8; padding: 6px 0; }
+.sched-cal-cell {
+  min-height: 62px; padding: 6px; border-radius: 12px; border: 1px solid #F1EEF9;
+  background: #ffffff; font-size: 13px; font-weight: 600; color: #334155;
+  display: flex; flex-direction: column; gap: 2px; overflow: hidden;
+}
+.sched-cal-cell.is-empty { background: transparent; border-color: transparent; }
+.sched-cal-cell.is-today { border-color: #6d28d9; box-shadow: 0 0 0 1px #6d28d9 inset; }
+.sched-cal-cell.is-holiday { background: linear-gradient(180deg, #f5f3ff, #fefce8); border-color: #ddd6fe; color: #3b0764; }
+.sched-cal-cell.is-holiday-off { background: #f8fafc; border-color: #E2E8F0; color: #94a3b8; text-decoration: line-through; }
+.sched-cal-name { font-size: 10.5px; font-weight: 600; line-height: 1.3; color: #6d28d9; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sched-cal-cell.is-holiday-off .sched-cal-name { color: #94a3b8; }
+@media (max-width: 640px) { .sched-cal-cell { min-height: 46px; padding: 4px; font-size: 12px; } .sched-cal-name { display: none; } .sched-cal-cell.is-holiday::after { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #eab308; margin-top: auto; } }
+
+/* ตารางวันหยุด */
+.sched-table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid #E9E5F5; }
+.sched-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.sched-table th { background: #FAFAFD; text-align: left; font-weight: 700; color: #475569; padding: 10px 14px; border-bottom: 1px solid #E9E5F5; }
+.sched-table td { padding: 10px 14px; border-bottom: 1px solid #F1EEF9; color: #1e293b; }
+.sched-table tr:last-child td { border-bottom: none; }
+.sched-table tr.is-off td { color: #94a3b8; }
+.sched-table .sched-date { white-space: nowrap; font-weight: 600; }
+.sched-col-center { text-align: center !important; }
+.sched-empty { padding: 36px 16px; text-align: center; font-size: 13.5px; color: #64748b; background: #FAFAFD; border: 1px dashed #DDD6FE; border-radius: 16px; }
+
+/* ===== Single Unified Card (หน้านักศึกษา) — การ์ดใบเดียวต่อหนึ่งหน้า ===== */
+/* ไม่ใช้กรอบการ์ดแล้ว: หัวหน้าและเนื้อหาวางบนพื้นหลังของหน้าโดยตรง */
+.unified-card { background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
+.unified-card-head {
+  display: flex; flex-direction: column; gap: 14px;
+  padding-bottom: 20px; margin-bottom: 24px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+}
+@media (min-width: 640px) { .unified-card-head { flex-direction: row; align-items: center; justify-content: space-between; } }
+.unified-card-title-wrap { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.unified-card-icon {
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #F3E8FF; color: #3b0764; border: 1px solid rgba(234, 179, 8, 0.35);
+}
+.unified-card-title { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.3; color: #1e293b; }
+@media (min-width: 768px) { .unified-card-title { font-size: 20px; } }
+.unified-card-sub { margin: 3px 0 0; font-size: 12.5px; color: #64748b; }
+.unified-card-user {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-width: 0; max-width: 100%;
+  padding: 6px 12px; border-radius: 12px; background: #ffffff; border: 1px solid rgba(226, 232, 240, 0.8);
+  font-size: 12px; font-weight: 600; color: #475569;
+}
+@media (min-width: 640px) { .unified-card-user { align-self: auto; } }
+.unified-card-dot { width: 8px; height: 8px; border-radius: 999px; background: #10b981; flex-shrink: 0; }
+.unified-card-body { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.unified-card-body > * { margin-top: 0 !important; margin-bottom: 0 !important; min-width: 0; }
+
+/* หน้าจัดการกำหนดการ: หัว แท็บ และเนื้อหาอยู่ในการ์ดใบเดียว */
+.sched-card.sched-unified { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.sched-card.sched-unified::before { display: none; }
+.sched-unified .sched-header { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(226, 232, 240, 0.6); }
+.sched-body { min-width: 0; }
+
+/* ===== Wizard ฟอร์มยื่นคำร้อง: แถบขั้นตอน ปุ่มนำทาง และสรุปก่อนส่ง ===== */
+.wiz-steps { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.wiz-step {
+  display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px;
+  background: none; border: none; cursor: pointer; color: #94a3b8;
+}
+.wiz-step:disabled { cursor: not-allowed; opacity: .55; }
+.wiz-step:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, .45); border-radius: 10px; }
+.wiz-dot {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0;
+}
+.wiz-label { font-size: 12.5px; font-weight: 500; color: #94a3b8; white-space: nowrap; }
+.wiz-step.is-current .wiz-dot { background: linear-gradient(135deg, #3b0764, #4c1d95); color: #fde68a; border-color: #eab308; box-shadow: 0 0 0 3px rgba(234, 179, 8, .25); }
+.wiz-step.is-current .wiz-label { color: #3b0764; font-weight: 700; }
+.wiz-step.is-done .wiz-dot { background: #10b981; color: #ffffff; border-color: #10b981; }
+.wiz-step.is-done .wiz-label { color: #047857; }
+.wiz-line { flex: 1 1 16px; max-width: 56px; height: 2px; border-radius: 2px; background: #e2e8f0; }
+.wiz-line.is-done { background: #10b981; }
+@media (max-width: 640px) { .wiz-label { display: none; } .wiz-line { max-width: none; } }
+
+.wiz-actions {
+  display: flex; flex-direction: column-reverse; gap: 12px;
+  align-items: stretch; justify-content: space-between;
+  border-top: 1px solid #f1f5f9; padding-top: 18px; margin-top: 8px;
+}
+@media (min-width: 640px) { .wiz-actions { flex-direction: row; align-items: center; } }
+.wiz-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 22px; border-radius: 12px;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s ease; text-decoration: none;
+}
+.wiz-btn:active { transform: scale(0.98); }
+.wiz-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, .55); }
+.wiz-btn-secondary { background: #ffffff; border: 1px solid #e2e8f0; color: #475569; }
+.wiz-btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+.wiz-btn-primary { border: none; color: #ffffff; background: linear-gradient(135deg, #3b0764, #4c1d95 55%, #5b21b6); box-shadow: 0 8px 20px -10px rgba(76, 29, 149, .7); padding: 0 28px; }
+.wiz-btn-primary:hover { filter: brightness(1.08); }
+.wiz-btn-success { border: none; color: #ffffff; background: linear-gradient(135deg, #059669, #0d9488); box-shadow: 0 8px 20px -10px rgba(5, 150, 105, .7); padding: 0 28px; }
+.wiz-btn-success:hover { filter: brightness(1.06); }
+.wiz-readonly { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 12px; background: #f1f5f9; color: #94a3b8; font-weight: 600; font-size: 13px; }
+
+.wiz-summary { display: flex; flex-direction: column; }
+.wiz-summary-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 0; }
+@media (min-width: 640px) { .wiz-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wiz-summary-grid > div { padding: 12px 14px; border-radius: 14px; background: #faf9ff; border: 1px solid #ece8f7; }
+.wiz-summary-grid dt { font-size: 11.5px; font-weight: 600; color: #64748b; }
+.wiz-summary-grid dd { margin: 4px 0 0; font-size: 14px; font-weight: 700; color: #1e1b4b; word-break: break-word; }
+
+/* Stepper บนมือถือ: อยู่แถวเดียวเสมอ เส้นเชื่อมยืดหดตามพื้นที่ */
+.wiz-steps { flex-wrap: nowrap; width: 100%; justify-content: space-between; margin-bottom: 20px; }
+.wiz-step { flex-shrink: 0; padding: 2px; }
+.wiz-line { flex: 1 1 0; min-width: 8px; max-width: none; margin: 0 6px; }
+@media (min-width: 768px) { .wiz-line { margin: 0 10px; } }
+@media (max-width: 767px) {
+  .wiz-dot { width: 28px; height: 28px; font-size: 11px; }
+  .wiz-step { gap: 0; }
+}
+@media (min-width: 768px) {
+  .wiz-steps { justify-content: flex-start; }
+  .wiz-line { flex: 1 1 16px; max-width: 56px; }
+}
+
+/* Stepper บนมือถือ (ทุกความกว้างต่ำกว่า md): วงกลมอยู่แถวเดียว ชื่อขั้นตอนอยู่ใต้วงกลม ไม่ขึ้นบรรทัดใหม่ */
+@media (max-width: 767px) {
+  .wiz-steps { flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; gap: 0; }
+  .wiz-step { flex-direction: column; align-items: center; gap: 4px; padding: 0; min-width: 0; flex: 0 0 auto; }
+  .wiz-label { display: block; font-size: 10.5px; line-height: 1.2; text-align: center; white-space: normal; max-width: 72px; }
+  .wiz-line { flex: 1 1 0; min-width: 8px; max-width: none; height: 2px; margin: 14px 4px 0; }
+}
+@media (min-width: 768px) {
+  .wiz-steps { flex-wrap: nowrap; }
+}
+
+/* มือถือ: ซ่อนชื่อขั้นตอนใต้วงกลม แสดงป้ายขั้นปัจจุบันแทน (แท็บเล็ตขึ้นไปแสดงชื่อใต้วงกลมตามเดิม) */
+.wiz-mobile-banner { display: none; }
+@media (max-width: 767px) {
+  .wiz-label { display: none; }
+  .wiz-mobile-banner {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; margin-top: 12px; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; color: #3b0764;
+    background: #faf5ff; border: 1px solid #ede9fe; text-align: center;
+  }
+  .wiz-steps { margin-bottom: 0; }
+}
+@media (min-width: 768px) {
+  .wiz-label { display: block; }
+}
+
+/* แถบขั้นตอนหน้าเลือกประเภท: มือถือให้อยู่แถวเดียว แสดงชื่อเฉพาะขั้นปัจจุบัน */
+@media (max-width: 767px) {
+  .type-steps { flex-wrap: nowrap; gap: 6px; margin-bottom: 18px; }
+  .type-step { flex-shrink: 0; gap: 6px; }
+  .type-step .type-step-label { display: none; }
+  .type-step.is-current .type-step-label { display: inline; font-size: 12px; }
+  .type-step-line { flex: 1 1 0; min-width: 10px; max-width: none; }
+  .type-step-dot { width: 24px; height: 24px; }
+}
+
+/* ===== จัดการเนื้อหาหน้าแรก (AdminHomeEditorPage) — หัวหน้าและกริดการ์ด ===== */
+.hm-header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.hm-header-icon {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #3b0764, #5b21b6); color: #fde68a;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.45) inset, 0 10px 22px -12px rgba(76, 29, 149, 0.6);
+}
+.hm-title { margin: 0; font-size: 22px; font-weight: 800; color: #1e1b4b; }
+.hm-desc { margin: 4px 0 0; font-size: 13.5px; color: #64748b; }
+.hm-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.hm-grid > .MuiPaper-root { display: flex; flex-direction: column; }
+.hm-grid > .MuiPaper-root > .MuiBox-root:last-child { margin-top: auto; }
+@media (min-width: 1024px) {
+  .hm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-span-full { grid-column: 1 / -1; }
+}

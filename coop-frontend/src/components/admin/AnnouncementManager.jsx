@@ -152,7 +152,7 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
           <NewspaperIcon style={{ width: 22, height: 22, color: '#7c3aed', flexShrink: 0 }} />
           <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>{title}</Typography>
         </Box>
-        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap' }}>
+        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' }, minHeight: 44 }}>
           + เพิ่มข่าวสาร/ประกาศ
         </Button>
       </Box>

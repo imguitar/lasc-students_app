@@ -520,9 +520,9 @@
 .home-cta-card {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #1e1b4b 0%, #3b0764 50%, #4c1d95 100%);
-  border: 1px solid rgba(234, 179, 8, 0.35);
-  box-shadow: 0 18px 40px -16px rgba(76, 29, 149, 0.5);
+  background: #ffffff;
+  border: 1px solid #E9E5F5;
+  box-shadow: 0 18px 40px -16px rgba(76, 29, 149, 0.22);
 }
 .home-cta-card::after {
   content: '';
@@ -534,22 +534,18 @@
   background: #eab308;
 }
 .home-cta-card:hover { border-color: rgba(234, 179, 8, 0.6); }
-.home-cta-card h3 { color: #ffffff !important; }
-.home-cta-card p { color: rgba(233, 213, 255, 0.85) !important; }
-.home-cta-card .w-16 {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(234, 179, 8, 0.45) !important;
-  color: #fde68a !important;
+.home-cta-card::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(109, 40, 217, 0.12) 0%, rgba(109, 40, 217, 0) 70%);
+  pointer-events: none;
 }
-.home-cta-card .inline-flex.rounded-full,
-.home-cta-card > div > div:first-child {
-  color: #fde68a;
-}
-.home-cta-card > div > div > div.inline-flex {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(234, 179, 8, 0.4) !important;
-  color: #fde68a !important;
-}
+.home-cta-card > div { position: relative; z-index: 1; }
 .home-news-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(196, 181, 253, 0.4);

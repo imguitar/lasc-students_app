@@ -15,6 +15,22 @@ const MobileTabBar = ({ items, onOpenMenu, menuActive = false }) => {
     <nav className="m-tabbar" aria-label="เมนูหลัก">
       {items.map((item) => {
         const Icon = item.Icon;
+        if (item.onClick) {
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={item.onClick}
+              className={tabClass(item.active)}
+              aria-current={item.active ? 'page' : undefined}
+            >
+              <span className="m-tab-icon flex items-center justify-center h-7 w-12 rounded-full">
+                <Icon className="w-5 h-5" />
+              </span>
+              <span className="m-tab-label w-full text-center text-[10px] leading-tight truncate">{item.label}</span>
+            </button>
+          );
+        }
         return (
           <Link
             key={item.key}

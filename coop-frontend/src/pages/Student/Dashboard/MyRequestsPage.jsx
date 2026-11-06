@@ -8,7 +8,7 @@ import { getUploadUrl } from '../../../utils/fileUrl';
 import './DashboardPage.css'; // Reusing layout styles
 import './MyRequestsPage.css';
 import { ClockIcon, CheckCircleIcon, BuildingOffice2Icon, CalendarDaysIcon, DocumentTextIcon, PaperAirplaneIcon, AcademicCapIcon, EnvelopeIcon } from '@heroicons/react/24/outline'; // Specific styles for this page
-import { MoreVertical, Eye, Download, Pencil, ArrowRightLeft } from 'lucide-react';
+import { MoreVertical, Eye, Download, Pencil, ArrowRightLeft, FileText } from 'lucide-react';
 import AttendanceDonut from '../../../components/student/AttendanceDonut';
 import RelocationSection from '../../../components/student/RelocationSection';
 import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
@@ -261,13 +261,19 @@ const MyRequestsPage = () => {
     <>
 
       <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div>
-            <h1>คำร้องของฉัน</h1>
-            <p>ประวัติและสถานะการยื่นคำร้องทั้งหมด</p>
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+        <header className="unified-card-head">
+          <div className="unified-card-title-wrap">
+            <span className="unified-card-icon"><FileText className="w-5 h-5" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <h1 className="unified-card-title">คำร้องของฉัน</h1>
+              <p className="unified-card-sub">ประวัติและสถานะการยื่นคำร้องทั้งหมด</p>
+            </div>
           </div>
-          <div className="user-info">
-             <span>{studentName}</span>
+          <div className="unified-card-user">
+            <span className="unified-card-dot" aria-hidden="true" />
+            <span className="truncate">{studentName}</span>
           </div>
         </header>
 
@@ -593,6 +599,8 @@ const MyRequestsPage = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+        </div>
+        </div>
         </div>
       </main>
 

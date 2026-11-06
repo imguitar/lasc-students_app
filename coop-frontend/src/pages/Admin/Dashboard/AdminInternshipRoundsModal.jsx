@@ -1,5 +1,6 @@
 import { ModalActions, ModalCancelButton } from '../../../components/ModalActions';
-import { useState, useEffect } from 'react';
+import ScheduleShell from './ScheduleShell';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -28,10 +29,24 @@ import {
 import { TrashIcon, PencilSquareIcon, PlusIcon, BoltIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { MoreVertical } from 'lucide-react';
 import api from '../../../api/axios';
+import { computeEndDate, DEFAULT_REQUIRED_HOURS, HOURS_PER_DAY } from '../../../utils/workingDays';
+import { getHolidaySet, getThaiHoliday, loadHolidaysFromServer } from '../../../utils/thaiHolidays';
+
+// สถานะรอบจากวันที่ (เวลาไทย): ยังไม่ถึงวันเริ่ม = เปิดรับคำร้อง, อยู่ในช่วง = กำลังฝึกงาน, ปิดใช้งานหรือพ้นช่วงแล้ว = ปิดรอบ
+const todayYMD = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+const roundStatus = (r) => {
+  if (!r.isActive) return { label: 'ปิดรอบ', color: 'default' };
+  const t = todayYMD();
+  const start = String(r.startDate).slice(0, 10);
+  const end = String(r.endDate).slice(0, 10);
+  if (t < start) return { label: 'เปิดรับคำร้อง', color: 'info' };
+  if (t <= end) return { label: 'กำลังฝึกงาน', color: 'success' };
+  return { label: 'ปิดรอบ', color: 'default' };
+};
 
 const TERM_LABEL = { '1': 'ภาคเรียนที่ 1', '2': 'ภาคเรียนที่ 2', 'summer': 'ภาคฤดูร้อน' };
 
-const AdminInternshipRoundsModal = ({ open, onClose }) => {
+const AdminInternshipRoundsModal = ({ open, onClose, embedded = false }) => {
   const [rounds, setRounds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,10 +59,12 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
     academicYear: '',
     semester: '1',
     startDate: '',
-    endDate: '',
+    requiredHours: DEFAULT_REQUIRED_HOURS,
     note: '',
     isActive: true,
   });
+  // นับใหม่เมื่อรายการวันหยุดจากเซิร์ฟเวอร์เปลี่ยน
+  const [holidayVersion, setHolidayVersion] = useState(0);
 
   const [applyTarget, setApplyTarget] = useState(null);
   const [actionMenu, setActionMenu] = useState({ anchor: null, round: null });
@@ -67,7 +84,14 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
   };
 
   useEffect(() => {
+    const onUpdated = () => setHolidayVersion((v) => v + 1);
+    window.addEventListener('holidays-updated', onUpdated);
+    return () => window.removeEventListener('holidays-updated', onUpdated);
+  }, []);
+
+  useEffect(() => {
     if (open) {
+      loadHolidaysFromServer(true);
       loadRounds();
       setError('');
       setSuccessMsg('');
@@ -84,7 +108,7 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
         academicYear: round.academicYear || '',
         semester: round.semester || '1',
         startDate: round.startDate ? round.startDate.slice(0, 10) : '',
-        endDate: round.endDate ? round.endDate.slice(0, 10) : '',
+        requiredHours: Number(round.requiredHours) || DEFAULT_REQUIRED_HOURS,
         note: round.note || '',
         isActive: Boolean(round.isActive),
       });
@@ -96,7 +120,7 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
         academicYear: `${year}`,
         semester: '1',
         startDate: '',
-        endDate: '',
+        requiredHours: DEFAULT_REQUIRED_HOURS,
         note: '',
         isActive: true,
       });
@@ -105,19 +129,36 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
     setError('');
   };
 
+  // คำนวณวันสิ้นสุดฝึกงานสด: นับเฉพาะ จ.-ศ. ข้ามวันหยุดนักขัตฤกษ์ในระบบ จนครบชั่วโมงตามหลักสูตร (วันละ 8 ชม.)
+  const endCalc = useMemo(
+    () => (formData.startDate ? computeEndDate(formData.startDate, formData.requiredHours, getHolidaySet()) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formData.startDate, formData.requiredHours, holidayVersion],
+  );
+
   const handleSaveRound = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.startDate || !formData.endDate) {
-      setError('กรุณากรอกชื่อรอบ วันที่เริ่มต้น และวันที่สิ้นสุด');
+    if (!formData.title || !formData.startDate) {
+      setError('กรุณากรอกชื่อรอบและวันเริ่มฝึกงาน');
       return;
     }
+    // วันสิ้นสุดไม่ส่งไป — backend คำนวณซ้ำด้วยตรรกะเดียวกันเป็นค่าทางการ
+    const payload = {
+      title: formData.title,
+      academicYear: formData.academicYear,
+      semester: formData.semester,
+      startDate: formData.startDate,
+      requiredHours: Number(formData.requiredHours) || DEFAULT_REQUIRED_HOURS,
+      note: formData.note,
+      isActive: formData.isActive,
+    };
 
     try {
       if (editingRound) {
-        await api.put(`/admin/internship-rounds/${editingRound.id}`, formData);
+        await api.put(`/admin/internship-rounds/${editingRound.id}`, payload);
         setSuccessMsg('แก้ไขรอบฝึกงานสำเร็จ');
       } else {
-        await api.post('/admin/internship-rounds', formData);
+        await api.post('/admin/internship-rounds', payload);
         setSuccessMsg('สร้างรอบฝึกงานใหม่สำเร็จ');
       }
       setFormOpen(false);
@@ -164,15 +205,15 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"
+    <ScheduleShell embedded={embedded} open={open} onClose={onClose} fullWidth maxWidth="md"
       PaperProps={{ sx: { m: 2, borderRadius: '1rem', p: 0, boxShadow: 24 } }}>
-      <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.5 }}>
+      <DialogTitle sx={embedded ? { p: 0, pb: 1.5, display: 'flex', justifyContent: 'flex-end' } : { px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 2.5 }, pb: 1.5 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-          <Typography component="span" sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.125rem' }, color: '#1e293b', lineHeight: 1.4 }}>
+          <Typography component="span" style={{ display: embedded ? 'none' : undefined }} sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.125rem' }, color: '#1e293b', lineHeight: 1.4 }}>
             กำหนดรอบปฏิทินฝึกงาน
             <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>(Internship Rounds)</Box>
           </Typography>
-          <IconButton size="small" onClick={onClose} aria-label="ปิด" sx={{ color: '#94a3b8', flexShrink: 0 }}>
+          <IconButton size="small" onClick={onClose} style={{ display: embedded ? 'none' : undefined }} aria-label="ปิด" sx={{ color: '#94a3b8', flexShrink: 0 }}>
             <XMarkIcon style={{ width: 20, height: 20 }} />
           </IconButton>
         </Box>
@@ -193,7 +234,7 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
         )}
       </DialogTitle>
 
-      <DialogContent dividers sx={{ py: 2.5 }}>
+      <DialogContent dividers={!embedded} sx={{ py: 2.5 }}>
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {successMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMsg('')}>{successMsg}</Alert>}
 
@@ -272,14 +313,39 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
                 <TextField
                   fullWidth
                   required
-                  type="date"
+                  type="number"
                   size="small"
-                  label="วันสิ้นสุดฝึกงาน"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
+                  label="ชั่วโมงฝึกตามหลักสูตร"
+                  value={formData.requiredHours}
+                  onChange={(e) => setFormData(prev => ({ ...prev, requiredHours: e.target.value }))}
+                  inputProps={{ min: 1, max: 5000, step: 1 }}
+                  helperText={`วันละ ${HOURS_PER_DAY} ชม.`}
                 />
               </Stack>
+              {/* วันสิ้นสุด: คำนวณอัตโนมัติ (ไม่ต้องกรอก) */}
+              <Box sx={{ p: 1.75, borderRadius: '0.75rem', border: '1px solid #E9E5F5', bgcolor: '#ffffff' }}>
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                  วันสิ้นสุดฝึกงาน (คำนวณอัตโนมัติ)
+                </Typography>
+                {endCalc ? (
+                  <>
+                    <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#3b0764', mt: 0.25 }}>
+                      {new Date(`${endCalc.endDate}T00:00:00`).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mt: 0.5 }}>
+                      {endCalc.workingDays} วันทำการ (จันทร์-ศุกร์) จาก {Number(formData.requiredHours) || DEFAULT_REQUIRED_HOURS} ชม.
+                      {endCalc.skippedHolidays.length > 0 ? ` · ข้ามวันหยุด ${endCalc.skippedHolidays.length} วัน` : ''}
+                    </Typography>
+                    {endCalc.skippedHolidays.length > 0 && (
+                      <Typography sx={{ fontSize: '0.72rem', color: '#a16207', mt: 0.5, lineHeight: 1.6 }}>
+                        {endCalc.skippedHolidays.map((d) => `${new Date(`${d}T00:00:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${getThaiHoliday(d) || ''}`).join(' · ')}
+                      </Typography>
+                    )}
+                  </>
+                ) : (
+                  <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8', mt: 0.25 }}>เลือกวันเริ่มฝึกงานเพื่อคำนวณ</Typography>
+                )}
+              </Box>
               <TextField
                 fullWidth
                 size="small"
@@ -315,7 +381,7 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
         ) : (
           <>
             {rounds.length === 0 ? (
-              <Box sx={{ py: 8, textAlign: 'center', fontSize: { xs: '0.78rem', sm: '0.875rem' }, color: '#64748b' }}>
+              <Box className="sched-empty-panel">
                 {loading ? 'กำลังโหลดข้อมูล...' : 'ยังไม่มีการกำหนดรอบฝึกงาน กดปุ่ม "สร้างรอบฝึกงานใหม่" ด้านบน'}
               </Box>
             ) : (
@@ -341,10 +407,13 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
                             <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
                               {formatDate(r.startDate)} - {formatDate(r.endDate)}
                             </Typography>
+                            <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                              {Number(r.requiredHours) || DEFAULT_REQUIRED_HOURS} ชม.
+                            </Typography>
                           </TableCell>
                           <TableCell>
                             {r.isActive ? (
-                              <Chip label="เปิดใช้งานอยู่" color="success" size="small" sx={{ fontWeight: 600 }} />
+                              <Chip label={roundStatus(r).label} color={roundStatus(r).color} size="small" sx={{ fontWeight: 600 }} />
                             ) : (
                               <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b' }} />
                             )}
@@ -396,13 +465,13 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
                         <Chip size="small" label={`ภาค ${r.semester || '-'} / ${r.academicYear || '-'}`}
                           sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
                         {r.isActive ? (
-                          <Chip label="เปิดใช้งานอยู่" color="success" size="small" sx={{ fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
+                          <Chip label={roundStatus(r).label} color={roundStatus(r).color} size="small" sx={{ fontWeight: 600, fontSize: '0.68rem', height: 22 }} />
                         ) : (
                           <Chip label="ปิด" size="small" sx={{ bgcolor: '#e2e8f0', color: '#64748b', fontSize: '0.68rem', height: 22 }} />
                         )}
                       </Stack>
                       <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mb: 1.5 }}>
-                        {formatDate(r.startDate)} - {formatDate(r.endDate)}
+                        {formatDate(r.startDate)} - {formatDate(r.endDate)} · {Number(r.requiredHours) || DEFAULT_REQUIRED_HOURS} ชม.
                       </Typography>
                       <Stack direction="row" spacing={1}>
                         <Button size="small" variant="outlined" color="warning" onClick={() => setApplyTarget(r)}
@@ -430,12 +499,12 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+      {!embedded && <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
         <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
           <ModalCancelButton onClick={onClose}>ปิดหน้าต่าง</ModalCancelButton>
         </ModalActions>
-      </DialogActions>
-    </Dialog>
+      </DialogActions>}
+    </ScheduleShell>
   );
 };
 

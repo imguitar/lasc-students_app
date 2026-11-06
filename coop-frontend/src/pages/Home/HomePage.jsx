@@ -162,10 +162,18 @@ const HomePage = () => {
     setNewsIndex(idx);
     requestAnimationFrame(() => requestAnimationFrame(() => setNewsAnimate(true)));
   };
+  // เลื่อนไปข้างหน้าต่อเนื่อง: ถึงสไลด์สุดท้ายแล้วเลื่อนต่อไปยังสำเนาของสไลด์แรก
   const goNext = () => {
-    if (newsIndex >= newsMaxIndex) jumpWithoutAnimation(0);
-    else slideTo(newsIndex + 1);
+    if (newsIndex > newsMaxIndex) return;
+    setNewsAnimate(true);
+    setNewsIndex(newsIndex + 1);
   };
+  // เมื่อเลื่อนมาถึงสำเนาแล้ว รอให้แอนิเมชันจบ แล้วกระโดดกลับสไลด์จริงแรกโดยไม่มีแอนิเมชัน
+  useEffect(() => {
+    if (newsIndex <= newsMaxIndex) return undefined;
+    const t = setTimeout(() => jumpWithoutAnimation(0), 1050);
+    return () => clearTimeout(t);
+  }, [newsIndex, newsMaxIndex]);
   const goPrev = () => {
     if (newsIndex <= 0) jumpWithoutAnimation(newsMaxIndex);
     else slideTo(newsIndex - 1);
@@ -271,7 +279,18 @@ const HomePage = () => {
       ? { key: 'dashboard', label: 'แดชบอร์ด', Icon: LayoutDashboard, to: navAction.to, active: false }
       : { key: 'login', label: 'เข้าสู่ระบบ', Icon: ArrowRightIcon, to: '/login', active: false },
     { key: 'companies', label: 'ที่ฝึกงาน', Icon: Search, to: '/companies', active: pathname.startsWith('/companies') },
-    { key: 'news', label: 'ข่าวสาร', Icon: Newspaper, to: '/news', active: pathname.startsWith('/news') },
+    {
+      key: 'news',
+      label: 'ข่าวสาร',
+      Icon: Newspaper,
+      to: '/news',
+      active: false,
+      onClick: () => {
+        const el = document.getElementById('home-news');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else navigate('/news');
+      },
+    },
   ];
 
   // เมนูใน Drawer (จอ < 1024px) — รวมปุ่ม "แดชบอร์ด" และลิงก์หลักที่ถูกซ่อนจาก Navbar
@@ -492,7 +511,7 @@ const HomePage = () => {
 
       {/* Announcements Section — แถบข่าวแบบ track + transform ตามแบบอ้างอิง */}
       {announcements.length > 0 && (
-        <section ref={newsSectionRef} className="pt-8 pb-10 sm:pt-12 sm:pb-16">
+        <section id="home-news" ref={newsSectionRef} className="pt-8 pb-10 sm:pt-12 sm:pb-16 scroll-mt-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4 mb-5 sm:mb-7">
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 m-0">ข่าวสารและประกาศ</h2>
@@ -524,9 +543,9 @@ const HomePage = () => {
                   transition: newsAnimate ? 'transform 1000ms cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
                 }}
               >
-                {announcements.slice(0, 10).map((news, idx) => (
+                {[...announcements.slice(0, 10), ...(newsMaxIndex > 0 ? announcements.slice(0, newsVisible) : [])].map((news, idx) => (
                   <div
-                    key={news.id}
+                    key={idx < newsCount ? news.id : news.id + '-clone'}
                     className={'home-news-slide shrink-0' + (newsInView ? ' is-in' : '')}
                     style={{ transitionDelay: (idx * 80) + 'ms' }}
                   >
@@ -581,7 +600,7 @@ const HomePage = () => {
                     type="button"
                     onClick={() => slideTo(i)}
                     aria-label={`ไปตำแหน่งที่ ${i + 1}`}
-                    className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${i === newsIndex ? 'w-7 bg-[#EAB308]' : 'w-1.5 bg-[#DDD6FE] hover:bg-violet-400'}`}
+                    className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${i === Math.min(newsIndex, newsMaxIndex) ? 'w-7 bg-[#EAB308]' : 'w-1.5 bg-[#DDD6FE] hover:bg-violet-400'}`}
                   />
                 ))}
               </div>
@@ -601,14 +620,14 @@ const HomePage = () => {
             className="home-cta-card group rounded-3xl p-8 sm:p-10 flex flex-wrap items-center justify-between gap-6 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
           >
             <div className="flex items-center gap-5 flex-1 min-w-[280px]">
-              <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-16 h-16 rounded-2xl bg-[#3B0764] text-[#FDE68A] shadow-lg shadow-purple-900/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <BuildingOffice2Icon className="w-8 h-8" />
               </div>
               <div>
-                <div className="inline-flex items-center gap-1.5 text-purple-700 bg-purple-50 border border-purple-200/70 px-3 py-1 rounded-full text-xs font-bold mb-2">
+                <div className="inline-flex items-center gap-1.5 text-[#854D0E] bg-[#FEF9C3] border border-[#FDE68A] px-3 py-1 rounded-full text-xs font-bold mb-2">
                   <SparklesIcon className="w-3.5 h-3.5" /> แนะนำที่ฝึกงานจากรุ่นพี่
                 </div>
-                <h3 className="m-0 mb-1.5 text-2xl font-extrabold text-slate-900 tracking-tight">
+                <h3 className="m-0 mb-1.5 text-2xl font-extrabold text-[#3B0764] tracking-tight">
                   สถานประกอบการแนะนำ
                 </h3>
                 <p className="m-0 text-sm text-slate-500 leading-relaxed max-w-xl">
@@ -616,7 +635,7 @@ const HomePage = () => {
                 </p>
               </div>
             </div>
-            <span className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 group-hover:from-purple-700 group-hover:to-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md shadow-purple-500/20 transition-all">
+            <span className="inline-flex items-center gap-2 bg-[#3B0764] group-hover:bg-[#4c1d95] text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md shadow-purple-900/25 transition-all">
               ดูสถานประกอบการทั้งหมด
               <ArrowRightIcon className="w-4 h-4" />
             </span>
