@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Typography } from '@mui/material';
 import SignatureCanvas from 'react-signature-canvas';
@@ -20,10 +19,6 @@ import api from '../../../api/axios';
 import { getThaiHoliday } from '../../../utils/thaiHolidays';
 import './DashboardPage.css';
 import '../../Admin/Shared/CheckInPage.css';
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatusBadge from '../../../components/StatusBadge';
 import ModernButton from '../../../components/ModernButton';
 import AttendanceCalendar from '../../../components/AttendanceCalendar';
@@ -64,7 +59,6 @@ const StudentCheckInPage = () => {
   const navigate = useNavigate();
   const todayDate = new Date().toISOString().slice(0, 10);
   const sigCanvas = useRef(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [entries, setEntries] = useState([]);
   const [message, setMessage] = useState('');
@@ -195,11 +189,6 @@ const StudentCheckInPage = () => {
     });
     return s;
   }, [entries]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const clearSignature = () => {
     if (sigCanvas.current) {
@@ -336,39 +325,16 @@ const StudentCheckInPage = () => {
   if (!user) return null;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', bgcolor: '#ffffff', pt: '60px' }}>
-      {/* Mobile top navbar */}
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/check-in"
-        handleLogout={handleLogout}
-      />
+    <>
 
       {/* Main content — natural document scroll (works on iOS/iPad) */}
       <Box
         component="main"
         sx={{
           flex: 1,
-          /* sidebar shows only at lg (≥1200px) — match that breakpoint */
-          ml: { xs: 0, lg: '260px' },
+          /* sidebar shows from 1024px up — match that breakpoint (MUI lg is 1200px, so use an explicit media query) */
+          ml: 0,
+          '@media (min-width:1024px)': { ml: '260px' },
           p: { xs: 2, sm: 3 },
           pb: { xs: '6rem', sm: '6rem' },
           /* outer Box already has pt:'60px' for the fixed navbar — just add breathing room */
@@ -376,27 +342,15 @@ const StudentCheckInPage = () => {
           minWidth: 0,
         }}
       >
-        <Box component="header" sx={{ maxWidth: '1024px', mx: 'auto', width: '100%', mb: 3 }}>
-          {/* Breadcrumb */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1, fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>
-            <Link to="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none' }}>แดชบอร์ด</Link>
-            <span>/</span>
-            <span style={{ color: '#475569' }}>รายงานประจำวัน</span>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e1b4b', fontSize: { xs: '1.4rem', sm: '1.9rem' }, lineHeight: 1.25 }}>
-                บันทึกรายงานประจำวัน
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน
-              </Typography>
-            </Box>
-            <Box className="user-info">
-              <span>{user.full_name || user.name || user.username}</span>
-            </Box>
-          </Box>
-        </Box>
+        <header className="checkin-hero">
+          <div className="checkin-hero-icon" aria-hidden="true">
+            <CalendarDays className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="checkin-hero-title">บันทึกรายงานประจำวัน</h1>
+            <p className="checkin-hero-sub">เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน</p>
+          </div>
+        </header>
 
         <div className="content-wrapper max-w-5xl mx-auto w-full overflow-x-hidden">
           {!canCheckIn ? (
@@ -434,22 +388,18 @@ const StudentCheckInPage = () => {
           ) : (
             <>
               {/* Notice Banner */}
-              <Box sx={{ mb: 2.5, p: 2, borderRadius: 3, bgcolor: '#f5f3ff', border: '1px solid #ddd6fe', color: '#5b21b6', display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                <InformationCircleIcon style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, color: '#7c3aed' }} />
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#5b21b6' }}>
-                    ข้อแนะนำการเช็คชื่อรายงานประจำวัน
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.85rem', mt: 0.5, color: '#6d28d9' }}>
-                    คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา <strong>07:00 น.</strong>
-                  </Typography>
-                </Box>
-              </Box>
+              <div className="checkin-notice">
+                <InformationCircleIcon className="checkin-notice-icon" />
+                <div className="min-w-0">
+                  <p className="checkin-notice-title">ข้อแนะนำการเช็คชื่อรายงานประจำวัน</p>
+                  <p className="checkin-notice-text">คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา</p>
+                </div>
+              </div>
 
               {/* Dashboard grid: calendar (main) + summary stats (rail) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
               {/* Calendar Dashboard — same calendar component the advisor views */}
-              <div className="lg:col-span-2 bg-white rounded-[24px] border border-slate-100 shadow-xs overflow-hidden">
+              <div className="checkin-panel lg:col-span-2 overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
@@ -482,7 +432,7 @@ const StudentCheckInPage = () => {
               </div>
 
               {/* Summary Stats Rail */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
+              <div className="checkin-panel checkin-panel-rail p-4 sm:p-5">
                 <h3 className="text-sm font-bold text-slate-800 m-0">สรุปการเช็คชื่อ</h3>
                 <p className="text-[11px] text-slate-400 m-0 mt-0.5">สถิติรายงานประจำวันทั้งหมดของคุณ</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2.5 mt-3.5">
@@ -523,7 +473,7 @@ const StudentCheckInPage = () => {
               {message && <div className="checkin-message" style={{ marginTop: '1rem' }}>{message}</div>}
 
               {/* Attendance History */}
-              <Box className="checkin-table-wrapper" sx={{ marginTop: '1.5rem', padding: { xs: '1rem', sm: '1.75rem' }, background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <Box className="checkin-panel checkin-history" sx={{ marginTop: '1.5rem', padding: { xs: '1rem', sm: '1.75rem' } }}>
                 <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', fontSize: { xs: '1rem', sm: '1.15rem' }, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <FileText style={{ width: 18, height: 18, color: '#7c3aed' }} />
                   ประวัติรายงานประจำวัน
@@ -633,11 +583,11 @@ const StudentCheckInPage = () => {
       {/* Day Modal */}
       {dayModal.open && (
         <div
-          className="fixed inset-0 z-[1200] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
+          className="checkin-modal-backdrop fixed inset-0 z-[1200] flex items-center justify-center p-4"
           onClick={closeDayModal}
         >
           <div
-            className="bg-white rounded-[28px] p-6 sm:p-7 max-w-md w-full max-h-[90vh] overflow-y-auto border border-violet-100/80 shadow-[0_20px_60px_rgba(124,58,237,0.12)]"
+            className="checkin-modal-card max-w-md w-full max-h-[90vh] overflow-y-auto p-6 sm:p-7"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -837,7 +787,7 @@ const StudentCheckInPage = () => {
                   <button
                     type="submit"
                     disabled={isSubmitDisabled}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl checkin-btn-primary text-white text-xs font-semibold  transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                   >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึกรายงาน'}
                   </button>
@@ -847,7 +797,7 @@ const StudentCheckInPage = () => {
           </div>
         </div>
       )}
-    </Box>
+    </>
   );
 };
 

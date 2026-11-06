@@ -1,5 +1,24 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Home,
+  FilePlus2,
+  ClipboardList,
+  Banknote,
+  CalendarDays,
+  UserRound,
+  GraduationCap,
+  RefreshCw,
+  CheckCircle2,
+  Building2,
+  FileText,
+  LayoutTemplate,
+  Bell,
+} from 'lucide-react';
+import MobileNavDrawer from './MobileNavDrawer';
+import UtilityBar from './UtilityBar';
+import SubNav from './SubNav';
+import MobileTabBar from './MobileTabBar';
 import {
   HomeIcon,
   DocumentPlusIcon,
@@ -20,6 +39,7 @@ import {
 const MENU_CONFIG = {
   student: {
     title: 'นักศึกษา',
+    chip: 'LASC SSKRU',
     items: [
       { path: '/dashboard', label: 'หน้าหลัก', icon: HomeIcon },
       { path: '/dashboard/new-request', label: 'ยื่นคำร้องใหม่', icon: DocumentPlusIcon },
@@ -31,6 +51,7 @@ const MENU_CONFIG = {
   },
   advisor: {
     title: 'อาจารย์ที่ปรึกษา',
+    chip: 'LASC SSKRU',
     items: [
       { path: '/advisor-dashboard', label: 'หน้าหลัก', icon: HomeIcon },
       { path: '/advisor-dashboard/students', label: 'รายชื่อนักศึกษาฝึกงาน', icon: AcademicCapIcon },
@@ -53,6 +74,51 @@ const MENU_CONFIG = {
       { path: '/admin-dashboard/profile', label: 'โปรไฟล์', icon: IdentificationIcon },
     ],
   },
+};
+
+// ไอคอน Lucide สำหรับ Drawer เต็มจอบนมือถือ (เมนู Desktop ยังใช้ชุดเดิมด้านบน)
+const MOBILE_ICONS = {
+  '/dashboard': Home,
+  '/dashboard/new-request': FilePlus2,
+  '/dashboard/my-requests': ClipboardList,
+  '/dashboard/payment-proof': Banknote,
+  '/dashboard/check-in': CalendarDays,
+  '/dashboard/profile': UserRound,
+  '/advisor-dashboard': Home,
+  '/advisor-dashboard/students': GraduationCap,
+  '/advisor-dashboard/supervision': CalendarDays,
+  '/advisor-dashboard/relocations': RefreshCw,
+  '/advisor-dashboard/progress': CheckCircle2,
+  '/advisor-dashboard/profile': UserRound,
+  '/admin-dashboard': Home,
+  '/admin-dashboard/students': GraduationCap,
+  '/admin-dashboard/companies': Building2,
+  '/admin-dashboard/checkins': CalendarDays,
+  '/admin-dashboard/reports': FileText,
+  '/admin-dashboard/relocations': RefreshCw,
+  '/admin-dashboard/home-editor': LayoutTemplate,
+  '/admin-dashboard/profile': UserRound,
+};
+
+// เมนูหลัก 4 รายการที่แสดงบน Mobile Tab Bar (ที่เหลืออยู่ในปุ่ม "เมนู")
+const TAB_PATHS = {
+  student: ['/dashboard', '/dashboard/new-request', '/dashboard/my-requests', '/dashboard/check-in'],
+  advisor: ['/advisor-dashboard', '/advisor-dashboard/students', '/advisor-dashboard/supervision', '/advisor-dashboard/relocations'],
+  admin: ['/admin-dashboard', '/admin-dashboard/students', '/admin-dashboard/companies', '/admin-dashboard/relocations'],
+};
+
+const NOTIFICATION_PATHS = {
+  student: '/dashboard/notifications',
+  admin: '/admin-dashboard/notifications',
+};
+
+const readStoredUser = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 };
 
 const getDetectedRole = () => {
@@ -83,8 +149,62 @@ const AppSidebar = ({
     window.dispatchEvent(new CustomEvent('request-logout-confirm'));
   };
 
+  // อ่านข้อมูลผู้ใช้ใหม่ทุกครั้งที่เปิด Drawer
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const drawerUser = useMemo(() => readStoredUser(), [isMenuOpen]);
+
+  const drawerSubline =
+    activeRole === 'student'
+      ? (drawerUser?.studentId || drawerUser?.student_id || drawerUser?.username || '')
+      : (drawerUser?.department || drawerUser?.major || '');
+
+  const drawerItems = [
+    ...roleConfig.items.map((item) => ({
+      key: item.path,
+      label: item.label,
+      Icon: MOBILE_ICONS[item.path] || Home,
+      to: item.path,
+      active: activePath === item.path,
+    })),
+    ...(NOTIFICATION_PATHS[activeRole]
+      ? [{
+          key: 'notifications',
+          label: 'การแจ้งเตือน',
+          Icon: Bell,
+          to: NOTIFICATION_PATHS[activeRole],
+          active: activePath === NOTIFICATION_PATHS[activeRole],
+        }]
+      : []),
+  ];
+
+  const tabItems = (TAB_PATHS[activeRole] || [])
+    .map((path) => roleConfig.items.find((item) => item.path === path))
+    .filter(Boolean)
+    .map((item) => ({
+      key: item.path,
+      label: item.label,
+      Icon: MOBILE_ICONS[item.path] || Home,
+      to: item.path,
+      active: activePath === item.path,
+    }));
+  const menuActive = !tabItems.some((item) => item.active);
+
   return (
     <>
+      <UtilityBar variant="fixed" />
+      <SubNav variant="fixed" />
+      <MobileTabBar items={tabItems} onOpenMenu={() => setIsMenuOpen(true)} menuActive={menuActive} />
+      {/* Drawer เต็มจอ — แสดงเฉพาะจอเล็ก (< 1024px) ควบคุมด้วย CSS ใน index.css */}
+      <MobileNavDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        user={drawerUser}
+        roleLabel={roleConfig.title}
+        subline={drawerSubline}
+        items={drawerItems}
+        onLogout={onLogout}
+      />
+
       <div
         className={`sidebar-overlay ${isMenuOpen ? 'open' : ''}`}
         onClick={() => setIsMenuOpen(false)}
@@ -93,19 +213,11 @@ const AppSidebar = ({
         className={`sidebar ${isMenuOpen ? 'open' : ''} w-[260px] min-w-[260px] bg-white border-r border-slate-100 flex flex-col`}
         style={{ width: '260px', minWidth: '260px' }}
       >
-        <div
-          className="sidebar-header"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.25rem 1rem',
-            borderBottom: '1px solid #f1f5f9',
-          }}
-        >
-          <h2 className="font-extrabold text-slate-900 tracking-tight text-base" style={{ margin: 0 }}>
-            {roleConfig.title}
-          </h2>
+        <div className="sidebar-header">
+          <div className="sidebar-role">
+            <h2 className="sidebar-role-title">{roleConfig.title}</h2>
+          </div>
+          {roleConfig.chip && <span className="sidebar-role-chip">{roleConfig.chip}</span>}
         </div>
         <nav className="sidebar-nav" style={{ flex: 1, padding: '0.75rem 0.625rem', overflowY: 'auto' }}>
           {roleConfig.items.map((item) => {
@@ -117,7 +229,7 @@ const AppSidebar = ({
                 to={item.path}
                 className={`nav-item flex items-center justify-between px-3.5 py-2.5 my-0.5 rounded-xl transition-all duration-200 text-sm ${
                   isActive
-                    ? 'bg-purple-50 text-purple-600 font-semibold shadow-xs'
+                    ? 'is-active bg-purple-50 text-purple-600 font-semibold shadow-xs'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium'
                 }`}
                 style={{

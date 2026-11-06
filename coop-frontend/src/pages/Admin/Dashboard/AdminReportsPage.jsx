@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
@@ -27,10 +26,6 @@ import {
 } from '@mui/material';
 import './AdminDashboardPage.css';
 import './AdminReportsPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import StatCard from '../../../components/StatCard';
 import { STAT_ICON } from '../../../utils/statIcons';
 import { ChevronDown, ChevronUp, Filter } from 'lucide-react';
@@ -41,7 +36,6 @@ const PIE_PALETTE = ['#54b3d6', '#6192d6', '#6275d8', '#6c65d6', '#8b5fd4', '#ba
 const AdminReportsPage = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -71,11 +65,6 @@ const AdminReportsPage = () => {
       setRequests(res.data.data || []);
     }).catch(err => console.error('Failed to load requests:', err));
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const parseDate = (value) => {
     if (!value) return null;
@@ -408,30 +397,8 @@ const AdminReportsPage = () => {
   }, [departmentStats]);
 
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
+    <>
 
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard/reports"
-        handleLogout={handleLogout}
-      />
 
       <main className="admin-main">
         <header className="admin-header">
@@ -795,7 +762,7 @@ const AdminReportsPage = () => {
         </Paper>
 
       </main>
-    </div>
+    </>
   );
 };
 

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import { openDocumentInNewTab, downloadDocument, downloadFileSmart } from '../../../utils/documentViewer';
 import { getUploadUrl } from '../../../utils/fileUrl';
@@ -36,10 +35,6 @@ import {
   CheckIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import StatCard from '../../../components/StatCard';
 import StatusBadge from '../../../components/StatusBadge';
@@ -61,7 +56,6 @@ const DashboardPage = () => {
   const [studentAvatar, setStudentAvatar] = useState(null);
   const [internshipRequests, setInternshipRequests] = useState([]);
   const [relocations, setRelocations] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   // chart refs removed
 
   useEffect(() => {
@@ -113,11 +107,6 @@ const DashboardPage = () => {
     };
     fetchData();
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const currentRequest = useMemo(() => {
     if (!internshipRequests.length) return null;
@@ -308,29 +297,7 @@ const DashboardPage = () => {
   // Chart rendering removed for Student Dashboard
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main">
         {/* Timeline & Important Schedule Card */}
@@ -911,11 +878,8 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <footer className="dashboard-footer">
-          <div className="footer-inner">© 2026 ระบบคำร้องฝึกงานวิชาชีพ. All rights reserved.</div>
-        </footer>
       </main>
-    </div>
+    </>
   );
 };
 

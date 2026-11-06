@@ -285,8 +285,1518 @@ code {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-@media (max-width: 380px) {
-  .mobile-top-navbar .mobile-top-logo {
-    display: none;
+/* ===== Header บนจอเล็ก: โลโก้+ชื่อระบบชิดซ้าย / ปุ่มแฮมเบอร์เกอร์ชิดขวา =====
+   ทุกหน้าใช้โครงเดียวกัน (div แรก = ปุ่ม+โลโก้, div สุดท้าย = วันที่/กระดิ่ง/โปรไฟล์)
+   จึงจัดตำแหน่งด้วย CSS กลางจุดเดียว ไม่ต้องแก้ JSX รายหน้า */
+@media (max-width: 1023px) {
+  .mobile-top-navbar > div:first-child { display: contents !important; }
+  .mobile-top-navbar .mobile-top-logo { order: 1 !important; margin-right: auto !important; min-width: 0; }
+  .mobile-top-navbar > div:last-child { order: 2 !important; }
+  .mobile-top-navbar .mobile-menu-btn {
+    order: 3 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px;
+    min-height: 40px;
+    margin-left: 8px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    box-shadow: none !important;
+    transition: background-color 0.15s ease;
+  }
+  .mobile-top-navbar .mobile-menu-btn:hover { background: rgba(255, 255, 255, 0.22) !important; }
+}
+
+@media (max-width: 389px) {
+  .mobile-top-navbar .mobile-menu-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px;
+    min-height: 36px;
+    margin-left: 6px !important;
+    border-radius: 10px !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  /* ฝั่งขวาเหลือเฉพาะปุ่มแฮมเบอร์เกอร์: ซ่อนวันที่-เวลา กระดิ่ง และแคปซูลโปรไฟล์ */
+  .mobile-top-navbar > div:last-child { display: none !important; }
+  .mobile-top-navbar .mobile-top-logo { max-width: calc(100% - 50px); overflow: hidden; }
+  .mobile-top-navbar .mobile-top-logo img { max-width: none !important; flex-shrink: 0; }
+  .mobile-top-navbar .mobile-top-logo span {
+    display: inline !important;
+    margin-left: 0 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 389px) {
+  .mobile-top-navbar .mobile-top-logo { max-width: calc(100% - 44px); }
+}
+
+/* ทุกขนาดที่มีปุ่มแฮมเบอร์เกอร์ (< 1024px): ใช้ Drawer เต็มจอเลื่อนเข้าจากขวา แทนแถบข้าง 260px เดิม */
+@media (max-width: 1023px) {
+  aside.sidebar, .sidebar-overlay { display: none !important; }
+  body.m-drawer-open { overflow: hidden; }
+
+  .m-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1200;
+    background: var(--vio-grad-v);
+    overflow: hidden;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.28s ease, visibility 0s linear 0.28s;
+  }
+  .m-drawer.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.28s ease;
+  }
+}
+
+@media (min-width: 1024px) {
+  .m-drawer { display: none !important; }
+}
+
+/* ===== Navbar โทนแบนเนอร์คณะ: ม่วงเข้มไล่เฉดลึก + แสงเหลืองทอง + คลื่น + ประกายประปราย + เส้นทองด้านล่าง ===== */
+:is(.mobile-top-navbar, .site-navbar) {
+  isolation: isolate;
+  border-bottom: 0 !important;
+  backdrop-filter: none !important;
+  /* แสง + สีไล่เฉดผูกกับหน้าจอ (fixed) เหมือนกับ Contact Bar เพื่อให้ต่อกันเป็นผืนเดียว ไม่เห็นรอยต่อ */
+  background:
+    radial-gradient(ellipse 420px 130px at 93% 22px, rgba(250, 204, 21, 0.32) 0%, rgba(250, 204, 21, 0) 72%),
+    radial-gradient(ellipse 560px 170px at 58% 80px, rgba(139, 92, 246, 0.5) 0%, rgba(139, 92, 246, 0) 70%),
+    radial-gradient(ellipse 360px 120px at 4% 14px, rgba(167, 139, 250, 0.28) 0%, rgba(167, 139, 250, 0) 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 64' preserveAspectRatio='none'%3E%3Cpath d='M0 40 C 180 14, 380 58, 640 34 S 1010 8, 1200 36 L1200 64 L0 64Z' fill='white' fill-opacity='0.07'/%3E%3Cpath d='M0 52 C 240 30, 470 66, 760 48 S 1060 32, 1200 50 L1200 64 L0 64Z' fill='%23140B3B' fill-opacity='0.38'/%3E%3Cpath d='M0 46 C 200 24, 420 60, 700 40 S 1040 20, 1200 44' fill='none' stroke='%23FACC15' stroke-opacity='0.5' stroke-width='1.2'/%3E%3C/svg%3E") center / 100% 100% no-repeat,
+    linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%) !important;
+  background-attachment: fixed, fixed, fixed, scroll, fixed !important;
+}
+:is(.mobile-top-navbar, .site-navbar)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 58%;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='64' viewBox='0 0 560 64'%3E%3Cg fill='%23FDE047'%3E%3Ccircle cx='60' cy='18' r='1.6' fill-opacity='0.9'/%3E%3Ccircle cx='132' cy='46' r='1' fill-opacity='0.6'/%3E%3Ccircle cx='205' cy='12' r='1.2' fill-opacity='0.5'/%3E%3Ccircle cx='288' cy='38' r='2' fill-opacity='0.8'/%3E%3Ccircle cx='352' cy='20' r='1' fill-opacity='0.5'/%3E%3Ccircle cx='432' cy='50' r='1.4' fill-opacity='0.7'/%3E%3Ccircle cx='498' cy='14' r='1.8' fill-opacity='0.85'/%3E%3Ccircle cx='540' cy='42' r='1' fill-opacity='0.5'/%3E%3Cpath d='M332 8 L333.8 13.2 L339 15 L333.8 16.8 L332 22 L330.2 16.8 L325 15 L330.2 13.2Z' fill-opacity='0.95'/%3E%3Cpath d='M98 36 L99.2 39.8 L103 41 L99.2 42.2 L98 46 L96.8 42.2 L93 41 L96.8 39.8Z' fill-opacity='0.8'/%3E%3Cpath d='M468 22 L469.1 25.4 L472.5 26.5 L469.1 27.6 L468 31 L466.9 27.6 L463.5 26.5 L466.9 25.4Z' fill-opacity='0.7'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(rgba(255, 255, 255, 0.13) 1.3px, transparent 1.5px);
+  background-size: 560px 64px, 14px 14px;
+  background-position: right top, right top;
+  background-repeat: no-repeat, repeat;
+  -webkit-mask-image: linear-gradient(to left, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 0%, #000 55%, transparent 100%);
+}
+:is(.mobile-top-navbar, .site-navbar)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%);
+}
+
+/* Contact Bar และ Subnav ประกาศด่วน: โทนเดียวกับ Navbar */
+.utility-bar {
+  background:
+    radial-gradient(ellipse 420px 130px at 93% 22px, rgba(250, 204, 21, 0.32) 0%, rgba(250, 204, 21, 0) 72%),
+    radial-gradient(ellipse 560px 170px at 58% 80px, rgba(139, 92, 246, 0.5) 0%, rgba(139, 92, 246, 0) 70%),
+    radial-gradient(ellipse 360px 120px at 4% 14px, rgba(167, 139, 250, 0.28) 0%, rgba(167, 139, 250, 0) 70%),
+    linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%) !important;
+  background-attachment: fixed !important;
+  border: 0 !important;
+  color: #ddd6fe !important;
+}
+.site-subnav {
+  position: relative;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1.2px) right top / 12px 12px,
+    linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%);
+  background-attachment: fixed;
+  border: 0;
+}
+.site-subnav a,
+.site-subnav .site-subnav-text { color: #ffffff !important; }
+.site-subnav a:hover { text-decoration: underline; }
+.site-subnav .site-subnav-badge {
+  background: #facc15 !important;
+  border-color: #fde047 !important;
+  color: #3b0764 !important;
+}
+
+/* ตัวหนังสือและ Element ภายใน: Light on Dark & Fluid Typography */
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo,
+.site-navbar a:has(.site-nav-title) {
+  display: flex !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+  gap: 0.5rem !important; /* 8px */
+}
+@media (min-width: 640px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo,
+  .site-navbar a:has(.site-nav-title) {
+    gap: 0.625rem !important; /* 10px */
+  }
+}
+@media (min-width: 768px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo,
+  .site-navbar a:has(.site-nav-title) {
+    gap: 0.75rem !important; /* 12px */
+  }
+}
+
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+.site-navbar img[alt*="โลโก้"] {
+  height: 28px !important;
+  width: auto !important;
+  max-width: 32px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  transition: height 0.2s ease, width 0.2s ease;
+}
+@media (min-width: 390px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+  .site-navbar img[alt*="โลโก้"] {
+    height: 32px !important;
+    max-width: 36px !important;
+  }
+}
+@media (min-width: 768px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+  .site-navbar img[alt*="โลโก้"] {
+    height: 32px !important;
+    max-width: 36px !important;
+  }
+}
+@media (min-width: 1024px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+  .site-navbar img[alt*="โลโก้"] {
+    height: 36px !important;
+    max-width: 42px !important;
+  }
+}
+@media (min-width: 1440px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo img,
+  .site-navbar img[alt*="โลโก้"] {
+    height: 40px !important;
+    max-width: 46px !important;
+  }
+}
+
+:is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+.site-navbar .site-nav-title {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: clamp(0.875rem, 0.68rem + 0.8vw, 1.5rem) !important;
+}
+
+@media (max-width: 389px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 0.875rem !important; /* 14px */
+  }
+}
+@media (min-width: 390px) and (max-width: 767px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 1rem !important; /* 16px */
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 1.125rem !important; /* 18px */
+  }
+}
+@media (min-width: 1024px) and (max-width: 1439px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 1.25rem !important; /* 20px */
+  }
+}
+@media (min-width: 1440px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 1.375rem !important; /* 22px */
+  }
+}
+@media (min-width: 1680px) {
+  :is(.mobile-top-navbar, .site-navbar) .mobile-top-logo span,
+  .site-navbar .site-nav-title {
+    font-size: 1.5rem !important; /* 24px */
+  }
+}
+
+:is(.mobile-top-navbar, .site-navbar) [aria-label^="วันเวลาปัจจุบัน"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+:is(.mobile-top-navbar, .site-navbar) [aria-label^="วันเวลาปัจจุบัน"] svg { color: #fde047 !important; }
+
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="การแจ้งเตือน"] {
+  background: transparent !important;
+  color: #ffffff !important;
+}
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="การแจ้งเตือน"]:hover { background: rgba(255, 255, 255, 0.12) !important; }
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="การแจ้งเตือน"] > svg { color: #ffffff !important; }
+
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="โปรไฟล์ผู้ใช้งาน"] {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="โปรไฟล์ผู้ใช้งาน"]:hover { background: rgba(255, 255, 255, 0.22) !important; }
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="โปรไฟล์ผู้ใช้งาน"] > span { color: #ffffff !important; }
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="โปรไฟล์ผู้ใช้งาน"] > svg { color: #ede9fe !important; }
+:is(.mobile-top-navbar, .site-navbar) button[aria-label="โปรไฟล์ผู้ใช้งาน"] > div:first-child { box-shadow: 0 0 0 2px #ffffff; }
+
+/* หน้าโฮม/หน้า Public: ตัวหนังสือและปุ่มใน Navbar ม่วง */
+.site-navbar a,
+.site-navbar a span,
+.site-navbar .site-nav-title { color: #ffffff !important; }
+.site-navbar a.site-nav-link { border-radius: 12px; }
+.site-navbar a.site-nav-link:hover,
+.site-navbar .site-nav-cta:hover { background: rgba(255, 255, 255, 0.2) !important; }
+.site-navbar .site-nav-cta {
+  font-weight: 600 !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+.site-navbar { box-shadow: 0 4px 14px rgba(76, 29, 149, 0.18) !important; }
+
+/* ===== มาตรฐานขนาด Navbar เดียวกันทุกหน้า (Home / Dashboard / Public) =====
+   Contact Bar 28px-32px + Main Navbar 56px-72px + Breadcrumbs 32px-36px */
+:root {
+  --navbar-h: 60px;
+  --breadcrumb-h: 32px;
+  --utility-h: 0px;
+  /* ===== Design System: Royal Deep Violet & Gold Accent ===== */
+  --vio-grad: linear-gradient(135deg, #3b0764 0%, #4c1d95 40%, #581c87 75%, #6d28d9 100%);
+  --vio-grad-v: linear-gradient(180deg, #3b0764 0%, #4c1d95 60%, #2e1065 100%);
+  --gold-grad: linear-gradient(90deg, #ca8a04 0%, #eab308 50%, #f59e0b 100%);
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --lav: #ddd6fe;
+  --lav-2: #c4b5fd;
+  --dot-grid: radial-gradient(rgba(255, 255, 255, 0.1) 1.2px, transparent 1.4px);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --navbar-h: 64px;
+  }
+}
+@media (min-width: 768px) {
+  :root {
+    --breadcrumb-h: 36px;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --navbar-h: 68px;
+    --breadcrumb-h: 36px;
+  }
+}
+@media (min-width: 1440px) {
+  :root {
+    --navbar-h: 72px;
+  }
+}
+
+:is(.mobile-top-navbar, .site-navbar) { height: var(--navbar-h) !important; box-sizing: border-box; }
+/* Padding ข้างเท่ากับหน้าโฮม: 16px (มือถือ) / 24px (>= 640px) */
+.mobile-top-navbar { padding-left: 16px !important; padding-right: 16px !important; }
+@media (min-width: 640px) {
+  .mobile-top-navbar { padding-left: 24px !important; padding-right: 24px !important; }
+}
+
+/* ปุ่มแฮมเบอร์เกอร์ของหน้าโฮม/หน้า Public (หน้า Dashboard ใช้ .mobile-menu-btn ด้านบน) */
+.site-navbar .site-hamburger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.site-navbar .site-hamburger:hover { background: rgba(255, 255, 255, 0.22); }
+@media (min-width: 1024px) {
+  .site-navbar .site-hamburger { display: none; }
+}
+
+/* ===== Contact Bar (แถบติดต่อด้านบนสุด) =====
+   จอใหญ่ (>= 1024px) เท่านั้น: บนหน้า Dashboard ตรึงบนสุด 32px แล้วดัน Navbar / เนื้อหา / Sidebar ลงด้วย --utility-h */
+.utility-bar {
+  height: 28px;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .utility-bar {
+    height: 32px;
+  }
+}
+.utility-bar-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1085;
+  overflow: hidden;
+}
+@media (max-width: 1023px) {
+  .utility-bar { display: none !important; }
+}
+@media (min-width: 1024px) {
+  body.has-utility-bar { --utility-h: 32px; }
+}
+body.has-utility-bar .mobile-top-navbar { top: var(--utility-h, 0px) !important; }
+
+.admin-dashboard-container,
+.dashboard-container { padding-top: calc(var(--navbar-h) + var(--utility-h, 0px) + var(--subnav-h, 0px)) !important; }
+@media (min-width: 1024px) {
+  aside.sidebar {
+    top: calc(var(--navbar-h) + var(--utility-h, 0px) + var(--subnav-h, 0px)) !important;
+    height: calc(100dvh - var(--navbar-h) - var(--utility-h, 0px) - var(--subnav-h, 0px)) !important;
+  }
+}
+
+/* ซ่อนแถบเลื่อน (Scrollbar) ทั้งเว็บ — ยังเลื่อนหน้าด้วยล้อเมาส์/ทัชได้ตามปกติ */
+html, body, * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* ===== Subnav & Breadcrumb บนหน้าแดชบอร์ด: ตรึงใต้ Navbar สูง 32px-36px แล้วดันเนื้อหา/Sidebar ลงด้วย --subnav-h ===== */
+body.has-subnav {
+  --subnav-h: 32px; /* ต้องเท่ากับความสูงจริงของ .site-subnav-fixed เพื่อไม่ให้เกิดช่องว่าง */
+}
+.site-subnav-fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(var(--utility-h, 0px) + var(--navbar-h));
+  height: 32px;
+  z-index: 1079;
+  overflow: hidden;
+}
+
+/* แถบนำทาง Breadcrumbs แบบไดนามิก — Deep Violet & Gold Accent */
+.site-breadcrumb {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(var(--utility-h, 0px) + var(--navbar-h, 60px));
+  height: var(--breadcrumb-h, 32px);
+  z-index: 1055;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1.2px) right top / 12px 12px,
+    linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%);
+  background-attachment: fixed;
+  border-bottom: 1px solid rgba(250, 204, 21, 0.35);
+  box-shadow: 0 4px 12px -2px rgba(30, 27, 75, 0.35);
+}
+@media (min-width: 768px) {
+  .site-breadcrumb {
+    height: var(--breadcrumb-h, 36px);
+  }
+}
+.site-breadcrumb::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.5px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%);
+}
+
+@media (max-width: 1023px) {
+  body.has-subnav .admin-dashboard-container,
+  body.has-subnav .dashboard-container {
+    padding-top: calc(var(--navbar-h, 60px) + var(--breadcrumb-h, 32px)) !important;
+  }
+}
+
+/* ===== จอ < 1024px: ซ่อนแถบติดต่อและ Subnav แล้วใช้ Mobile Tab Bar ด้านล่างแทน Sidebar ===== */
+.m-tabbar { display: none; }
+@media (max-width: 1023px) {
+  .utility-bar,
+  .site-subnav { display: none !important; }
+  .m-tabbar {
+    display: flex;
+    align-items: stretch;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1070;
+    background: var(--vio-grad-v);
+    border-top: 3px solid transparent;
+    border-image: var(--gold-grad) 1;
+    box-shadow: 0 -8px 24px rgba(46, 16, 101, 0.28);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  body.m-drawer-open .m-tabbar { display: none; }
+}
+
+/* ============ Sidebar: Deep Violet (จอ >= 1024px) ============ */
+@media (min-width: 1024px) {
+  aside.sidebar {
+    background: var(--vio-grad-v) !important;
+    border-right: 1px solid rgba(234, 179, 8, 0.4) !important;
+    box-shadow: 4px 0 18px rgba(46, 16, 101, 0.18);
+    overflow: hidden;
+  }
+  aside.sidebar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: var(--dot-grid);
+    background-size: 14px 14px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 60%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 60%);
+  }
+  aside.sidebar > * { position: relative; z-index: 1; }
+
+  aside.sidebar .sidebar-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+  }
+  aside.sidebar .sidebar-header h2 { color: #ffffff !important; }
+
+  aside.sidebar .nav-item {
+    color: var(--lav) !important;
+    background: transparent !important;
+    border-left: 3px solid transparent !important;
+    font-weight: 500;
+  }
+  aside.sidebar .nav-item svg { color: var(--lav-2) !important; }
+  aside.sidebar .nav-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+  }
+  aside.sidebar .nav-item:hover svg { color: #ffffff !important; }
+  aside.sidebar .nav-item.is-active {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-left-color: #fbbf24 !important;
+  }
+  aside.sidebar .nav-item.is-active svg { color: #ffffff !important; }
+  aside.sidebar .nav-item .active-dot { background-color: #fbbf24 !important; }
+
+  aside.sidebar .sidebar-footer { border-top: 1px solid rgba(255, 255, 255, 0.14) !important; }
+  aside.sidebar .logout-btn {
+    background: var(--glass-bg) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    color: #ffffff !important;
+    min-height: 44px;
+    backdrop-filter: blur(8px);
+  }
+  aside.sidebar .logout-btn svg { color: #ffffff !important; }
+  aside.sidebar .logout-btn:hover {
+    background: rgba(251, 146, 60, 0.16) !important;
+    border-color: rgba(251, 146, 60, 0.55) !important;
+  }
+}
+
+/* ============ Footer: Deep Violet + เส้นทองด้านบน ============ */
+footer.site-footer,
+footer.footer,
+.dashboard-footer {
+  position: relative;
+  background:
+    var(--dot-grid) right top / 14px 14px,
+    var(--vio-grad) !important;
+  color: var(--lav) !important;
+  border-top: 3px solid transparent !important;
+  border-image: var(--gold-grad) 1;
+}
+footer.site-footer a { color: var(--lav) !important; }
+footer.site-footer a:hover { color: #ffffff !important; }
+footer.site-footer svg { color: #fbbf24 !important; }
+footer.site-footer h4,
+footer.site-footer .font-bold { color: #ffffff !important; }
+footer.site-footer .text-purple-300,
+footer.site-footer [class*="text-purple-200"],
+footer.site-footer [class*="text-purple-300"] { color: var(--lav) !important; }
+footer.site-footer .border-t { border-color: rgba(255, 255, 255, 0.14) !important; }
+footer.footer p, footer.footer { color: var(--lav) !important; }
+.dashboard-footer {
+  margin-top: 2.5rem;
+  border-radius: 12px;
+  padding: 0.875rem 1rem !important;
+  text-align: center;
+}
+.dashboard-footer .footer-inner { color: var(--lav); opacity: 1; }
+@media (max-width: 1023px) {
+  footer.site-footer { text-align: center; }
+  footer.site-footer .flex.items-start,
+  footer.site-footer .flex.items-center { justify-content: center; }
+}
+
+/* ============ Drawer & Tab Bar บนมือถือ: Deep Violet + Gold ============ */
+.m-drawer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--dot-grid);
+  background-size: 14px 14px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 55%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 55%);
+}
+.m-drawer > * { position: relative; z-index: 1; }
+.m-drawer-head { border-bottom: 3px solid transparent; border-image: var(--gold-grad) 1; }
+.m-drawer-title, .m-drawer-name { color: #ffffff; }
+.m-drawer-close {
+  width: 40px; height: 40px; min-width: 40px; min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; cursor: pointer; color: #ffffff;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+}
+.m-drawer-card {
+  border-radius: 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.m-drawer-avatar {
+  border-radius: 16px; color: #ffffff; font-weight: 700;
+  background: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+.m-drawer-role {
+  border-radius: 999px; color: #3b0764; background: #fde047;
+}
+.m-drawer-sub { color: var(--lav-2); }
+.m-drawer-contact, .m-drawer-contact a { color: var(--lav); }
+.m-drawer-gold { color: #fbbf24; }
+.m-drawer [aria-label^="วันเวลาปัจจุบัน"] {
+  background: var(--glass-bg) !important;
+  border-color: var(--glass-border) !important;
+  color: #ffffff !important;
+}
+.m-drawer [aria-label^="วันเวลาปัจจุบัน"] svg { color: #fde047 !important; }
+.m-drawer-link {
+  border-radius: 12px; color: var(--lav); background: transparent;
+  border: 0; border-left: 3px solid transparent; font-weight: 500;
+}
+.m-drawer-link:hover { background: rgba(255, 255, 255, 0.1); color: #ffffff; }
+.m-drawer-link.is-active {
+  background: rgba(255, 255, 255, 0.14); color: #ffffff; font-weight: 700; border-left-color: #fbbf24;
+}
+.m-drawer-foot { background: rgba(46, 16, 101, 0.55); border-top: 1px solid rgba(255, 255, 255, 0.14); }
+.m-drawer-logout, .m-drawer-login { border-radius: 12px; color: #ffffff; }
+.m-drawer-logout { background: var(--glass-bg); border: 1px solid rgba(255, 255, 255, 0.25); }
+.m-drawer-logout:hover { background: rgba(251, 146, 60, 0.16); border-color: rgba(251, 146, 60, 0.55); }
+.m-drawer-login { background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%); border: 1px solid rgba(234, 179, 8, 0.5); }
+
+.m-tab { color: var(--lav); transition: color 0.15s ease; }
+.m-tab .m-tab-icon { transition: background-color 0.15s ease; }
+.m-tab .m-tab-label { font-weight: 500; }
+.m-tab.is-active { color: #ffffff; }
+.m-tab.is-active .m-tab-icon { background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 -2px 0 #fbbf24; }
+.m-tab.is-active .m-tab-label { font-weight: 700; }
+
+/* ============ Content: ปุ่มหลัก / แท็บตัวกรองที่เลือก ============ */
+:is(button, a, label).bg-violet-600,
+:is(button, a, label).bg-purple-600,
+:is(button, a, label).bg-purple-700,
+:is(button, a, label).bg-violet-700,
+:is(button, a, label).bg-\[\#7C3AED\] {
+  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%) !important;
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.35);
+  border-color: transparent;
+}
+:is(button, a, label).bg-violet-600:hover,
+:is(button, a, label).bg-purple-600:hover,
+:is(button, a, label).bg-purple-700:hover,
+:is(button, a, label).bg-violet-700:hover,
+:is(button, a, label).bg-\[\#7C3AED\]:hover {
+  background: linear-gradient(135deg, #5b21b6 0%, #6d28d9 100%) !important;
+}
+:is(button, a, label).bg-violet-600:active,
+:is(button, a, label).bg-purple-600:active,
+:is(button, a, label).bg-purple-700:active,
+:is(button, a, label).bg-violet-700:active,
+:is(button, a, label).bg-\[\#7C3AED\]:active {
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.35), 0 0 0 2px rgba(234, 179, 8, 0.55);
+}
+.MuiToggleButton-root.Mui-selected,
+.MuiToggleButton-root.Mui-selected:hover {
+  background: var(--vio-grad) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(234, 179, 8, 0.65);
+}
+
+/* ======================================================================
+   Modal / Dialog / Bottom Sheet — ธีม Deep Violet & Gold
+   ครอบคลุม MUI Dialog และ Modal แบบ Tailwind (fixed inset-0) ทั้งระบบ
+   ====================================================================== */
+@keyframes mSheetUp {
+  from { transform: translateY(40px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ---------- 1) Backdrop มัว + เบลอ ---------- */
+.MuiDialog-root .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+  background: rgba(15, 23, 42, 0.65) !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) {
+  background: rgba(15, 23, 42, 0.65) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 1300 !important;
+}
+
+/* ---------- 2) การ์ด Modal ---------- */
+.MuiDialog-paper:not(.MuiDialog-paperFullScreen) {
+  border-radius: 16px !important;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 25px 50px -12px rgba(76, 29, 149, 0.25) !important;
+  overflow-x: hidden !important;
+}
+div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) > div {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(76, 29, 149, 0.25) !important;
+  max-height: 85vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* แถบหัวตกแต่ง (ม่วงไล่เฉด + เส้นทอง) สำหรับ Modal แบบ Tailwind ที่ไม่มีหัวกล่องแยก */
+div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) > div::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #3b0764 0%, #4c1d95 60%, #581c87 100%);
+  border-bottom: 2.5px solid #eab308;
+  pointer-events: none;
+}
+
+/* ---------- 3) หัวกล่อง MUI Dialog (ยกเว้นกล่องยืนยันแบบกลางจอ) ---------- */
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root {
+  background: linear-gradient(135deg, #3b0764 0%, #4c1d95 60%, #581c87 100%) !important;
+  border-bottom: 2.5px solid #eab308 !important;
+  color: #ffffff !important;
+  padding: 14px 20px !important;
+  flex-shrink: 0;
+}
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root *:not(.MuiBadge-badge) { color: #ffffff !important; }
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root .MuiIconButton-root {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px;
+  border-radius: 999px;
+}
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root .MuiIconButton-root:hover { background: rgba(255, 255, 255, 0.12) !important; }
+.MuiDialogContent-root { overflow-x: hidden !important; }
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root + .MuiDialogContent-root { padding-top: 16px !important; }
+.dialog-confirm .MuiDialogActions-root .MuiButton-root { border-radius: 999px; }
+
+/* ---------- 4) ปุ่ม: touch >= 44px, ปุ่มหลักสีม่วงเข้ม, ปุ่มรองเทา ---------- */
+.MuiDialogActions-root { padding: 12px 20px calc(12px + env(safe-area-inset-bottom)) !important; gap: 8px; }
+.MuiDialogActions-root > :not(style) { margin-left: 0 !important; }
+.MuiDialogActions-root .MuiButton-root { min-height: 44px; border-radius: 12px; font-weight: 700; }
+.MuiDialog-paper:not(.dialog-confirm) .MuiDialogActions-root .MuiButton-containedPrimary:not(.Mui-disabled) {
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3) !important;
+}
+.MuiDialog-paper:not(.dialog-confirm) .MuiDialogActions-root .MuiButton-containedPrimary:focus-visible,
+.MuiDialog-paper:not(.dialog-confirm) .MuiDialogActions-root .MuiButton-containedPrimary:active { box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3), 0 0 0 3px rgba(234, 179, 8, 0.5) !important; }
+.MuiDialogActions-root :is(.MuiButton-text, .MuiButton-outlined):not(.MuiButton-colorError):not(.MuiButton-colorPrimary) {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: transparent;
+}
+.MuiDialogActions-root :is(.MuiButton-text, .MuiButton-outlined):not(.MuiButton-colorError):not(.MuiButton-colorPrimary):hover { background: #e2e8f0; }
+
+div.fixed.inset-0:is(.items-center, .items-end) button.flex-1,
+div.fixed.inset-0:is(.items-center, .items-end) button[type="submit"] { min-height: 44px; }
+div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600 {
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%) !important;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
+}
+div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visible { outline: none; box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3), 0 0 0 3px rgba(234, 179, 8, 0.5); }
+
+/* ---------- 5) ช่องกรอกในกล่อง: กันซูมเองบนมือถือ (>= 16px) / 14px บน Desktop ---------- */
+@media (max-width: 767px) {
+  :is(.MuiDialog-root, div.fixed.inset-0) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
+  .MuiDialog-root :is(.MuiInputBase-input, .MuiSelect-select) { font-size: 16px !important; }
+}
+@media (min-width: 768px) {
+  :is(.MuiDialog-root, div.fixed.inset-0) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
+  .MuiDialog-root :is(.MuiInputBase-input, .MuiSelect-select) { font-size: 14px !important; }
+}
+
+/* ---------- 6) มือถือ (< 768px): Bottom Sheet + ปุ่มเรียงเต็มความกว้าง ---------- */
+@media (max-width: 767px) {
+  .MuiDialog-container { align-items: flex-end !important; }
+  .MuiDialog-paper:not(.MuiDialog-paperFullScreen) {
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    transform: none !important;
+    animation: mSheetUp 0.28s ease;
+  }
+  .MuiDialogActions-root { flex-direction: column-reverse; align-items: stretch !important; justify-content: stretch !important; }
+  .MuiDialogActions-root > :not(style) { width: 100%; margin: 0 !important; }
+
+  div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    animation: mSheetUp 0.28s ease;
+  }
+  div.fixed.inset-0:is(.items-center, .items-end) :is(div):has(> button.flex-1) { flex-direction: column-reverse; }
+  div.fixed.inset-0:is(.items-center, .items-end) :is(div):has(> button.flex-1) > button { width: 100%; flex: none; }
+}
+
+/* ============ หัว Sidebar (บทบาทผู้ใช้): ต่อเนื่องกับ Navbar ============ */
+@media (min-width: 1024px) {
+  aside.sidebar .sidebar-header {
+    position: relative;
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    gap: 6px;
+    padding: 16px 20px !important;
+    min-height: 76px;
+    background: linear-gradient(180deg, #3b0764 0%, #4c1d95 100%) !important;
+    border-bottom: 2px solid transparent !important;
+    border-image: linear-gradient(90deg, #eab308 0%, #f59e0b 60%, rgba(234, 179, 8, 0.15) 100%) 1 !important;
+    box-shadow: 0 4px 12px -2px rgba(234, 179, 8, 0.2);
+    overflow: hidden;
+  }
+  aside.sidebar .sidebar-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background-image: radial-gradient(#ffffff 1.2px, transparent 1.4px);
+    background-size: 14px 14px;
+  }
+  aside.sidebar .sidebar-header > * { position: relative; z-index: 1; }
+}
+.sidebar-role { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sidebar-role-icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 10px; color: #fde047;
+  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(253, 224, 71, 0.35);
+}
+.sidebar-role-title {
+  margin: 0; color: #ffffff !important; font-weight: 700 !important;
+  letter-spacing: 0.025em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-role-chip {
+  display: inline-block; margin-left: 42px; padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 600; line-height: 1.5; color: #e9d5ff;
+  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ============ Navbar + Sidebar = แผ่นสีเดียวกัน (พื้นหลังผูกกับหน้าจอแบบ fixed เหมือน Navbar) ============ */
+@media (min-width: 1024px) {
+  aside.sidebar {
+    background:
+      radial-gradient(ellipse 360px 520px at 30px 58vh, rgba(139, 92, 246, 0.42) 0%, rgba(139, 92, 246, 0) 72%),
+      linear-gradient(180deg, rgba(24, 8, 60, 0) 55%, rgba(24, 8, 60, 0.6) 100%),
+      linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%) !important;
+    background-attachment: fixed !important;
+  }
+  aside.sidebar .sidebar-header {
+    background: transparent !important;
+  }
+
+  /* ตัวหนังสือเด่นขึ้น */
+  aside.sidebar .sidebar-role-title {
+    font-weight: 800 !important;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  }
+  aside.sidebar .nav-item {
+    color: #f5f3ff !important;
+    font-weight: 600 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+  aside.sidebar .nav-item span { font-size: 0.9375rem !important; }
+  aside.sidebar .nav-item svg { color: #ddd6fe !important; }
+  aside.sidebar .nav-item.is-active {
+    background: rgba(255, 255, 255, 0.18) !important;
+    font-weight: 800 !important;
+  }
+  aside.sidebar .logout-btn { font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+}
+
+/* หัว Sidebar: ไม่มีไอคอน จัดกึ่งกลางเหมือนเดิม */
+@media (min-width: 1024px) {
+  aside.sidebar .sidebar-header { align-items: center !important; }
+  aside.sidebar .sidebar-role { justify-content: center; }
+  aside.sidebar .sidebar-role-chip { margin-left: 0; }
+  aside.sidebar .sidebar-role-title { text-align: center; }
+
+  /* เส้นทองหลักย้ายจากใต้ Navbar มาอยู่ใต้ Subnav เพื่อตัดผ่านขอบบนของ Sidebar พอดี */
+  :is(.mobile-top-navbar, .site-navbar)::after { display: none; }
+  .site-subnav::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%);
+  }
+}
+
+/* ======================================================================
+   การ์ด / ตาราง / ตัวกรอง — Frosted Lavender-White with Gold & Violet accents
+   ใช้เฉพาะพื้นที่เนื้อหาของหน้าแดชบอร์ด (ไม่กระทบ Modal, เมนูลอย หรือแบบฟอร์มพิมพ์)
+   ====================================================================== */
+:root {
+  --card-surface: #fafafd;
+  --card-border: #e9e5f5;
+  --card-shadow: 0 10px 30px -5px rgba(76, 29, 149, 0.05), 0 4px 6px -2px rgba(76, 29, 149, 0.02);
+  --card-shadow-hover: 0 12px 32px -4px rgba(76, 29, 149, 0.1), 0 4px 8px -2px rgba(76, 29, 149, 0.04);
+  --gold-strip: inset 0 2px 0 rgba(234, 179, 8, 0.75);
+}
+
+/* พื้นหลังหน้าให้เป็นลาเวนเดอร์อ่อน เพื่อให้การ์ดสีขาวนวลดูเด่นแบบนุ่มนวล */
+.admin-dashboard-container,
+.dashboard-container { background: #f3f1fa !important; }
+
+/* ---- พื้นผิวการ์ด ---- */
+:is(.admin-main, .dashboard-main) :is(
+  .bg-white.rounded-2xl,
+  .bg-white.rounded-3xl,
+  .bg-white[class*="rounded-[2"],
+  .stat-card,
+  .MuiCard-root
+) {
+  background-color: var(--card-surface) !important;
+  border: 1px solid var(--card-border) !important;
+  box-shadow: var(--card-shadow) !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+/* แถบทองบางบนสุด: การ์ดสถิติ + การ์ดที่ครอบตารางหลัก */
+:is(.admin-main, .dashboard-main) :is(
+  .stat-card,
+  .MuiCard-root,
+  .bg-white:has(> table),
+  .bg-white:has(> .MuiTableContainer-root),
+  .bg-white:has(> .overflow-x-auto > table),
+  .bg-white:has(> div > table)
+) {
+  box-shadow: var(--gold-strip), var(--card-shadow) !important;
+}
+:is(.admin-main, .dashboard-main) :is(.stat-card, .MuiCard-root):hover,
+:is(.admin-main, .dashboard-main) :is(button, a, [role="button"]).bg-white.rounded-2xl:hover {
+  border-color: #ddd6fe !important;
+  box-shadow: var(--gold-strip), var(--card-shadow-hover) !important;
+  transform: translateY(-1px);
+}
+
+/* ---- หัวข้อและคำอธิบายในการ์ด ---- */
+:is(.admin-main, .dashboard-main) :is(h1, h2, h3, h4)[class*="text-slate-9"],
+:is(.admin-main, .dashboard-main) :is(h1, h2, h3, h4)[class*="text-slate-8"],
+:is(.admin-main, .dashboard-main) :is(h1, h2, h3, h4)[class*="text-gray-9"] { color: #1e1b4b !important; }
+:is(.admin-main, .dashboard-main) :is(p, span)[class*="text-slate-500"] { color: #64748b; }
+
+/* ---- ตาราง: หัวม่วงลาเวนเดอร์ / แถวสลับ / hover ---- */
+:is(.admin-main, .dashboard-main) :is(thead th, .MuiTableHead-root .MuiTableCell-root) {
+  background: #f3f0fa !important;
+  color: #4c1d95 !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border-bottom: 1.5px solid #e9e5f5 !important;
+}
+:is(.admin-main, .dashboard-main) :is(thead tr, .MuiTableHead-root .MuiTableRow-root) { background: #f3f0fa !important; }
+:is(.admin-main, .dashboard-main) :is(tbody tr, .MuiTableBody-root .MuiTableRow-root) {
+  background-color: #ffffff;
+  transition: background-color 0.15s ease;
+}
+:is(.admin-main, .dashboard-main) :is(tbody tr, .MuiTableBody-root .MuiTableRow-root):nth-child(even) { background-color: #faf9fd; }
+:is(.admin-main, .dashboard-main) :is(tbody tr, .MuiTableBody-root .MuiTableRow-root):hover { background-color: rgba(243, 232, 255, 0.7) !important; }
+:is(.admin-main, .dashboard-main) :is(tbody td, .MuiTableBody-root .MuiTableCell-root) {
+  border-bottom: 1px solid #f1eef9 !important;
+  background-color: transparent;
+}
+/* คอลัมน์ที่ตรึงด้านขวา ต้องสืบสีแถวเพื่อไม่ให้สีขาวลอย */
+:is(.admin-main, .dashboard-main) tbody td.sticky { background-color: inherit !important; }
+
+/* ---- ช่องค้นหา / ตัวกรอง ---- */
+:is(.admin-main, .dashboard-main) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.4) !important;
+  outline: none !important;
+}
+:is(.admin-main, .dashboard-main) .MuiOutlinedInput-root.Mui-focused {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.4);
+}
+:is(.admin-main, .dashboard-main) .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline { border-color: #8b5cf6 !important; }
+@media (max-width: 767px) {
+  :is(.admin-main, .dashboard-main) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea),
+  :is(.admin-main, .dashboard-main) :is(.MuiInputBase-input, .MuiSelect-select) { font-size: 16px !important; }
+  :is(.admin-main, .dashboard-main) :is(.MuiButton-root, button.rounded-full) { min-height: 44px; }
+}
+
+/* ---- การ์ดระดับหน้า (content-section / ui-card ฯลฯ) ---- */
+:is(.admin-main, .dashboard-main) :is(.content-section, .ui-card, .details-card, .checkin-card, .payment-proof-card) {
+  background-color: var(--card-surface) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--card-shadow) !important;
+}
+:is(.admin-main, .dashboard-main) :is(.content-section, .ui-card):is(:has(table), :has(.MuiTableContainer-root)) {
+  box-shadow: var(--gold-strip), var(--card-shadow) !important;
+}
+:is(.admin-main, .dashboard-main) .section-header {
+  border-bottom: 1.5px solid #e9e5f5 !important;
+}
+:is(.admin-main, .dashboard-main) .section-header :is(h1, h2, h3) { color: #1e1b4b !important; font-weight: 800; }
+
+/* ======================================================================
+   ปุ่มไอคอน / ปุ่มย้อนกลับมาตรฐาน — Deep Violet & Gold
+   ใช้กับ <BackButton /> (.icon-btn) และ MUI IconButton ในพื้นที่เนื้อหา
+   ====================================================================== */
+.icon-btn,
+:is(.admin-main, .dashboard-main) .MuiIconButton-root:not(.MuiCheckbox-root):not(.MuiRadio-root) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #334155;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+@media (hover: hover) {
+  .icon-btn:hover,
+  :is(.admin-main, .dashboard-main) .MuiIconButton-root:not(.MuiCheckbox-root):not(.MuiRadio-root):hover {
+    background: #f5f3ff;
+    border-color: #7c3aed;
+    color: #7c3aed;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  }
+  .icon-btn--back:hover { transform: translateX(-2px); }
+}
+.icon-btn:active,
+:is(.admin-main, .dashboard-main) .MuiIconButton-root:not(.MuiCheckbox-root):not(.MuiRadio-root):active { transform: scale(0.95); }
+.icon-btn:focus-visible,
+:is(.admin-main, .dashboard-main) .MuiIconButton-root:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(251, 191, 36, 0.6);
+}
+@media (max-width: 767px) {
+  .icon-btn,
+  :is(.admin-main, .dashboard-main) .MuiIconButton-root:not(.MuiCheckbox-root):not(.MuiRadio-root) { width: 44px; height: 44px; min-width: 44px; }
+}
+/* ปุ่มไอคอนในช่องกรอก (ตาดูรหัสผ่าน ฯลฯ) และในตารางแถวแน่น ให้เล็กลงและไม่มีกรอบ */
+:is(.admin-main, .dashboard-main) .MuiInputAdornment-root .MuiIconButton-root {
+  width: auto; height: auto; min-width: 0; padding: 6px; border: 0; background: transparent; box-shadow: none;
+}
+:is(.admin-main, .dashboard-main) table .MuiIconButton-root { width: 36px; height: 36px; min-width: 36px; }
+@media (max-width: 767px) {
+  :is(.admin-main, .dashboard-main) table .MuiIconButton-root { width: 44px; height: 44px; min-width: 44px; }
+}
+
+/* พื้นผิวเข้ม (Navbar / Banner / หัวกล่อง Modal) */
+.icon-btn--dark,
+.MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root .MuiIconButton-root {
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  box-shadow: none;
+}
+@media (hover: hover) {
+  .icon-btn--dark:hover,
+  .MuiDialog-paper:not(.dialog-confirm) > .MuiDialogTitle-root .MuiIconButton-root:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: #fde047;
+    color: #fde047;
+    box-shadow: none;
+  }
+}
+
+/* ปุ่ม "ย้อนกลับ" แบบมีข้อความ (หน้ารายละเอียดคำร้อง) ใช้โทนเดียวกัน */
+.btn-back {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #334155 !important;
+  min-height: 40px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-back:hover { background: #f5f3ff !important; border-color: #7c3aed !important; color: #7c3aed !important; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15); }
+.btn-back:active { transform: scale(0.97); }
+@media (max-width: 767px) { .btn-back { min-height: 44px; } }
+
+/* ===== ตัวแบ่งหน้า (Prev / Next) ===== */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 4px 4px;
+}
+.pager-info { font-size: 13px; color: #64748b; }
+.pager-controls { display: flex; align-items: center; gap: 10px; }
+.pager-page { min-width: 84px; text-align: center; font-size: 13px; font-weight: 700; color: #4c1d95; }
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #ddd6fe;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #5b21b6;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .pager-btn:not(:disabled):hover { background: #f5f3ff; border-color: #7c3aed; color: #7c3aed; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15); }
+}
+.pager-btn:not(:disabled):active { transform: scale(0.97); }
+.pager-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(251, 191, 36, 0.6); }
+.pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (max-width: 767px) {
+  .pager { flex-direction: column; align-items: stretch; text-align: center; }
+  .pager-controls { justify-content: space-between; }
+  .pager-btn { flex: 1; min-height: 44px; }
+  .pager-page { min-width: 70px; }
+}
+
+/* ===== Logout confirm modal (Deep Violet & Gold, Rose action) ===== */
+@keyframes logout-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.logout-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.logout-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+  padding: 32px 24px 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #ffffff;
+  box-shadow: 0 25px 50px -12px rgba(76, 29, 149, 0.18), 0 10px 20px -5px rgba(0, 0, 0, 0.04);
+  text-align: center;
+  animation: logout-modal-in 0.18s ease-out;
+}
+.logout-modal-accent { position: absolute; top: 0; left: 0; right: 0; }
+.logout-modal-accent-purple { display: block; height: 3px; background: #4c1d95; }
+.logout-modal-accent-gold { display: block; height: 2px; background: #eab308; }
+.logout-modal-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #e11d48;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 1px solid #fecdd3;
+  box-shadow: 0 0 0 8px rgba(225, 29, 72, 0.1);
+}
+.logout-modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0f172a;
+}
+.logout-modal-desc {
+  margin: 8px auto 24px;
+  max-width: 300px;
+  font-size: 14px;
+  line-height: 1.625;
+  color: #64748b;
+}
+.logout-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+.logout-btn-cancel,
+.logout-btn-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  width: 100%;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.logout-btn-cancel:active,
+.logout-btn-confirm:active { transform: scale(0.98); }
+.logout-btn-cancel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+.logout-btn-cancel:hover {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+  color: #7e22ce;
+}
+.logout-btn-confirm {
+  border: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  box-shadow: 0 4px 14px 0 rgba(225, 29, 72, 0.35);
+}
+.logout-btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px 0 rgba(225, 29, 72, 0.4);
+  filter: brightness(1.05);
+}
+.logout-btn-confirm:focus-visible { box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.6); }
+@media (max-width: 479px) {
+  .logout-modal-card { padding: 32px 24px 24px; }
+}
+
+/* ===== Student daily check-in page (Deep Violet & Gold, frosted lavender) ===== */
+.checkin-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 960px;
+  margin: 0 auto 20px;
+  padding: 20px 22px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e1b4b 0%, #3b0764 45%, #4c1d95 100%);
+  box-shadow: 0 14px 32px -12px rgba(76, 29, 149, 0.45);
+}
+.checkin-hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #eab308;
+}
+.checkin-hero-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #fde68a;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+}
+.checkin-hero-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1.25;
+  color: #ffffff;
+}
+.checkin-hero-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(233, 213, 255, 0.85);
+}
+.checkin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto 20px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  color: #5b21b6;
+  background: rgba(245, 243, 255, 0.9);
+  border: 1px solid rgba(196, 181, 253, 0.6);
+}
+.checkin-notice-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px; color: #7c3aed; }
+.checkin-notice-title { margin: 0; font-size: 14px; font-weight: 700; color: #4c1d95; }
+.checkin-notice-text { margin: 4px 0 0; font-size: 13px; line-height: 1.6; color: #6d28d9; }
+.checkin-panel {
+  position: relative;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(196, 181, 253, 0.4);
+  border-radius: 24px;
+  box-shadow: 0 12px 30px -14px rgba(76, 29, 149, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.checkin-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(90deg, #4c1d95 0%, #6d28d9 60%, #eab308 100%);
+  pointer-events: none;
+}
+.checkin-btn-primary {
+  border: none;
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.checkin-btn-primary:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.checkin-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.checkin-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.55); }
+.checkin-btn-primary:disabled { background: #cbd5e1; box-shadow: none; }
+.checkin-modal-backdrop {
+  background: rgba(30, 27, 75, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.checkin-modal-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(76, 29, 149, 0.25);
+}
+.checkin-modal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(90deg, #4c1d95 0%, #6d28d9 60%, #eab308 100%);
+}
+@media (max-width: 479px) {
+  .checkin-hero { padding: 16px; border-radius: 20px; }
+  .checkin-hero-icon { width: 38px; height: 38px; border-radius: 12px; }
+}
+
+/* ===== แถบทางลัดหน้าแรก (QuickActionBar) — Deep Violet & Gold ===== */
+.qa-section { margin: 12px 0 20px; }
+@media (min-width: 640px) { .qa-section { margin: 20px 0 28px; } }
+.qa-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(196, 181, 253, 0.6);
+  box-shadow: 0 14px 30px -18px rgba(76, 29, 149, 0.25);
+}
+.qa-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, #6d28d9 0%, #eab308 100%); }
+.qa-card-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.qa-card-icon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  color: #6d28d9;
+}
+.qa-card-icon svg { width: 18px; height: 18px; }
+.qa-card-title { margin: 0; font-size: 14px; font-weight: 700; line-height: 1.3; color: #3b0764; }
+.qa-card-sub {
+  margin: 3px 0 0; font-size: 12px; line-height: 1.45;
+  color: #64748b;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qa-card-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 9px 14px; border: none; border-radius: 12px;
+  font-size: 12px; font-weight: 700; color: #3b0764;
+  background: linear-gradient(135deg, #fde68a 0%, #eab308 100%);
+  box-shadow: 0 4px 14px rgba(234, 179, 8, 0.35);
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.qa-card-btn svg { width: 14px; height: 14px; }
+.qa-card-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.qa-card-btn:active { transform: scale(0.97); }
+.qa-card-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6); }
+.qa-tiles { display: grid; gap: 10px; margin-top: 12px; }
+.qa-tiles-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.qa-tiles-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .qa-tiles { gap: 14px; margin-top: 14px; } }
+.qa-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; min-width: 0; padding: 14px 8px; border-radius: 18px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(196, 181, 253, 0.45);
+  box-shadow: 0 10px 22px -14px rgba(76, 29, 149, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.qa-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(234, 179, 8, 0.55);
+  box-shadow: 0 16px 28px -14px rgba(76, 29, 149, 0.35);
+}
+.qa-tile:active { transform: scale(0.98); }
+.qa-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5); }
+.qa-tile-icon {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; border: 1px solid transparent;
+}
+.qa-tile-icon svg { width: 17px; height: 17px; }
+.qa-tile-violet { color: #6d28d9; background: #f5f3ff; border-color: #ddd6fe; }
+.qa-tile-gold { color: #a16207; background: #fefce8; border-color: #fde68a; }
+.qa-tile-indigo { color: #4338ca; background: #eef2ff; border-color: #c7d2fe; }
+.qa-tile-label { font-size: 12px; font-weight: 600; color: #3b0764; text-align: center; line-height: 1.3; }
+@media (min-width: 640px) { .qa-tile-label { font-size: 13px; } }
+
+/* ===== มือถือ/แท็บเล็ต: ช่องว่างตอนเลื่อนจอ (แถบบนและแถบล่างต้องชิดขอบจอเสมอ) =====
+   เมื่อแถบ URL ของ Safari/Chrome หดหรือขยาย จะเห็นพื้น html ด้านหลัง จึงใช้สีม่วงแทนสีขาว
+   และให้แถบ fixed ถูกเรนเดอร์บนเลเยอร์ของตัวเองเพื่อลดการกระพริบ */
+@media (max-width: 1023px) {
+  html {
+    background-color: #2e1065;
+  }
+  .m-tabbar {
+    bottom: 0;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+  .mobile-top-navbar,
+  .site-navbar {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+}
+
+/* แถบล่างลอยทับหน้า: ปิดช่องว่างที่อาจเห็นใต้แถบ (เช่นตอนแถบ URL ของเบราว์เซอร์หดหรือขยาย)
+   ด้วยแผ่นสีม่วงที่ต่อจากขอบล่างของแถบลงไปจนสุดจอ */
+@media (max-width: 1023px) {
+  .m-tabbar::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 240px;
+    background: #2e1065;
+    pointer-events: none;
   }
 }

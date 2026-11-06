@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import UtilityBar from '../../components/UtilityBar';
+import SubNav from '../../components/SubNav';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
@@ -192,21 +194,23 @@ const PublicCompaniesPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <UtilityBar />
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
+      <header className="site-navbar sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center shrink-0" aria-label="LASC Home">
             <img src={logo} alt="LASC Logo" className="h-10 w-auto object-contain" />
           </Link>
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-purple-700 hover:bg-purple-50 px-3.5 py-2 rounded-xl transition"
+            className="site-nav-link inline-flex items-center gap-1.5 text-sm font-semibold text-white px-3.5 py-2 rounded-xl transition"
           >
             <ArrowLeft className="w-4 h-4" />
             กลับหน้าแรก
           </Link>
         </div>
       </header>
+      <SubNav />
 
       {/* Hero Section — Purple Gradient */}
       <section className="relative overflow-hidden bg-gradient-to-r from-purple-800 via-indigo-800 to-purple-900 text-white">

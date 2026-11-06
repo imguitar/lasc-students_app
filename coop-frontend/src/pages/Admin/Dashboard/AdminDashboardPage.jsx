@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5percent from '@amcharts/amcharts5/percent';
@@ -33,15 +32,11 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, Menu as MenuIcon, MoreVertical } from 'lucide-react';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import { STAT_ICON } from '../../../utils/statIcons';
 import './AdminDashboardPage.css';
 import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
 import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
@@ -205,7 +200,6 @@ const AdminDashboardPage = () => {
   const [adminName, setAdminName] = useState('');
   const [allRequests, setAllRequests] = useState([]);
   const [relocations, setRelocations] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState({
     open: false,
     requestId: null,
@@ -325,11 +319,6 @@ const AdminDashboardPage = () => {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const filteredRequests = allRequests.filter(req => {
     if (filter === 'all') return true;
@@ -1328,30 +1317,7 @@ const AdminDashboardPage = () => {
     : null;
 
   return (
-    <div className="admin-dashboard-container bg-[#f8f9fc] min-h-screen">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard"
-        handleLogout={handleLogout}
-      />
-
+    <>
       <main className="admin-main">
         <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -3217,7 +3183,7 @@ const AdminDashboardPage = () => {
         open={evalRoundsModalOpen}
         onClose={() => setEvalRoundsModalOpen(false)}
       />
-    </div>
+    </>
   );
 };
 

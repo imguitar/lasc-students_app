@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
 import {
     Alert,
@@ -24,18 +23,12 @@ import {
     TableRow,
     Typography,
 } from '@mui/material';
-import { Building2, Calendar, CalendarCheck, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, FileText, Loader2, MoreVertical, Trash2, Upload, Users, Video, MapPin, X } from 'lucide-react';
+import { Building2, Calendar, CalendarCheck, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, MoreVertical, Users, Video, MapPin, X, FileText, Upload, Trash2, ExternalLink } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
-import AdvisorSidebar from '../../components/AdvisorSidebar';
-import UserProfileMenu from '../../components/UserProfileMenu';
-import NotificationBell from '../../components/NotificationBell';
-import DateTimeIndicator from '../../components/DateTimeIndicator';
 import StatCard from '../../components/StatCard';
-import { getUploadUrl } from '../../utils/fileUrl';
 
 const AdvisorSupervisionPage = () => {
     const navigate = useNavigate();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [advisorName, setAdvisorName] = useState('');
     const [advisorDept, setAdvisorDept] = useState('');
     const [isDepartmentHead, setIsDepartmentHead] = useState(false);
@@ -53,7 +46,6 @@ const AdvisorSupervisionPage = () => {
     });
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const [actionMenu, setActionMenu] = useState({ anchor: null, request: null });
-    const [docUpload, setDocUpload] = useState({ uploading: false, progress: 0, docType: 'แบบบันทึกการนิเทศ', dragOver: false });
 
     const closeActionMenu = () => setActionMenu({ anchor: null, request: null });
 
@@ -227,6 +219,158 @@ const AdvisorSupervisionPage = () => {
         });
     };
 
+    const fileToDataUrl = (file) =>
+        new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+    const [docModal, setDocModal] = useState({
+        open: false,
+        request: null,
+        file: null,
+        docName: '',
+        submitting: false,
+        error: ''
+    });
+
+    const openDocModal = (request) => {
+        setDocModal({
+            open: true,
+            request,
+            file: null,
+            docName: '',
+            submitting: false,
+            error: ''
+        });
+    };
+
+    const closeDocModal = () => {
+        setDocModal({
+            open: false,
+            request: null,
+            file: null,
+            docName: '',
+            submitting: false,
+            error: ''
+        });
+    };
+
+    const handleUploadDoc = async () => {
+        if (!docModal.file) {
+            setDocModal((prev) => ({ ...prev, error: 'กรุณาเลือกไฟล์เอกสาร (PDF, PNG หรือ JPG)' }));
+            return;
+        }
+
+        const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+        if (!allowedTypes.includes(docModal.file.type)) {
+            setDocModal((prev) => ({ ...prev, error: 'รองรับเฉพาะไฟล์ PDF, PNG หรือ JPG เท่านั้น' }));
+            return;
+        }
+
+        if (docModal.file.size > 10 * 1024 * 1024) {
+            setDocModal((prev) => ({ ...prev, error: 'ขนาดไฟล์ต้องไม่เกิน 10MB' }));
+            return;
+        }
+
+        setDocModal((prev) => ({ ...prev, submitting: true, error: '' }));
+        try {
+            const dataUrl = await fileToDataUrl(docModal.file);
+            const docName = docModal.docName.trim() || docModal.file.name;
+            const res = await api.post(`/requests/${docModal.request.id}/supervision-documents`, {
+                document_name: docName,
+                document_type: 'เอกสารนิเทศ',
+                data_url: dataUrl
+            });
+
+            const newDoc = res.data?.data || {
+                id: Date.now().toString(),
+                name: docName,
+                url: dataUrl,
+                uploadedAt: new Date().toISOString()
+            };
+
+            persistRequests((allRequests) =>
+                allRequests.map((req) => {
+                    if (req.id !== docModal.request.id) return req;
+                    const prevAppt = req.supervisionAppointment || {};
+                    const prevDocs = Array.isArray(prevAppt.documents) ? prevAppt.documents : [];
+                    return {
+                        ...req,
+                        supervisionAppointment: {
+                            ...prevAppt,
+                            documents: [...prevDocs, newDoc]
+                        }
+                    };
+                })
+            );
+
+            setDocModal((prev) => ({
+                ...prev,
+                file: null,
+                docName: '',
+                submitting: false,
+                request: {
+                    ...prev.request,
+                    supervisionAppointment: {
+                        ...(prev.request?.supervisionAppointment || {}),
+                        documents: [...(prev.request?.supervisionAppointment?.documents || []), newDoc]
+                    }
+                }
+            }));
+
+            setToast({ open: true, message: 'แนบเอกสารนิเทศเรียบร้อยแล้ว', severity: 'success' });
+        } catch (err) {
+            setDocModal((prev) => ({
+                ...prev,
+                submitting: false,
+                error: err.response?.data?.message || err.message || 'แนบเอกสารไม่สำเร็จ'
+            }));
+        }
+    };
+
+    const handleDeleteDoc = async (docId) => {
+        if (!window.confirm('ยืนยันที่จะลบเอกสารนิเทศฉบับนี้หรือไม่?')) return;
+        try {
+            await api.delete(`/requests/${docModal.request.id}/supervision-documents/${docId}`);
+            persistRequests((allRequests) =>
+                allRequests.map((req) => {
+                    if (req.id !== docModal.request.id) return req;
+                    const prevAppt = req.supervisionAppointment || {};
+                    const prevDocs = Array.isArray(prevAppt.documents) ? prevAppt.documents : [];
+                    return {
+                        ...req,
+                        supervisionAppointment: {
+                            ...prevAppt,
+                            documents: prevDocs.filter((d) => d.id !== docId)
+                        }
+                    };
+                })
+            );
+
+            setDocModal((prev) => ({
+                ...prev,
+                request: {
+                    ...prev.request,
+                    supervisionAppointment: {
+                        ...(prev.request?.supervisionAppointment || {}),
+                        documents: (prev.request?.supervisionAppointment?.documents || []).filter((d) => d.id !== docId)
+                    }
+                }
+            }));
+
+            setToast({ open: true, message: 'ลบเอกสารเรียบร้อยแล้ว', severity: 'success' });
+        } catch (err) {
+            setToast({
+                open: true,
+                message: 'เกิดข้อผิดพลาดในการลบเอกสาร: ' + (err.response?.data?.message || err.message),
+                severity: 'error'
+            });
+        }
+    };
+
     const saveAppointment = async () => {
         if (!appointmentDialog.date) {
             setToast({ open: true, message: 'กรุณาเลือกวันที่นิเทศ', severity: 'warning' });
@@ -234,10 +378,17 @@ const AdvisorSupervisionPage = () => {
         }
 
         try {
+            const currentReq = supervisionRows.find((r) => r.id === appointmentDialog.requestId);
+            const currentDocList = currentReq?.supervisionAppointment?.documents || [];
+
+            // ส่งเฉพาะข้อมูลการนัดหมายตาม Requirement ของอาจารย์ที่ปรึกษา ({ advisor_id, supervision_date, supervision_type, note })
             await api.patch(`/requests/${appointmentDialog.requestId}/appointment`, {
+                advisor_id: appointmentDialog.advisorId,
+                supervision_date: appointmentDialog.date,
+                supervision_type: appointmentDialog.mode,
+                note: appointmentDialog.note,
                 date: appointmentDialog.date,
                 mode: appointmentDialog.mode,
-                note: appointmentDialog.note,
                 advisorName: appointmentDialog.advisorName,
                 advisorId: appointmentDialog.advisorId
             });
@@ -255,6 +406,7 @@ const AdvisorSupervisionPage = () => {
                                     note: appointmentDialog.note,
                                     advisorName: appointmentDialog.advisorName,
                                     advisorId: appointmentDialog.advisorId,
+                                    documents: currentDocList,
                                     updatedAt: new Date().toISOString()
                                 }
                             }
@@ -269,18 +421,7 @@ const AdvisorSupervisionPage = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('user');
-        navigate('/');
-    };
-
-    // ---- เอกสารการนิเทศ (อัปโหลด/ลบ) ----
-    const ALLOWED_DOC_TYPES = ['แบบบันทึกการนิเทศ', 'ภาพถ่ายการนิเทศ', 'หนังสือขอเข้านิเทศ', 'เอกสารสรุปผลการนิเทศ', 'อื่นๆ'];
-    const DOC_MAX_BYTES = 10 * 1024 * 1024;
-    const docFileUrl = getUploadUrl;
-
     const activeDialogRequest = supervisionRows.find((r) => r.id === appointmentDialog.requestId);
-    const activeDocs = activeDialogRequest?.supervisionAppointment?.documents || [];
 
     // ช่วงวันที่ฝึกงานสำหรับกำหนด min/max ของ date picker
     const internshipRange = (() => {
@@ -294,68 +435,6 @@ const AdvisorSupervisionPage = () => {
             max: toYMD(activeDialogRequest.internship_end_date || activeDialogRequest.details?.endDate)
         };
     })();
-
-    const uploadSupervisionDoc = async (file) => {
-        if (!file || !appointmentDialog.requestId) return;
-        const okExt = /\.(pdf|png|jpe?g)$/i.test(file.name);
-        if (!okExt) {
-            setToast({ open: true, message: 'รองรับเฉพาะไฟล์ PDF, PNG, JPG', severity: 'warning' });
-            return;
-        }
-        if (file.size > DOC_MAX_BYTES) {
-            setToast({ open: true, message: 'ไฟล์ต้องมีขนาดไม่เกิน 10MB', severity: 'warning' });
-            return;
-        }
-        try {
-            setDocUpload((prev) => ({ ...prev, uploading: true, progress: 0 }));
-            const dataUrl = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-            const res = await api.post(`/requests/${appointmentDialog.requestId}/supervision-documents`, {
-                document_name: file.name,
-                document_type: docUpload.docType,
-                data_url: dataUrl
-            }, {
-                onUploadProgress: (e) => {
-                    if (e.total) setDocUpload((prev) => ({ ...prev, progress: Math.round((e.loaded / e.total) * 100) }));
-                }
-            });
-            const doc = res.data?.data;
-            if (doc) {
-                persistRequests((all) =>
-                    all.map((r) =>
-                        r.id === appointmentDialog.requestId
-                            ? { ...r, supervisionAppointment: { ...(r.supervisionAppointment || {}), documents: [...(r.supervisionAppointment?.documents || []), doc] } }
-                            : r
-                    )
-                );
-            }
-            setToast({ open: true, message: 'อัปโหลดเอกสารเรียบร้อย', severity: 'success' });
-        } catch (error) {
-            setToast({ open: true, message: 'อัปโหลดไม่สำเร็จ: ' + (error.response?.data?.message || error.message), severity: 'error' });
-        } finally {
-            setDocUpload((prev) => ({ ...prev, uploading: false, progress: 0 }));
-        }
-    };
-
-    const deleteSupervisionDoc = async (doc) => {
-        try {
-            await api.delete(`/requests/${appointmentDialog.requestId}/supervision-documents/${doc.id}`);
-            persistRequests((all) =>
-                all.map((r) =>
-                    r.id === appointmentDialog.requestId
-                        ? { ...r, supervisionAppointment: { ...(r.supervisionAppointment || {}), documents: (r.supervisionAppointment?.documents || []).filter((d) => d.id !== doc.id) } }
-                        : r
-                )
-            );
-            setToast({ open: true, message: 'ลบเอกสารเรียบร้อย', severity: 'success' });
-        } catch (error) {
-            setToast({ open: true, message: 'ลบเอกสารไม่สำเร็จ: ' + (error.response?.data?.message || error.message), severity: 'error' });
-        }
-    };
 
     const summary = {
         totalStudents: supervisionRows.length,
@@ -373,29 +452,7 @@ const AdvisorSupervisionPage = () => {
     };
 
     return (
-        <div className="admin-dashboard-container">
-            <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-                    <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-                        <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-                    </Link>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <DateTimeIndicator />
-                    <NotificationBell />
-                    <UserProfileMenu />
-                </div>
-            </div>
-            <AdvisorSidebar
-                isMenuOpen={isMenuOpen}
-                setIsMenuOpen={setIsMenuOpen}
-                currentPath="/advisor-dashboard/supervision"
-                handleLogout={handleLogout}
-            />
+        <>
 
             <main className="admin-main">
                 <header className="admin-header">
@@ -481,6 +538,22 @@ const AdvisorSupervisionPage = () => {
                                                             <Typography variant="caption" color="text.secondary">
                                                                 หมายเหตุ: {request.supervisionAppointment.note}
                                                             </Typography>
+                                                        )}
+                                                        {Array.isArray(request.supervisionAppointment?.documents) && request.supervisionAppointment.documents.length > 0 && (
+                                                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                                                {request.supervisionAppointment.documents.map((doc) => (
+                                                                    <a
+                                                                        key={doc.id || doc.url}
+                                                                        href={doc.url?.startsWith('http') || doc.url?.startsWith('data:') ? doc.url : `http://localhost:5002${doc.url}`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 border border-violet-200/80 rounded-md px-2 py-0.5 w-fit no-underline transition"
+                                                                    >
+                                                                        <FileText className="w-3 h-3 text-violet-600 shrink-0" />
+                                                                        <span className="truncate max-w-[120px]">{doc.name || 'เอกสารนิเทศ'}</span>
+                                                                    </a>
+                                                                ))}
+                                                            </div>
                                                         )}
                                                     </Stack>
                                                 </TableCell>
@@ -573,6 +646,23 @@ const AdvisorSupervisionPage = () => {
                                                     </span>
                                                 </Box>
                                             )}
+                                            {Array.isArray(request.supervisionAppointment?.documents) && request.supervisionAppointment.documents.length > 0 && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                                    <FileText className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                                                    <span className="font-semibold text-violet-700">เอกสาร:</span>
+                                                    {request.supervisionAppointment.documents.map((doc) => (
+                                                        <a
+                                                            key={doc.id || doc.url}
+                                                            href={doc.url?.startsWith('http') || doc.url?.startsWith('data:') ? doc.url : `http://localhost:5002${doc.url}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="text-violet-600 hover:text-violet-800 underline text-xs"
+                                                        >
+                                                            {doc.name || 'ดูเอกสาร'}
+                                                        </a>
+                                                    ))}
+                                                </Box>
+                                            )}
                                         </Box>
 
                                         {/* ปุ่มหลักท้ายการ์ด — full width 44px */}
@@ -640,6 +730,19 @@ const AdvisorSupervisionPage = () => {
                                 </Typography>
                             )}
                         </MenuItem>,
+                        <MenuItem
+                            key="documents"
+                            onClick={() => { if (req) openDocModal(req); closeActionMenu(); }}
+                            sx={{ fontSize: '0.8125rem', fontWeight: 600, gap: 1.25, py: 1.25, color: '#334155' }}
+                        >
+                            <FileText className="w-4 h-4 text-violet-600" />
+                            {req?.supervisionAppointment?.documents?.length ? 'จัดการเอกสารนิเทศ' : 'แนบเอกสารนิเทศ'}
+                            {req?.supervisionAppointment?.documents?.length > 0 && (
+                                <span className="text-[10px] font-bold text-violet-700 bg-violet-100/80 px-1.5 py-0.5 rounded-full ml-auto">
+                                    {req.supervisionAppointment.documents.length}
+                                </span>
+                            )}
+                        </MenuItem>,
                         canEvaluate && (
                             <MenuItem
                                 key="evaluate"
@@ -660,11 +763,13 @@ const AdvisorSupervisionPage = () => {
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{
-                    className: '!rounded-3xl !shadow-[0_24px_64px_-12px_rgba(109,40,217,0.25)]',
-                    sx: { overflow: 'hidden' }
+                    className: '!rounded-3xl !shadow-[0_24px_64px_-12px_rgba(76,29,149,0.25)]',
+                    sx: { overflow: 'hidden', bgcolor: '#FAFAFD', border: '1px solid #E9E5F5' }
                 }}
             >
-                <div className="px-6 pt-6 pb-5 border-b border-slate-100 flex items-start justify-between gap-3">
+                <div aria-hidden="true" style={{ height: 3, background: '#4C1D95', flexShrink: 0 }} />
+                <div aria-hidden="true" style={{ height: 2, background: '#EAB308', flexShrink: 0 }} />
+                <div className="px-6 pt-5 pb-4 border-b border-[#E9E5F5] flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
                             <CalendarClock className="w-5 h-5 text-violet-600" />
@@ -705,7 +810,7 @@ const AdvisorSupervisionPage = () => {
                                             advisorId: found ? found.id : ''
                                         }));
                                     }}
-                                    className="w-full appearance-none h-11 pl-3.5 pr-10 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition cursor-pointer"
+                                    className="w-full appearance-none h-11 pl-3.5 pr-10 text-base md:text-sm text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition cursor-pointer"
                                 >
                                     <option value="">— เลือกอาจารย์ผู้นิเทศ —</option>
                                     {departmentAdvisors.map((adv) => (
@@ -728,24 +833,25 @@ const AdvisorSupervisionPage = () => {
                                     min={internshipRange.min || undefined}
                                     max={internshipRange.max || undefined}
                                     onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, date: event.target.value }))}
-                                    className="w-full box-border h-11 px-3.5 text-xs text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition"
+                                    className="w-full box-border h-11 px-3.5 text-base md:text-sm text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition"
                                 />
                             </div>
                             <div>
                                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">รูปแบบการนิเทศ</label>
                                 <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 rounded-xl">
                                     {[
-                                        { value: 'Online', icon: <Video className="w-3.5 h-3.5" /> },
-                                        { value: 'Onsite', icon: <MapPin className="w-3.5 h-3.5" /> },
+                                        { value: 'Online', icon: <Video className="w-4 h-4" /> },
+                                        { value: 'Onsite', icon: <MapPin className="w-4 h-4" /> },
                                     ].map((opt) => (
                                         <button
                                             key={opt.value}
                                             type="button"
                                             onClick={() => setAppointmentDialog((prev) => ({ ...prev, mode: opt.value }))}
-                                            className={`h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer border-none ${
+                                            style={appointmentDialog.mode === opt.value ? { background: 'linear-gradient(135deg, #4C1D95 0%, #6D28D9 100%)', borderColor: '#EAB308' } : undefined}
+                                            className={`h-11 sm:h-10 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer border ${
                                                 appointmentDialog.mode === opt.value
-                                                    ? 'bg-white text-violet-700 shadow-sm'
-                                                    : 'bg-transparent text-slate-500 hover:text-slate-700'
+                                                    ? 'text-white shadow-sm'
+                                                    : 'bg-transparent border-transparent text-slate-500 hover:text-slate-700'
                                             }`}
                                         >
                                             {opt.icon}
@@ -766,107 +872,198 @@ const AdvisorSupervisionPage = () => {
                                 value={appointmentDialog.note}
                                 onChange={(event) => setAppointmentDialog((prev) => ({ ...prev, note: event.target.value }))}
                                 placeholder="รายละเอียดเพิ่มเติม เช่น ลิงก์ประชุม หรือสถานที่นัดหมาย..."
-                                className="w-full box-border rounded-xl border border-slate-200 p-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 resize-none h-20 text-slate-700 bg-slate-50/70 focus:bg-white transition"
+                                className="w-full box-border rounded-xl border border-slate-200 p-3 text-base md:text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 resize-none h-20 text-slate-700 bg-slate-50/70 focus:bg-white transition"
                             />
                         </div>
 
-                        {/* เอกสารการนิเทศ */}
-                        <div>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                                <label className="text-xs font-semibold text-slate-600 m-0">เอกสารนิเทศ (PDF/PNG/JPG ≤ 10MB)</label>
-                                <div className="relative">
-                                    <select
-                                        value={docUpload.docType}
-                                        onChange={(e) => setDocUpload((prev) => ({ ...prev, docType: e.target.value }))}
-                                        className="appearance-none h-8 pl-3 pr-8 text-[11px] text-slate-600 bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/15 cursor-pointer"
-                                    >
-                                        {ALLOWED_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                </div>
-                            </div>
-
-                            <label
-                                onDragOver={(e) => { e.preventDefault(); setDocUpload((prev) => ({ ...prev, dragOver: true })); }}
-                                onDragLeave={() => setDocUpload((prev) => ({ ...prev, dragOver: false }))}
-                                onDrop={(e) => {
-                                    e.preventDefault();
-                                    setDocUpload((prev) => ({ ...prev, dragOver: false }));
-                                    uploadSupervisionDoc(e.dataTransfer.files?.[0]);
-                                }}
-                                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-5 text-center transition cursor-pointer ${
-                                    docUpload.dragOver ? 'border-violet-400 bg-violet-50/60' : 'border-slate-200 bg-slate-50/50 hover:border-violet-300 hover:bg-violet-50/30'
-                                }`}
-                            >
-                                <input
-                                    type="file"
-                                    accept=".pdf,.png,.jpg,.jpeg"
-                                    className="hidden"
-                                    onChange={(e) => { uploadSupervisionDoc(e.target.files?.[0]); e.target.value = ''; }}
-                                />
-                                {docUpload.uploading ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
-                                        <span className="text-[11px] text-violet-600 font-semibold">กำลังอัปโหลด... {docUpload.progress}%</span>
-                                        <div className="w-full max-w-[220px] h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                            <div className="h-full bg-violet-600 rounded-full transition-all" style={{ width: `${docUpload.progress}%` }} />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="w-5 h-5 text-slate-400" />
-                                        <span className="text-[11px] text-slate-500">ลากไฟล์มาวาง หรือ <span className="text-violet-600 font-semibold">คลิกเลือกไฟล์</span></span>
-                                    </>
-                                )}
-                            </label>
-
-                            {activeDocs.length > 0 && (
-                                <ul className="mt-2.5 space-y-1.5">
-                                    {activeDocs.map((doc) => (
-                                        <li key={doc.id} className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                            <FileText className="w-4 h-4 text-violet-500 shrink-0" />
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-[11px] font-medium text-slate-700 truncate m-0">{doc.name}</p>
-                                                <p className="text-[10px] text-slate-400 m-0">{doc.type} • {(doc.size / 1024 / 1024).toFixed(1)} MB</p>
-                                            </div>
-                                            <a
-                                                href={docFileUrl(doc.url)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-[11px] font-semibold text-violet-600 hover:text-violet-800 no-underline shrink-0"
-                                            >
-                                                เปิดดู
-                                            </a>
-                                            <button
-                                                type="button"
-                                                onClick={() => deleteSupervisionDoc(doc)}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer border-none bg-transparent shrink-0"
-                                                aria-label="ลบเอกสาร"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
                     </div>
                 </DialogContent>
 
-                <div className="px-6 py-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
+                <div className="px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-[#E9E5F5] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
                     <button
                         type="button"
                         onClick={closeAppointmentDialog}
-                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-white"
+                        className="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] text-sm font-semibold transition cursor-pointer"
                     >
                         ยกเลิก
                     </button>
                     <button
                         type="button"
                         onClick={saveAppointment}
-                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none"
+                        style={{ background: 'linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%)' }}
+                        className="w-full sm:w-auto min-h-[44px] px-6 rounded-xl text-white text-sm font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.3)] transition cursor-pointer border-none"
                     >
                         บันทึกการนัดหมาย
+                    </button>
+                </div>
+            </Dialog>
+
+            {/* Modal จัดการและแนบเอกสารนิเทศแยกต่างหาก (Separate Document Attachment Modal) */}
+            <Dialog
+                open={docModal.open}
+                onClose={closeDocModal}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    className: '!rounded-3xl !shadow-[0_24px_64px_-12px_rgba(76,29,149,0.25)]',
+                    sx: { overflow: 'hidden', bgcolor: '#FAFAFD', border: '1px solid #E9E5F5' }
+                }}
+            >
+                <div aria-hidden="true" style={{ height: 3, background: '#4C1D95', flexShrink: 0 }} />
+                <div aria-hidden="true" style={{ height: 2, background: '#EAB308', flexShrink: 0 }} />
+                <div className="px-6 pt-5 pb-4 border-b border-[#E9E5F5] flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-violet-100/70 border border-violet-200/80 flex items-center justify-center shrink-0 shadow-sm">
+                            <FileText className="w-5 h-5 text-violet-700" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-800 m-0">แนบเอกสารนิเทศงาน</h3>
+                            <p className="text-xs text-slate-500 mt-0.5 m-0">
+                                จัดการเอกสารสำหรับ {docModal.request?.studentName || '-'}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={closeDocModal}
+                        className="w-8 h-8 rounded-full hover:bg-slate-200/60 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer border-none bg-transparent"
+                        aria-label="ปิด"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <DialogContent sx={{ px: 3, py: 2.5 }}>
+                    <div className="space-y-4">
+                        {/* รายการเอกสารที่แนบไว้แล้ว */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block">
+                                เอกสารที่แนบไว้แล้ว ({docModal.request?.supervisionAppointment?.documents?.length || 0})
+                            </label>
+                            {(!docModal.request?.supervisionAppointment?.documents || docModal.request.supervisionAppointment.documents.length === 0) ? (
+                                <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                                    ยังไม่มีเอกสารนิเทศที่แนบไว้
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {docModal.request.supervisionAppointment.documents.map((doc) => (
+                                        <div
+                                            key={doc.id || doc.url}
+                                            className="flex items-center justify-between p-3 bg-white border border-slate-200/80 rounded-xl shadow-xs gap-3"
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                                                    <FileText className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-slate-800 truncate m-0">{doc.name || 'เอกสารนิเทศ'}</p>
+                                                    <p className="text-[11px] text-slate-400 m-0">
+                                                        {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('th-TH') : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <a
+                                                    href={doc.url?.startsWith('http') || doc.url?.startsWith('data:') ? doc.url : `http://localhost:5002${doc.url}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-violet-600 transition"
+                                                    title="เปิดดูเอกสาร"
+                                                >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteDoc(doc.id)}
+                                                    className="w-8 h-8 rounded-lg hover:bg-rose-50 flex items-center justify-center text-slate-400 hover:text-rose-600 transition cursor-pointer border-none bg-transparent"
+                                                    title="ลบเอกสาร"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* กล่องแนบเอกสารใหม่ */}
+                        <div className="pt-3 border-t border-slate-100">
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block">
+                                แนบเอกสารใหม่ (PDF/PNG/JPG ≤ 10MB)
+                            </label>
+
+                            {docModal.error && (
+                                <div className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-200/80 rounded-xl p-2.5">
+                                    {docModal.error}
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={docModal.docName}
+                                        onChange={(e) => setDocModal((prev) => ({ ...prev, docName: e.target.value }))}
+                                        placeholder="ชื่อเอกสาร (เช่น หนังสือนิเทศก์, กำหนดการนัดหมาย)..."
+                                        className="w-full box-border h-11 px-3.5 text-base md:text-sm text-slate-700 bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/15 focus:border-violet-400 transition"
+                                    />
+                                </div>
+
+                                <div className="border-2 border-dashed border-violet-200 hover:border-violet-400 bg-violet-50/30 rounded-2xl p-4 text-center transition cursor-pointer relative">
+                                    <input
+                                        type="file"
+                                        accept=".pdf,image/png,image/jpeg,image/jpg"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) {
+                                                setDocModal((prev) => ({
+                                                    ...prev,
+                                                    file: f,
+                                                    docName: prev.docName || f.name.replace(/\.[^/.]+$/, ''),
+                                                    error: ''
+                                                }));
+                                            }
+                                        }}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    />
+                                    <div className="flex flex-col items-center gap-1.5 pointer-events-none">
+                                        <div className="w-10 h-10 rounded-xl bg-violet-100/80 text-violet-700 flex items-center justify-center">
+                                            <Upload className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700">
+                                            {docModal.file ? docModal.file.name : 'คลิกหรือลากไฟล์เอกสารมาวางที่นี่'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">
+                                            รองรับไฟล์ PDF, PNG, JPG ขนาดไม่เกิน 10MB
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {docModal.file && (
+                                    <button
+                                        type="button"
+                                        onClick={handleUploadDoc}
+                                        disabled={docModal.submitting}
+                                        style={{ background: 'linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%)' }}
+                                        className="w-full min-h-[44px] px-6 rounded-xl text-white text-sm font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.3)] transition cursor-pointer border-none flex items-center justify-center gap-2"
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        <span>{docModal.submitting ? 'กำลังอัปโหลด...' : 'บันทึกเอกสารนิเทศ'}</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+
+                <div className="px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-[#E9E5F5] flex justify-end">
+                    <button
+                        type="button"
+                        onClick={closeDocModal}
+                        className="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] text-sm font-semibold transition cursor-pointer"
+                    >
+                        ปิดหน้าต่าง
                     </button>
                 </div>
             </Dialog>
@@ -881,7 +1078,7 @@ const AdvisorSupervisionPage = () => {
                     {toast.message}
                 </Alert>
             </Snackbar>
-        </div>
+        </>
     );
 };
 

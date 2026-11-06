@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
+import BackButton from '../../components/BackButton';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
-  ArrowLeft,
   Building2,
   CheckCircle2,
   ClipboardList,
@@ -280,14 +280,7 @@ const AdvisorEvaluationPage = () => {
       {/* Top bar */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/advisor-dashboard/supervision')}
-            className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition cursor-pointer"
-            aria-label="ย้อนกลับ"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackButton onClick={() => navigate('/advisor-dashboard/supervision')} />
           <Link to="/" className="flex items-center shrink-0" aria-label="LASC Home">
             <img src={lascLogo} alt="LASC Logo" style={{ height: '34px', width: 'auto', objectFit: 'contain' }} />
           </Link>

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { createNotification, findUserIdByUsername } = require('./notificationService');
+const { notifyStudentStatusChange } = require('./mailer');
 
 // สถานะที่ผ่านการอนุมัติขั้นสุดท้ายแล้วเท่านั้น — ถึงวันเริ่มตามกำหนดจึงเปลี่ยนเป็น 'ออกฝึกงาน'
 // (ตัดกลุ่ม "สถานประกอบการตอบรับแล้ว" และ "รอ...อนุมัติ" ออก — ห้ามกระโดดข้ามขั้นตอนอนุมัติ)
@@ -39,7 +40,7 @@ const DISPATCH_LETTER_EXPR = "JSON_EXTRACT(dispatchLetter, '$.uploadedAt')";
 // เงื่อนไข: อนุมัติขั้นสุดท้ายแล้ว + แอดมินกำหนดวันทางการ + แนบหนังสือส่งตัวแล้ว + ถึงวัน (เวลาไทย)
 const findDueInternshipRequests = async (today = getBangkokToday()) => {
   const [rows] = await pool.query(
-    `SELECT id, studentId, studentName, status, ${START_DATE_EXPR} AS start_date
+    `SELECT id, studentId, studentName, company, position, status, internship_start_date, internship_end_date, ${START_DATE_EXPR} AS start_date
      FROM requests
      WHERE status IN (?)
        AND ${START_DATE_EXPR} IS NOT NULL
@@ -54,7 +55,7 @@ const findDueInternshipRequests = async (today = getBangkokToday()) => {
 // ค้นหาคำร้องที่เลยวันสิ้นสุดฝึกงานแล้ว แต่ยังค้างสถานะกำลังฝึกงาน
 const findEndedInternshipRequests = async (today = getBangkokToday()) => {
   const [rows] = await pool.query(
-    `SELECT id, studentId, studentName, status, ${END_DATE_EXPR} AS end_date
+    `SELECT id, studentId, studentName, company, position, status, internship_start_date, internship_end_date, ${END_DATE_EXPR} AS end_date
      FROM requests
      WHERE status IN (?)
        AND ${END_DATE_EXPR} IS NOT NULL
@@ -95,6 +96,7 @@ const autoUpdateInternshipStatuses = async ({ notify = true } = {}) => {
             requestId: req.id,
           });
         }
+        await notifyStudentStatusChange({ request: req, previousStatus: req.status, newStatus: 'ออกฝึกงาน' });
       }
     }
   }
@@ -125,6 +127,11 @@ const autoUpdateInternshipStatuses = async ({ notify = true } = {}) => {
             requestId: req.id,
           });
         }
+        await notifyStudentStatusChange({
+          request: req,
+          previousStatus: req.status,
+          newStatus: 'สิ้นสุดการฝึกงาน (รอประเมิน)',
+        });
       }
     }
   }

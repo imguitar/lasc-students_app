@@ -178,6 +178,7 @@ function GlobalAlertModalProvider({ children }) {
         onClose={handleConfirmClose}
         TransitionComponent={Zoom}
         PaperProps={{
+          className: 'dialog-confirm',
           sx: {
             borderRadius: 4,
             padding: 3,
@@ -230,7 +231,7 @@ function GlobalAlertModalProvider({ children }) {
             disableElevation
             autoFocus
             sx={{
-              background: confirmModal.tone === 'primary' ? '#7c3aed' : '#ef4444',
+              background: confirmModal.tone === 'primary' ? 'linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%)' : '#ef4444',
               color: 'white',
               fontWeight: 700,
               px: 3,
@@ -243,7 +244,7 @@ function GlobalAlertModalProvider({ children }) {
                 ? '0 4px 6px -1px rgb(124 58 237 / 0.4)'
                 : '0 4px 6px -1px rgb(239 68 68 / 0.4)',
               '&:hover': confirmModal.tone === 'primary'
-                ? { background: '#6d28d9', boxShadow: '0 4px 6px -1px rgb(109 40 217 / 0.4)' }
+                ? { background: 'linear-gradient(135deg, #3b0764 0%, #5b21b6 100%)', boxShadow: '0 4px 12px rgb(109 40 217 / 0.4)' }
                 : { background: '#dc2626', boxShadow: '0 4px 6px -1px rgb(220 38 38 / 0.4)' },
             }}
           >

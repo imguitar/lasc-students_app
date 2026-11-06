@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import {
   TextField,
@@ -24,10 +23,6 @@ import AttendanceCalendar from '../../../components/AttendanceCalendar';
 import { countThaiHolidays } from '../../../utils/thaiHolidays';
 import './AdminDashboardPage.css';
 import '../Shared/CheckInPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const STATUS_LABEL = { present: 'มา', absent: 'ขาด', late: 'สาย', sick: 'ลาป่วย', personal: 'ลากิจ', holiday: 'วันหยุด' };
 const STATUS_COLOR = { present: '#10b981', absent: '#ef4444', late: '#f59e0b', sick: '#ec4899', personal: '#f97316', holiday: '#0ea5e9' };
@@ -87,7 +82,6 @@ const formatThaiDate = (dateStr) => {
 
 const AdminCheckInPage = () => {
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [adminName, setAdminName] = useState('');
   const [students, setStudents] = useState([]);
   const [filters, setFilters] = useState({ search: '', department: 'all' });
@@ -173,11 +167,6 @@ const AdminCheckInPage = () => {
       Array.from(new Set(students.map((s) => s.department).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'th-TH'))
     );
   }, [students]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const deptStudents = useMemo(() => students.filter((s) =>
     filters.department === 'all' || s.department === filters.department
@@ -350,29 +339,7 @@ const AdminCheckInPage = () => {
   };
 
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard/checkins"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="admin-main">
         <header className="admin-header">
@@ -394,13 +361,13 @@ const AdminCheckInPage = () => {
             mb: 3,
           }}
         >
-          <Box onClick={() => setStatFilter('all')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', outline: statFilter === 'all' ? '2px solid #3b82f6' : 'none', '&:hover': { transform: 'translateY(-2px)' } }}>
+          <Box onClick={() => setStatFilter('all')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
             <StatCard title="นักศึกษาทั้งหมด" value={globalStats.students} icon={<AcademicCapIcon style={{ width: 24, height: 24 }} />} color="#3b82f6" />
           </Box>
-          <Box onClick={() => setStatFilter(statFilter === 'submitted' ? 'all' : 'submitted')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', outline: statFilter === 'submitted' ? '3px solid #8b5cf6' : 'none', '&:hover': { transform: 'translateY(-2px)' } }}>
+          <Box onClick={() => setStatFilter(statFilter === 'submitted' ? 'all' : 'submitted')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
             <StatCard title="ส่งรายงานแล้ว" value={globalStats.submitted} icon={<DocumentTextIcon style={{ width: 24, height: 24 }} />} color="#8b5cf6" />
           </Box>
-          <Box onClick={() => setStatFilter(statFilter === 'warning' ? 'all' : 'warning')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', outline: statFilter === 'warning' ? '3px solid #ef4444' : 'none', '&:hover': { transform: 'translateY(-2px)' } }}>
+          <Box onClick={() => setStatFilter(statFilter === 'warning' ? 'all' : 'warning')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
             <StatCard title="ขาด / ไม่ส่งรายงาน (ต้องติดตาม)" value={globalStats.needFollowUp} icon={<ExclamationTriangleIcon style={{ width: 24, height: 24 }} />} color="#ef4444" />
           </Box>
           <Box onClick={() => setStatFilter('all')} sx={{ cursor: 'pointer', borderRadius: 3, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
@@ -410,13 +377,13 @@ const AdminCheckInPage = () => {
 
         <div className="content-section">
           {statFilter !== 'all' && (
-            <Box sx={{ mb: 2, p: 1.5, px: 2, borderRadius: 2, bgcolor: statFilter === 'warning' ? '#fef2f2' : '#f0fdf4', border: statFilter === 'warning' ? '1px solid #fecaca' : '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: statFilter === 'warning' ? '#991b1b' : '#166534' }}>
+            <Box sx={{ mb: 2, p: 1.5, px: 2, borderRadius: 2, bgcolor: statFilter === 'warning' ? '#fef2f2' : '#f5f3ff', border: statFilter === 'warning' ? '1px solid #fecaca' : '1px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: statFilter === 'warning' ? '#991b1b' : '#4c1d95' }}>
                 {statFilter === 'warning'
                   ? `แสดงเฉพาะนักศึกษาที่ต้องติดตาม (ขาด/ไม่ส่ง หรืออัตรา < 80%) จำนวน ${filteredStudents.length} คน`
                   : `แสดงเฉพาะนักศึกษาที่ส่งรายงานแล้ว จำนวน ${filteredStudents.length} คน`}
               </span>
-              <Button size="small" variant="outlined" color={statFilter === 'warning' ? 'error' : 'success'} onClick={() => setStatFilter('all')}>แสดงทั้งหมด</Button>
+              <Button size="small" variant="outlined" color={statFilter === 'warning' ? 'error' : 'inherit'} sx={statFilter === 'warning' ? undefined : { color: '#6d28d9', borderColor: '#c4b5fd', '&:hover': { borderColor: '#7c3aed', bgcolor: '#ede9fe' } }} onClick={() => setStatFilter('all')}>แสดงทั้งหมด</Button>
             </Box>
           )}
 
@@ -731,12 +698,12 @@ const AdminCheckInPage = () => {
 
       {/* Toast — emerald แจ้งผลสำเร็จสั้น ๆ */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1400] inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 text-white text-xs font-semibold shadow-[0_8px_24px_rgba(5,150,105,0.35)]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1400] inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-700 text-white text-xs font-semibold shadow-[0_8px_24px_rgba(109,40,217,0.35)]">
           <CheckCircle2 size={15} />
           {toast}
         </div>
       )}
-    </div>
+    </>
   );
 };
 

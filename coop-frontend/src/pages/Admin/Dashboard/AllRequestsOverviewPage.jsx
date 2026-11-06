@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import BackButton from '../../../components/BackButton';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
-import { ArrowLeft, Search, MoreVertical, Eye, Loader2, Menu as MenuIcon, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download, X } from 'lucide-react';
+import { Search, MoreVertical, Eye, Loader2, CalendarDays, ChevronRight, ChevronDown, CheckCircle2, XCircle, FileText, FileUp, UserCheck, Send, QrCode, Pencil, Trash2, Calendar, Copy, Check, ExternalLink, Download, X, ClipboardCheck, Mail } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { IconButton, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import Breadcrumb from '../../../components/Breadcrumb';
 import StatusBadge from '../../../components/StatusBadge';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import './AdminDashboardPage.css';
@@ -67,7 +64,6 @@ const AllRequestsOverviewPage = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -80,6 +76,8 @@ const AllRequestsOverviewPage = () => {
   const [rejectModal, setRejectModal] = useState({ open: false, request: null, reason: '', submitting: false, error: '' });
   const [assignModal, setAssignModal] = useState({ open: false, request: null, advisors: [], advisorId: '', loading: false, submitting: false, error: '' });
   const [qrModal, setQrModal] = useState({ open: false, request: null, link: '', loading: false, error: '', copied: false, expiresAt: '' });
+  const EVAL_LINK_INITIAL = { open: false, request: null, link: '', recipientEmail: '', emailInput: '', evaluated: false, endDate: '', roundMessage: '', lastEmailSentAt: '', loading: false, resending: false, error: '', copied: false };
+  const [evalLinkModal, setEvalLinkModal] = useState(EVAL_LINK_INITIAL);
   const [scheduleModal, setScheduleModal] = useState({ open: false, request: null, startDate: '', endDate: '', note: '', submitting: false, error: '', continueToDispatch: false });
   const [dispatchModal, setDispatchModal] = useState({ open: false, request: null, file: null, comment: '', submitting: false, error: '' });
   const dispatchFileRef = useRef(null);
@@ -504,6 +502,66 @@ const AllRequestsOverviewPage = () => {
     }
   };
 
+  const handleOpenEvalLink = async (request) => {
+    setEvalLinkModal({ ...EVAL_LINK_INITIAL, open: true, request, loading: true });
+    try {
+      const res = await api.get(`/admin/requests/${request.id}/evaluation-link`);
+      const d = res.data?.data || {};
+      // ใช้ origin ของหน้าที่ Admin เปิดอยู่ เพื่อให้ลิงก์ที่คัดลอกเปิดได้จริงเสมอ (ไม่พึ่งค่า env ฝั่งเซิร์ฟเวอร์)
+      const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/+$/, '')}`;
+      setEvalLinkModal((prev) => ({
+        ...prev,
+        loading: false,
+        link: `${base}/public/evaluate/${request.id}`,
+        recipientEmail: d.recipientEmail || '',
+        evaluated: Boolean(d.evaluated),
+        endDate: d.internshipEndDate || '',
+        roundMessage: d.roundClosed ? d.roundMessage || '' : '',
+        lastEmailSentAt: d.lastEmailSentAt || '',
+      }));
+    } catch (err) {
+      setEvalLinkModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.response?.data?.message || err.message || 'ไม่สามารถโหลดลิงก์แบบประเมินได้',
+      }));
+    }
+  };
+
+  const handleCopyEvalLink = async () => {
+    try {
+      await navigator.clipboard.writeText(evalLinkModal.link);
+      setEvalLinkModal((prev) => ({ ...prev, copied: true }));
+      setToast({ open: true, message: 'คัดลอกลิงก์แบบประเมินแล้ว', severity: 'success' });
+      setTimeout(() => setEvalLinkModal((prev) => ({ ...prev, copied: false })), 2500);
+    } catch {
+      setToast({ open: true, message: 'ไม่สามารถคัดลอกลิงก์ได้', severity: 'error' });
+    }
+  };
+
+  const handleResendEvalEmail = async () => {
+    if (evalLinkModal.resending || !evalLinkModal.request) return;
+    const email = evalLinkModal.recipientEmail || evalLinkModal.emailInput.trim();
+    if (!email) {
+      setEvalLinkModal((prev) => ({ ...prev, error: 'กรุณาระบุอีเมลผู้ประเมินของสถานประกอบการ' }));
+      return;
+    }
+    setEvalLinkModal((prev) => ({ ...prev, resending: true, error: '' }));
+    try {
+      const res = await api.post(`/admin/requests/${evalLinkModal.request.id}/evaluation-link/resend`, {
+        email: evalLinkModal.recipientEmail ? undefined : email,
+      });
+      setToast({ open: true, message: res.data?.message || 'ส่งอีเมลแบบประเมินเรียบร้อยแล้ว', severity: 'success' });
+      setEvalLinkModal((prev) => ({ ...prev, resending: false, lastEmailSentAt: new Date().toISOString() }));
+    } catch (err) {
+      setEvalLinkModal((prev) => ({
+        ...prev,
+        resending: false,
+        error: err.response?.data?.message || 'ส่งอีเมลไม่สำเร็จ',
+      }));
+    }
+  };
+
   const handleCopyQrLink = async () => {
     try {
       await navigator.clipboard.writeText(qrModal.link);
@@ -676,48 +734,15 @@ const AllRequestsOverviewPage = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
-
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard"
-        handleLogout={handleLogout}
-      />
+    <>
+      <Breadcrumb />
 
       <main className="admin-main max-w-full overflow-x-hidden">
         <div className="content-section px-3 sm:px-6">
           {/* Header */}
           <div className="flex items-start gap-3 mb-5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => navigate('/admin-dashboard')}
-              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition cursor-pointer"
-              aria-label="ย้อนกลับ"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            <BackButton onClick={() => navigate('/admin-dashboard')} />
             <div className="min-w-0 grow">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-slate-900 font-extrabold text-xl md:text-2xl tracking-tight m-0">
@@ -1094,6 +1119,20 @@ const AllRequestsOverviewPage = () => {
                 พิมพ์/ดาวน์โหลดหนังสือส่งตัว (PDF)
               </button>
             )}
+            {isApproved && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenEvalLink(activeMenuRequest);
+                  closeActionMenu();
+                }}
+                className={`${menuItemClass} min-h-[44px]`}
+              >
+                <ClipboardCheck className="w-4 h-4 shrink-0 text-violet-500" />
+                สร้าง/คัดลอกลิงก์แบบประเมิน
+              </button>
+            )}
             {isDispatchWaiting && (
               <button
                 type="button"
@@ -1371,6 +1410,115 @@ const AllRequestsOverviewPage = () => {
               >
                 <ExternalLink className="w-4 h-4" />
                 เปิดลิงก์
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Evaluation Link Modal (Manual Fallback) */}
+      {evalLinkModal.open && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => !evalLinkModal.resending && setEvalLinkModal(EVAL_LINK_INITIAL)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden p-5 sm:p-6" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+              <ClipboardCheck className="w-6 h-6 text-violet-600" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 text-center m-0">ลิงก์แบบประเมินสถานประกอบการ</h3>
+            {evalLinkModal.request && (
+              <p className="text-sm text-slate-500 text-center mt-2 mb-0 min-w-0">
+                <span className="block truncate">{evalLinkModal.request.studentName || evalLinkModal.request.studentId}</span>
+                {(evalLinkModal.request.active_company_name || evalLinkModal.request.company) && (
+                  <span className="block text-xs text-slate-400 mt-0.5 truncate">{evalLinkModal.request.active_company_name || evalLinkModal.request.company}</span>
+                )}
+              </p>
+            )}
+
+            {evalLinkModal.loading && (
+              <div className="flex items-center justify-center py-8"><Loader2 className="w-7 h-7 text-violet-500 animate-spin" /></div>
+            )}
+
+            {!evalLinkModal.loading && evalLinkModal.link && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-1 py-1 min-w-0">
+                  <p className="flex-1 min-w-0 text-xs text-slate-500 truncate m-0">{evalLinkModal.link}</p>
+                  <button
+                    type="button"
+                    onClick={handleCopyEvalLink}
+                    className={`shrink-0 w-11 h-11 flex items-center justify-center rounded-lg transition cursor-pointer border-none ${evalLinkModal.copied ? 'text-emerald-600 bg-emerald-50' : 'text-violet-600 hover:bg-violet-50 bg-transparent'}`}
+                    aria-label="คัดลอกลิงก์"
+                  >
+                    {evalLinkModal.copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                  </button>
+                </div>
+
+                {evalLinkModal.evaluated && (
+                  <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 m-0">
+                    สถานประกอบการประเมินนักศึกษาคนนี้แล้ว
+                  </p>
+                )}
+                {evalLinkModal.roundMessage && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 m-0">{evalLinkModal.roundMessage}</p>
+                )}
+                {evalLinkModal.endDate && (
+                  <p className="text-[11px] text-slate-400 m-0">
+                    ระบบเปิดให้ส่งแบบประเมินตั้งแต่วันสิ้นสุดฝึกงาน ({new Date(evalLinkModal.endDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}) เป็นต้นไป
+                  </p>
+                )}
+
+                <div className="rounded-xl border border-slate-100 px-3 py-2.5">
+                  <p className="text-[11px] text-slate-400 m-0">อีเมลผู้ประเมิน</p>
+                  {evalLinkModal.recipientEmail ? (
+                    <p className="text-sm font-semibold text-slate-700 m-0 mt-0.5 break-all">{evalLinkModal.recipientEmail}</p>
+                  ) : (
+                    <input
+                      type="email"
+                      inputMode="email"
+                      value={evalLinkModal.emailInput}
+                      onChange={(e) => setEvalLinkModal((prev) => ({ ...prev, emailInput: e.target.value, error: '' }))}
+                      placeholder="ยังไม่มีอีเมลในระบบ กรอกอีเมลผู้ประเมิน"
+                      className="w-full mt-1 min-h-[44px] px-3 rounded-lg border border-slate-200 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+                    />
+                  )}
+                  {evalLinkModal.lastEmailSentAt && (
+                    <p className="text-[11px] text-slate-400 m-0 mt-1.5">
+                      ส่งล่าสุด {new Date(evalLinkModal.lastEmailSentAt).toLocaleString('th-TH')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {evalLinkModal.error && (
+              <p className="text-xs text-red-500 text-center mt-3 mb-0">{evalLinkModal.error}</p>
+            )}
+
+            <div className="flex flex-col-reverse sm:flex-row gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() => setEvalLinkModal(EVAL_LINK_INITIAL)}
+                disabled={evalLinkModal.resending}
+                className="sm:flex-1 min-h-[44px] rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer bg-white disabled:opacity-60"
+              >
+                ปิด
+              </button>
+              <button
+                type="button"
+                disabled={evalLinkModal.loading || !evalLinkModal.link}
+                onClick={() => evalLinkModal.link && window.open(evalLinkModal.link, '_blank', 'noopener,noreferrer')}
+                className="sm:flex-1 min-h-[44px] rounded-xl border border-violet-200 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                <ExternalLink className="w-4 h-4" />
+                เปิดหน้าประเมิน
+              </button>
+              <button
+                type="button"
+                disabled={evalLinkModal.loading || !evalLinkModal.link || evalLinkModal.resending}
+                onClick={handleResendEvalEmail}
+                className="sm:flex-1 min-h-[44px] rounded-xl border-none text-sm font-semibold text-white bg-[#7C3AED] hover:bg-violet-700 transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                {evalLinkModal.resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                ส่งอีเมลซ้ำ
               </button>
             </div>
           </div>
@@ -1767,7 +1915,7 @@ const AllRequestsOverviewPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 

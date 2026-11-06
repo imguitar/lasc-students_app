@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import UtilityBar from '../../components/UtilityBar';
+import SubNav from '../../components/SubNav';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import {
@@ -118,15 +120,17 @@ const NewsListPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
+      <UtilityBar />
       {/* Navbar */}
-      <nav className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-purple-100/60 shadow-xs">
+      <nav className="site-navbar sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-purple-700 no-underline transition-colors">
+          <Link to="/" className="site-nav-link inline-flex items-center gap-2 text-sm font-semibold text-white px-3 py-2 no-underline transition-colors">
             <ArrowLeftIcon className="w-4 h-4" /> กลับหน้าแรก
           </Link>
-          <span className="text-xs font-medium text-slate-400 hidden sm:block">ระบบฝึกประสบการณ์วิชาชีพ</span>
+          <span className="site-nav-title text-xs font-medium text-white hidden sm:block">ระบบฝึกประสบการณ์วิชาชีพ</span>
         </div>
       </nav>
+      <SubNav />
 
       {/* Hero Header */}
       <div className="bg-gradient-to-r from-purple-800 via-indigo-800 to-purple-900 text-white relative overflow-hidden">

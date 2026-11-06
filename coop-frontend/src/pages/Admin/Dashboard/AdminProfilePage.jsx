@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   TextField,
   Button,
@@ -27,25 +26,39 @@ import {
 } from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
 import api from '../../../api/axios';
-import './AdminDashboardPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
+
+const readStoredAdmin = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.role === 'admin' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 const AdminProfilePage = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+
+  // Initial State is read synchronously from localStorage to prevent any blank flash on route transition
+  const [user, setUser] = useState(() => readStoredAdmin());
   const [editing, setEditing] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(() => {
+    const stored = readStoredAdmin();
+    return stored?.avatar || null;
+  });
   const fileInputRef = useRef(null);
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    username: '',
-    phone: '',
-    position: ''
+
+  const [form, setForm] = useState(() => {
+    const stored = readStoredAdmin();
+    return {
+      name: stored?.full_name || stored?.name || '',
+      email: stored?.email || '',
+      username: stored?.username || '',
+      phone: stored?.phone || '',
+      position: stored?.position || 'ผู้ดูแลระบบ'
+    };
   });
 
   const [passModal, setPassModal] = useState({
@@ -57,21 +70,21 @@ const AdminProfilePage = () => {
     error: ''
   });
 
+  // Check auth once on mount without creating unnecessary re-render loops
   useEffect(() => {
-    let mounted = true;
-    asyncStorage.getItem('user').then((raw) => {
-      if (!mounted) return;
-      if (!raw) {
-        navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+    const raw = localStorage.getItem('user');
+    if (!raw) {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.role !== 'admin') {
+        navigate('/dashboard');
         return;
       }
-
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed.role !== 'admin') {
-          navigate('/dashboard');
-          return;
-        }
+      if (!user) {
         setUser(parsed);
         setForm({
           name: parsed.full_name || parsed.name || '',
@@ -81,22 +94,11 @@ const AdminProfilePage = () => {
           position: parsed.position || 'ผู้ดูแลระบบ'
         });
         setAvatarPreview(parsed.avatar || null);
-      } catch (error) {
-        setUser(null);
-        navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
       }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
-
-  const handleLogout = async () => {
-    await asyncStorage.removeItem('user');
-    setUser(null);
-    navigate('/');
-  };
+    } catch {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+    }
+  }, [navigate, user]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -138,7 +140,7 @@ const AdminProfilePage = () => {
         role: 'admin'
       };
 
-      if (user.id) {
+      if (user?.id) {
         const res = await api.put(`/users/${user.id}`, {
           name: form.name,
           email: form.email,
@@ -157,7 +159,7 @@ const AdminProfilePage = () => {
       setEditing(false);
       alert('บันทึกข้อมูลเสร็จสิ้น');
     } catch (err) {
-      console.error("Failed to save admin profile:", err);
+      console.error('Failed to save admin profile:', err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
     }
   };
@@ -202,336 +204,351 @@ const AdminProfilePage = () => {
       alert('เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว');
       setPassModal({ open: false, newPassword: '', confirmPassword: '', showPass: false, submitting: false, error: '' });
     } catch (err) {
-      console.error("Failed to update password:", err);
+      console.error('Failed to update password:', err);
       setPassModal(prev => ({ ...prev, submitting: false, error: 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' }));
     }
   };
 
-  if (!user) return null;
-
-  return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard/profile"
-        handleLogout={handleLogout}
-      />
-
+  // High-fidelity Skeleton Loading (No blank flash, exact matching card layout & dimensions)
+  if (!user) {
+    return (
       <main className="admin-main">
         <header className="admin-header">
           <div>
-            <h1>ข้อมูลผู้ดูแลระบบ</h1>
-            <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
+            <div className="h-8 w-56 bg-slate-200/80 rounded-xl animate-pulse mb-2" />
+            <div className="h-4 w-80 bg-slate-100 rounded-lg animate-pulse" />
           </div>
         </header>
 
         <div className="content-wrapper">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Profile Card */}
-            <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
-              <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
-
-              <div className="relative">
-                <div className="relative inline-block">
-                  <div
-                    className={`w-28 h-28 rounded-full overflow-hidden mx-auto ring-4 ring-purple-50 shadow-lg shadow-purple-500/25 bg-gradient-to-tr from-purple-600 to-indigo-500 text-white flex items-center justify-center ${editing ? 'cursor-pointer' : ''}`}
-                    onClick={handleAvatarClick}
-                  >
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-4xl font-extrabold">
-                        {(user.full_name || user.name || user.username || 'A').charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { if (!editing) setEditing(true); fileInputRef.current?.click(); }}
-                    title="อัปโหลดรูปภาพใหม่"
-                    className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-white border border-purple-200 text-purple-600 shadow-md flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all cursor-pointer"
-                  >
-                    <CameraIcon className="w-4 h-4" />
-                  </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                </div>
-
-                <h3 className="m-0 mt-4 text-xl font-bold text-gray-800">
-                  {user.full_name || user.name || user.username}
-                </h3>
-                <span className="bg-purple-50 text-purple-700 border border-purple-200/60 font-semibold px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5 mt-2">
-                  <ShieldCheckIcon className="w-3.5 h-3.5" /> ผู้ดูแลระบบ (Super Admin)
-                </span>
-              </div>
-
-              <div className="mt-6 pt-5 border-t border-purple-50 flex flex-col gap-2.5 text-left">
-                <span className="inline-flex items-center gap-2 text-xs text-slate-600">
-                  <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                  สถานะบัญชี: <span className="font-semibold text-emerald-600">กำลังใช้งาน (Active)</span>
-                </span>
-                <span className="inline-flex items-start gap-2 text-xs text-slate-600">
-                  <ShieldCheckIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
-                  งานฝึกประสบการณ์วิชาชีพ<br />คณะศิลปศาสตร์และวิทยาศาสตร์
-                </span>
+            {/* Left: Skeleton Card */}
+            <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white animate-pulse">
+              <div className="w-28 h-28 rounded-full bg-slate-200 mx-auto mb-4" />
+              <div className="h-6 w-36 bg-slate-200 rounded-lg mx-auto mb-2" />
+              <div className="h-4 w-24 bg-slate-100 rounded-md mx-auto mb-6" />
+              <div className="mt-6 pt-5 border-t border-slate-100 space-y-3">
+                <div className="h-4 bg-slate-100 rounded w-full" />
+                <div className="h-4 bg-slate-100 rounded w-4/5 mx-auto" />
               </div>
             </div>
 
-            {/* Right: Account Details Card */}
-            <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
-                  <div className="h-1 w-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-1.5" />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPassModal({ open: true, newPassword: '', confirmPassword: '', showPass: false, submitting: false, error: '' })}
-                    className="border border-gray-200 text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 rounded-xl px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer bg-white"
-                  >
-                    <KeyIcon className="w-4 h-4" /> เปลี่ยนรหัสผ่าน
-                  </button>
-                  {!editing ? (
-                    <button
-                      type="button"
-                      onClick={() => setEditing(true)}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-medium shadow-md shadow-purple-500/20 transition flex items-center gap-2 cursor-pointer border-none"
-                    >
-                      <PencilSquareIcon className="w-4 h-4" /> แก้ไขข้อมูล
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(false);
-                          setForm({
-                            name: user.full_name || user.name || '',
-                            email: user.email || '',
-                            username: user.username || '',
-                            phone: user.phone || '',
-                            position: user.position || 'ผู้ดูแลระบบ'
-                          });
-                          setAvatarPreview(user.avatar || null);
-                        }}
-                        className="border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm font-medium transition cursor-pointer bg-white"
-                      >
-                        ยกเลิก
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSave}
-                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none"
-                      >
-                        บันทึกการเปลี่ยนแปลง
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                {[
-                  { label: 'ชื่อ-นามสกุล', name: 'name', editable: true },
-                  { label: 'ตำแหน่ง', name: 'position', editable: true },
-                  { label: 'ชื่อผู้ใช้ (Username)', name: 'username', editable: false },
-                  { label: 'อีเมล', name: 'email', editable: true, type: 'email' },
-                  { label: 'เบอร์โทรศัพท์ติดต่อ', name: 'phone', editable: true, placeholder: '09xxxxxxxx (สูงสุด 10 หลัก)' },
-                  { label: 'หน่วยงาน / คณะ', name: 'faculty', editable: false, fixed: 'คณะศิลปศาสตร์และวิทยาศาสตร์' },
-                ].map(f => (
-                  <div key={f.name}>
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5">{f.label}</label>
-                    <input
-                      type={f.type || 'text'}
-                      name={f.name}
-                      value={f.fixed !== undefined ? f.fixed : form[f.name]}
-                      onChange={handleChange}
-                      disabled={!editing || !f.editable}
-                      placeholder={f.placeholder}
-                      maxLength={f.name === 'phone' ? 10 : undefined}
-                      inputMode={f.name === 'phone' ? 'numeric' : undefined}
-                      className={`w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && f.editable ? 'bg-white' : 'bg-gray-50/70'}`}
-                    />
+            {/* Right: Skeleton Form Card */}
+            <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white animate-pulse">
+              <div className="h-6 w-44 bg-slate-200 rounded-lg mb-6" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3.5 w-28 bg-slate-200 rounded" />
+                    <div className="h-10 bg-slate-100 rounded-xl w-full" />
                   </div>
                 ))}
-              </div>
-
-              {/* Security & Activity */}
-              <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
-                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-                  <ClockIcon className="w-4 h-4 text-purple-400" />
-                  เข้าใช้งานล่าสุด: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                </span>
-                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-                  <LockClosedIcon className="w-4 h-4 text-purple-400" />
-                  เชื่อมต่ออย่างปลอดภัยผ่านระบบ SSO มหาวิทยาลัย
-                </span>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Password Change Modal */}
-        <Dialog
-          open={passModal.open}
-          onClose={() => !passModal.submitting && setPassModal(prev => ({ ...prev, open: false }))}
-          maxWidth="xs"
-          fullWidth
-          disableScrollLock={true}
-          ModalProps={{ disableScrollLock: true }}
-          PaperProps={{
-            sx: {
-              borderRadius: 3.5,
-              p: 1,
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)'
-            }
-          }}
-        >
-          <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1.25, pb: 1 }}>
-            <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LockClosedIcon style={{ width: 20, height: 20 }} />
-            </Box>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.2 }}>
-                เปลี่ยนรหัสผ่าน
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#64748b' }}>
-                ตั้งรหัสผ่านใหม่สำหรับเข้าสู่ระบบ
-              </Typography>
-            </Box>
-          </DialogTitle>
-
-          <DialogContent sx={{ pt: 2 }}>
-            {passModal.error && (
-              <Alert severity="error" sx={{ mb: 2, borderRadius: 2, fontSize: '0.85rem' }}>
-                {passModal.error}
-              </Alert>
-            )}
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-              <TextField
-                fullWidth
-                label="รหัสผ่านใหม่"
-                type={passModal.showPass ? 'text' : 'password'}
-                value={passModal.newPassword}
-                onChange={(e) => setPassModal(prev => ({ ...prev, newPassword: e.target.value }))}
-                placeholder="ระบุรหัสผ่านใหม่ที่ต้องการ"
-                autoComplete="new-password"
-                inputProps={{ autoComplete: 'new-password' }}
-                InputLabelProps={{ shrink: true, sx: { fontWeight: 700 } }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setPassModal(prev => ({ ...prev, showPass: !prev.showPass }))}
-                        edge="end"
-                      >
-                        {passModal.showPass ? (
-                          <EyeSlashIcon style={{ width: 18, height: 18, color: '#64748b' }} />
-                        ) : (
-                          <EyeIcon style={{ width: 18, height: 18, color: '#64748b' }} />
-                        )}
-                      </IconButton>
-                    </InputAdornment>
-                  )
-                }}
-              />
-
-              {/* Real-time Password Strength Gauge Bar */}
-              {passModal.newPassword && (() => {
-                const strength = getPasswordStrength(passModal.newPassword);
-                return (
-                  <Box sx={{ mt: -0.5, px: 0.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: '#475569' }}>
-                        ความปลอดภัยรหัสผ่าน:
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: strength.color }}>
-                        {strength.label}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ height: 6, width: '100%', bgcolor: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-                      <Box
-                        sx={{
-                          height: '100%',
-                          width: `${strength.percent}%`,
-                          bgcolor: strength.color,
-                          borderRadius: 3,
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                );
-              })()}
-
-              <TextField
-                fullWidth
-                label="ยืนยันรหัสผ่านใหม่"
-                type={passModal.showPass ? 'text' : 'password'}
-                value={passModal.confirmPassword}
-                onChange={(e) => setPassModal(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
-                autoComplete="new-password"
-                inputProps={{ autoComplete: 'new-password' }}
-                InputLabelProps={{ shrink: true, sx: { fontWeight: 700 } }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-              />
-            </Box>
-          </DialogContent>
-
-          <DialogActions sx={{ p: 2, pt: 1, justifyContent: 'space-between' }}>
-            <Button
-              onClick={() => setPassModal(prev => ({ ...prev, open: false }))}
-              disabled={passModal.submitting}
-              color="inherit"
-              sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSavePassword}
-              disabled={passModal.submitting}
-              sx={{
-                borderRadius: 2,
-                fontWeight: 800,
-                px: 3,
-                background: 'linear-gradient(90deg, #9333ea, #4f46e5)',
-                color: '#ffffff',
-                '&:hover': { background: 'linear-gradient(90deg, #7e22ce, #4338ca)' }
-              }}
-            >
-              {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
-            </Button>
-          </DialogActions>
-        </Dialog>
       </main>
-    </div>
+    );
+  }
+
+  return (
+    <main className="admin-main">
+      <header className="admin-header">
+        <div>
+          <h1>ข้อมูลผู้ดูแลระบบ</h1>
+          <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
+        </div>
+      </header>
+
+      <div className="content-wrapper">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Profile Card */}
+          <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
+            <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
+
+            <div className="relative">
+              <div className="relative inline-block">
+                <div
+                  className={`w-28 h-28 rounded-full overflow-hidden mx-auto ring-4 ring-purple-50 shadow-lg shadow-purple-500/25 bg-gradient-to-tr from-purple-600 to-indigo-500 text-white flex items-center justify-center ${editing ? 'cursor-pointer' : ''}`}
+                  onClick={handleAvatarClick}
+                >
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-4xl font-extrabold">
+                      {(user.full_name || user.name || user.username || 'A').charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { if (!editing) setEditing(true); fileInputRef.current?.click(); }}
+                  title="อัปโหลดรูปภาพใหม่"
+                  className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-white border border-purple-200 text-purple-600 shadow-md flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all cursor-pointer"
+                >
+                  <CameraIcon className="w-4 h-4" />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+              </div>
+
+              <h3 className="m-0 mt-4 text-xl font-bold text-gray-800">
+                {user.full_name || user.name || user.username}
+              </h3>
+              <span className="bg-purple-50 text-purple-700 border border-purple-200/60 font-semibold px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5 mt-2">
+                <ShieldCheckIcon className="w-3.5 h-3.5" /> ผู้ดูแลระบบ (Super Admin)
+              </span>
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-purple-50 flex flex-col gap-2.5 text-left">
+              <span className="inline-flex items-center gap-2 text-xs text-slate-600">
+                <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                สถานะบัญชี: <span className="font-semibold text-emerald-600">กำลังใช้งาน (Active)</span>
+              </span>
+              <span className="inline-flex items-start gap-2 text-xs text-slate-600">
+                <ShieldCheckIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
+                งานฝึกประสบการณ์วิชาชีพ<br />คณะศิลปศาสตร์และวิทยาศาสตร์
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Account Details Card */}
+          <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
+                <div className="h-1 w-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-1.5" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPassModal({ open: true, newPassword: '', confirmPassword: '', showPass: false, submitting: false, error: '' })}
+                  className="border border-gray-200 text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 rounded-xl px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer bg-white"
+                >
+                  <KeyIcon className="w-4 h-4" /> เปลี่ยนรหัสผ่าน
+                </button>
+                {!editing ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-medium shadow-md shadow-purple-500/20 transition flex items-center gap-2 cursor-pointer border-none"
+                  >
+                    <PencilSquareIcon className="w-4 h-4" /> แก้ไขข้อมูล
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(false);
+                        setForm({
+                          name: user.full_name || user.name || '',
+                          email: user.email || '',
+                          username: user.username || '',
+                          phone: user.phone || '',
+                          position: user.position || 'ผู้ดูแลระบบ'
+                        });
+                        setAvatarPreview(user.avatar || null);
+                      }}
+                      className="border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm font-medium transition cursor-pointer bg-white"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none"
+                    >
+                      บันทึกการเปลี่ยนแปลง
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+              {[
+                { label: 'ชื่อ-นามสกุล', name: 'name', editable: true },
+                { label: 'ตำแหน่ง', name: 'position', editable: true },
+                { label: 'ชื่อผู้ใช้ (Username)', name: 'username', editable: false },
+                { label: 'อีเมล', name: 'email', editable: true, type: 'email' },
+                { label: 'เบอร์โทรศัพท์ติดต่อ', name: 'phone', editable: true, placeholder: '09xxxxxxxx (สูงสุด 10 หลัก)' },
+                { label: 'หน่วยงาน / คณะ', name: 'faculty', editable: false, fixed: 'คณะศิลปศาสตร์และวิทยาศาสตร์' },
+              ].map(f => (
+                <div key={f.name}>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{f.label}</label>
+                  <input
+                    type={f.type || 'text'}
+                    name={f.name}
+                    value={f.fixed !== undefined ? f.fixed : form[f.name]}
+                    onChange={handleChange}
+                    disabled={!editing || !f.editable}
+                    placeholder={f.placeholder}
+                    maxLength={f.name === 'phone' ? 10 : undefined}
+                    inputMode={f.name === 'phone' ? 'numeric' : undefined}
+                    className={`w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && f.editable ? 'bg-white' : 'bg-gray-50/70'}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Security & Activity */}
+            <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
+              <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                <ClockIcon className="w-4 h-4 text-purple-400" />
+                เข้าใช้งานล่าสุด: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+              </span>
+              <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                <LockClosedIcon className="w-4 h-4 text-purple-400" />
+                เชื่อมต่ออย่างปลอดภัยผ่านระบบ SSO มหาวิทยาลัย
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Password Change Modal */}
+      <Dialog
+        open={passModal.open}
+        onClose={() => !passModal.submitting && setPassModal(prev => ({ ...prev, open: false }))}
+        maxWidth="xs"
+        fullWidth
+        disableScrollLock={true}
+        ModalProps={{ disableScrollLock: true }}
+        PaperProps={{
+          sx: {
+            borderRadius: 3.5,
+            p: 1,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1.25, pb: 1 }}>
+          <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LockClosedIcon style={{ width: 20, height: 20 }} />
+          </Box>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.2 }}>
+              เปลี่ยนรหัสผ่าน
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              ตั้งรหัสผ่านใหม่สำหรับเข้าสู่ระบบ
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 2 }}>
+          {passModal.error && (
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2, fontSize: '0.85rem' }}>
+              {passModal.error}
+            </Alert>
+          )}
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              label="รหัสผ่านใหม่"
+              type={passModal.showPass ? 'text' : 'password'}
+              value={passModal.newPassword}
+              onChange={(e) => setPassModal(prev => ({ ...prev, newPassword: e.target.value }))}
+              placeholder="ระบุรหัสผ่านใหม่ที่ต้องการ"
+              autoComplete="new-password"
+              inputProps={{ autoComplete: 'new-password' }}
+              InputLabelProps={{ shrink: true, sx: { fontWeight: 700 } }}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setPassModal(prev => ({ ...prev, showPass: !prev.showPass }))}
+                      edge="end"
+                    >
+                      {passModal.showPass ? (
+                        <EyeSlashIcon style={{ width: 18, height: 18, color: '#64748b' }} />
+                      ) : (
+                        <EyeIcon style={{ width: 18, height: 18, color: '#64748b' }} />
+                      )}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
+            />
+
+            {/* Real-time Password Strength Gauge Bar */}
+            {passModal.newPassword && (() => {
+              const strength = getPasswordStrength(passModal.newPassword);
+              return (
+                <Box sx={{ mt: -0.5, px: 0.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#475569' }}>
+                      ความปลอดภัยรหัสผ่าน:
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: strength.color }}>
+                      {strength.label}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ height: 6, width: '100%', bgcolor: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                    <Box
+                      sx={{
+                        height: '100%',
+                        width: `${strength.percent}%`,
+                        bgcolor: strength.color,
+                        borderRadius: 3,
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                      }}
+                    />
+                  </Box>
+                </Box>
+              );
+            })()}
+
+            <TextField
+              fullWidth
+              label="ยืนยันรหัสผ่านใหม่"
+              type={passModal.showPass ? 'text' : 'password'}
+              value={passModal.confirmPassword}
+              onChange={(e) => setPassModal(prev => ({ ...prev, confirmPassword: e.target.value }))}
+              placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+              autoComplete="new-password"
+              inputProps={{ autoComplete: 'new-password' }}
+              InputLabelProps={{ shrink: true, sx: { fontWeight: 700 } }}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, pt: 1, justifyContent: 'space-between' }}>
+          <Button
+            onClick={() => setPassModal(prev => ({ ...prev, open: false }))}
+            disabled={passModal.submitting}
+            color="inherit"
+            sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSavePassword}
+            disabled={passModal.submitting}
+            sx={{
+              borderRadius: 2,
+              fontWeight: 800,
+              px: 3,
+              background: 'linear-gradient(90deg, #9333ea, #4f46e5)',
+              color: '#ffffff',
+              '&:hover': { background: 'linear-gradient(90deg, #7e22ce, #4338ca)' }
+            }}
+          >
+            {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </main>
   );
 };
 

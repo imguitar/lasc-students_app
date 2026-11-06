@@ -6,7 +6,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authenticate } = require('../middlewares/auth');
 const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
-const { sendEmail } = require('../utils/mailer');
+const { sendRelocationRequestEmail } = require('../utils/mailer');
 
 // ==================== Schema (idempotent — ตรงกับ db/migrations/20261004-create-relocation-requests.sql) ====================
 const FULL_STATUS_ENUM = `ENUM(
@@ -601,14 +601,11 @@ router.patch('/:id/request-letter', authenticate, async (req, res) => {
         if (dispatchMethod === 'admin_email') {
           // แอดมินส่งอีเมลทางการถึงสถานประกอบการโดยตรง พร้อมลิงก์ตอบรับออนไลน์
           try {
-            await sendEmail({
+            await sendRelocationRequestEmail({
               to: recipientEmail,
-              subject: `[LASC] ขอความอนุเคราะห์รับนักศึกษาฝึกงาน (ย้ายจากสถานประกอบการเดิม) — ${rel.new_company_name}`,
-              htmlContent: `<p>เรียน ผู้ประสานงาน ${rel.new_company_name}</p>
-                <p>คณะศิลปศาสตร์และวิทยาศาสตร์ มหาวิทยาลัยราชภัฏศรีสะเกษ ได้ออกหนังสือขอความอนุเคราะห์ส่งนักศึกษา <strong>${rel.student_id}</strong> ไปฝึกงาน ณ สถานประกอบการของท่าน</p>
-                <p>โปรดตอบรับการฝึกงานผ่านลิงก์ออนไลน์ (ลงนามดิจิทัล ใช้ได้ครั้งเดียว):<br/>
-                <a href="${acceptanceLink}">${acceptanceLink}</a></p>
-                <p style="color:#94a3b8;font-size:12px">อีเมลอัตโนมัติจากระบบสหกิจศึกษา LASC</p>`
+              companyName: rel.new_company_name,
+              studentId: rel.student_id,
+              acceptanceLink,
             });
           } catch (mailErr) { console.error('[Relocation] company email fail:', mailErr.message); }
           await notifyStudent(rel.student_id, {

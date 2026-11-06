@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
 import {
     Alert, Box, Dialog, DialogContent, Paper, Snackbar, Tab, Table, TableBody,
@@ -8,10 +7,6 @@ import {
 } from '@mui/material';
 import { CheckCircle2, FileText, History, Inbox, Loader2, MessageSquareText, XCircle } from 'lucide-react';
 import '../Admin/Dashboard/AdminDashboardPage.css';
-import AdvisorSidebar from '../../components/AdvisorSidebar';
-import UserProfileMenu from '../../components/UserProfileMenu';
-import NotificationBell from '../../components/NotificationBell';
-import DateTimeIndicator from '../../components/DateTimeIndicator';
 import { RELOCATION_STATUS_LABEL } from '../../components/RelocationStepper';
 import SignaturePad from '../../components/SignaturePad';
 import { getUploadUrl } from '../../utils/fileUrl';
@@ -23,7 +18,6 @@ const normalizeDept = (value) =>
 
 const AdvisorRelocationsPage = () => {
     const navigate = useNavigate();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [advisorDept, setAdvisorDept] = useState('');
     const [rows, setRows] = useState([]);
     const [reviewDialog, setReviewDialog] = useState({ open: false, item: null, approve: true, comment: '', signature: '' });
@@ -62,8 +56,6 @@ const AdvisorRelocationsPage = () => {
         setSearchParams(searchParams, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rows]);
-
-    const handleLogout = () => { localStorage.removeItem('user'); navigate('/'); };
 
     const submitReview = async () => {
         const { item, approve, comment, signature } = reviewDialog;
@@ -112,24 +104,7 @@ const AdvisorRelocationsPage = () => {
     const displayRows = viewTab === 'active' ? activeRows : historyRows;
 
     return (
-        <div className="admin-dashboard-container">
-            <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: 'block' }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
-                    </button>
-                    <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-                        <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-                        <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>ระบบฝึกประสบการณ์วิชาชีพ</span>
-                    </Link>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <DateTimeIndicator />
-                    <NotificationBell />
-                    <UserProfileMenu />
-                </div>
-            </div>
-            <AdvisorSidebar isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} currentPath="/advisor-dashboard/relocations" handleLogout={handleLogout} />
+        <>
 
             <main className="admin-main">
                 <header className="admin-header">
@@ -414,7 +389,7 @@ const AdvisorRelocationsPage = () => {
             <Snackbar open={toast.open} autoHideDuration={3000} onClose={() => setToast((p) => ({ ...p, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
                 <Alert onClose={() => setToast((p) => ({ ...p, open: false }))} severity={toast.severity} variant="filled">{toast.message}</Alert>
             </Snackbar>
-        </div>
+        </>
     );
 };
 

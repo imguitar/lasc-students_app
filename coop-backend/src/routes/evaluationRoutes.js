@@ -4,7 +4,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow, USER_SELECT_SQL } = require('../utils/helpers');
 const { sendCompanyEvaluationEmail, buildEvaluationUrl } = require('../utils/emailService');
-const { sendAdminEvaluationAlertEmail, sendStudentEvaluationNoticeEmail, findStudentEmail } = require('../utils/mailer');
+const { sendAdminEvaluationAlertEmail, sendStudentEvaluationNoticeEmail, findStudentEmail, notifyStudentStatusChange } = require('../utils/mailer');
 const { createNotification, findUserIdsByRole } = require('../utils/notificationService');
 const { LATEST_COMPLETED_RELOC_JOIN } = require('../utils/activeCompany');
 
@@ -46,7 +46,8 @@ const INTERNSHIP_DONE_STATUS = 'ฝึกงานเสร็จแล้ว';
 // (แทนการรอ lazy transition 3 วันใน GET /requests)
 const maybeMarkInternshipCompleted = async (requestId) => {
   const [rows] = await pool.query(
-    `SELECT r.status,
+    `SELECT r.id, r.studentId, r.studentName, r.company, r.position, r.status,
+            r.internship_start_date, r.internship_end_date,
             IF(e.id IS NOT NULL, 1, 0) AS hasCompanyEval,
             IF(ae.id IS NOT NULL, 1, 0) AS hasAdvisorEval
      FROM requests r
@@ -60,6 +61,7 @@ const maybeMarkInternshipCompleted = async (requestId) => {
   if (row.hasCompanyEval && row.hasAdvisorEval && row.status !== INTERNSHIP_DONE_STATUS) {
     await pool.query('UPDATE requests SET status = ? WHERE id = ?', [INTERNSHIP_DONE_STATUS, requestId]);
     console.log(`[Evaluation] คำร้อง #${requestId} ประเมินครบ 2 ฝ่าย → "${INTERNSHIP_DONE_STATUS}" อัตโนมัติ`);
+    await notifyStudentStatusChange({ request: row, previousStatus: row.status, newStatus: INTERNSHIP_DONE_STATUS });
     return true;
   }
   return false;
@@ -549,6 +551,103 @@ router.get('/evaluation-rounds/active', async (req, res) => {
 });
 
 // POST /api/admin/evaluation-rounds — สร้างรอบใหม่
+// =============================================
+// Admin Fallback — ลิงก์แบบประเมินสถานประกอบการแบบ manual
+// =============================================
+
+const parseDetails = (raw) => {
+  if (!raw) return {};
+  try {
+    return typeof raw === 'object' ? raw : JSON.parse(raw);
+  } catch (_) {
+    return {};
+  }
+};
+
+// ลำดับผู้รับเดียวกับตอนอาจารย์บันทึกผลนิเทศ
+const resolveEvaluatorRecipient = (reqItem, detailsObj) =>
+  reqItem.evaluator_email || detailsObj.evaluatorEmail || reqItem.company_email || detailsObj.contactEmail || null;
+
+// GET /api/admin/requests/:id/evaluation-link — ลิงก์แบบประเมินเป็นแบบ public ผูกกับเลขคำร้อง ไม่มี token แยก
+router.get('/admin/requests/:id/evaluation-link', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+    const reqItem = rows[0];
+    const detailsObj = parseDetails(reqItem.details);
+
+    const [evalRows] = await pool.query('SELECT id FROM evaluations WHERE requestId = ?', [reqItem.id]);
+    const closed = await checkEvaluationRoundClosed();
+
+    res.json({
+      success: true,
+      data: {
+        requestId: reqItem.id,
+        url: buildEvaluationUrl(reqItem.id),
+        recipientEmail: resolveEvaluatorRecipient(reqItem, detailsObj),
+        evaluated: evalRows.length > 0,
+        internshipEndDate: reqItem.internship_end_date || detailsObj.endDate || null,
+        lastEmailSentAt: detailsObj.evaluatorEmailSentAt || null,
+        roundClosed: Boolean(closed),
+        roundMessage: closed ? closed.message : null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/admin/requests/:id/evaluation-link/resend — ส่งอีเมลลิงก์แบบประเมินซ้ำถึงสถานประกอบการ
+router.post('/admin/requests/:id/evaluation-link/resend', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'ไม่พบคำร้อง' });
+    const reqItem = rows[0];
+    const detailsObj = parseDetails(reqItem.details);
+
+    const override = String(req.body?.email || '').trim();
+    if (override && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(override)) {
+      return res.status(400).json({ success: false, message: 'รูปแบบอีเมลไม่ถูกต้อง' });
+    }
+    const recipientEmail = override || resolveEvaluatorRecipient(reqItem, detailsObj);
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, message: 'ยังไม่มีอีเมลผู้ประเมินของสถานประกอบการ กรุณาระบุอีเมลก่อนส่ง' });
+    }
+
+    const fmtThai = (d) => (d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : null);
+    const result = await sendCompanyEvaluationEmail({
+      to: recipientEmail,
+      studentName: reqItem.studentName,
+      studentId: reqItem.studentId,
+      companyName: reqItem.company,
+      startDate: fmtThai(reqItem.internship_start_date || detailsObj.startDate || null),
+      endDate: fmtThai(reqItem.internship_end_date || detailsObj.endDate || null),
+      evaluationUrl: buildEvaluationUrl(reqItem.id),
+    });
+
+    const sent = Boolean(result.success && !result.simulated);
+    if (sent) {
+      detailsObj.evaluatorEmailSent = true;
+      detailsObj.evaluatorEmailSentAt = new Date().toISOString();
+      await pool.query('UPDATE requests SET details = ? WHERE id = ?', [JSON.stringify(detailsObj), reqItem.id]);
+    }
+
+    if (!sent) {
+      return res.status(result.simulated ? 200 : 502).json({
+        success: false,
+        simulated: Boolean(result.simulated),
+        recipientEmail,
+        message: result.simulated
+          ? 'ยังไม่ได้ตั้งค่าระบบอีเมล จึงยังไม่ได้ส่ง'
+          : `ส่งอีเมลไปยัง ${recipientEmail} ไม่สำเร็จ`,
+      });
+    }
+    res.json({ success: true, recipientEmail, message: `ส่งอีเมลแบบประเมินไปยัง ${recipientEmail} เรียบร้อยแล้ว` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/admin/evaluation-rounds', authenticate, authorize('admin'), async (req, res) => {
   try {
     const { title, academicYear, semester, startDate, endDate, isActive } = req.body;

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import {
   TextField,
   MenuItem,
@@ -28,10 +27,6 @@ import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileC
 import api from '../../api/axios';
 import './NewRequestPage.css';
 import './Dashboard/DashboardPage.css'; // Import dashboard styles
-import StudentSidebar from '../../components/StudentSidebar';
-import UserProfileMenu from '../../components/UserProfileMenu';
-import NotificationBell from '../../components/NotificationBell';
-import DateTimeIndicator from '../../components/DateTimeIndicator';
 import ModernButton from '../../components/ModernButton';
 import StatusBadge from '../../components/StatusBadge';
 import { isStudentEditableStatus } from './Dashboard/MyRequestsPage';
@@ -128,7 +123,6 @@ const NewRequestPage = () => {
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [existingStatus, setExistingStatus] = useState('');
   const _alertShown = useRef(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [useManualAddress, _setUseManualAddress] = useState(false);
   const [useManualCompanyAddress, _setUseManualCompanyAddress] = useState(false);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
@@ -258,11 +252,6 @@ const NewRequestPage = () => {
   }, [navigate, id]);
 
 
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -761,31 +750,7 @@ const NewRequestPage = () => {
   }, [companyPickerOpen]);
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
-            <Menu className="w-5 h-5 text-slate-700" />
-          </button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/new-request"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main bg-slate-50/50 min-h-screen">
         <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
@@ -1768,7 +1733,7 @@ const NewRequestPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 

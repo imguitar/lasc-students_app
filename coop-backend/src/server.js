@@ -1,4 +1,23 @@
 require('dotenv').config();
+
+// docker-compose ส่ง GMAIL_* / ADMIN_EMAIL เข้ามาเป็นสตริงว่างเมื่อ .env ที่ root ไม่ได้ตั้งค่า
+// และ dotenv จะไม่เขียนทับตัวแปรที่มีอยู่แล้ว — จึงเติมเฉพาะตัวที่ว่างจาก coop-backend/.env
+// (ไม่ใช้ override ทั้งไฟล์ เพราะจะทับ DB_HOST ฯลฯ ที่ docker ตั้งไว้)
+{
+  const fs = require('fs');
+  const path = require('path');
+  const envPath = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    const fileEnv = require('dotenv').parse(fs.readFileSync(envPath));
+    for (const [key, value] of Object.entries(fileEnv)) {
+      const isEmailKey = key.startsWith('GMAIL_') || key === 'ADMIN_EMAIL';
+      if (isEmailKey && value && !String(process.env[key] || '').trim()) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 const express = require('express');
 const cors = require('cors');
 const pool = require('./config/db');
@@ -83,6 +102,7 @@ const uploadsStaticOpts = {
 app.use('/uploads', express.static(uploadsDir, uploadsStaticOpts));
 app.use('/api/uploads', express.static(uploadsDir, uploadsStaticOpts));
 app.use('/coop/api/uploads', express.static(uploadsDir, uploadsStaticOpts));
+
 
 // =============================================
 // Health Check

@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { Button, Alert, Typography, Stack, Paper, Box, Chip } from '@mui/material';
 import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import api from '../../../api/axios';
 import './DashboardPage.css'; // Reusing layout
 import './PaymentProofPage.css'; // New styles
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.85) =>
   new Promise((resolve, reject) => {
@@ -63,7 +58,6 @@ const PaymentProofPage = () => {
   const [activePayment, setActivePayment] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null); // 'pending', 'approved', 'rejected', null
   const [uploadError, setUploadError] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const fetchPaymentStatus = (studentId, mounted) => {
     api.get(`/payments?studentId=${studentId}`)
@@ -96,11 +90,6 @@ const PaymentProofPage = () => {
     }
     return () => { mounted = false; };
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -151,29 +140,7 @@ const PaymentProofPage = () => {
   };
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/payment-proof"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main">
         <header className="dashboard-header">
@@ -396,7 +363,7 @@ const PaymentProofPage = () => {
           )}
         </div>
       </main>
-    </div>
+    </>
   );
 };
 

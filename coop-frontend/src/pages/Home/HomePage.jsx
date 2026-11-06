@@ -1,35 +1,35 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { resolveBannerSrc } from '../../utils/bannerImage';
 import './HomePage.css';
 import logo from '../../assets/LASC-SSKRU-1.png';
 import sskruBg from '../../assets/SSKRU_BG.png';
 import {
-  PhoneIcon,
-  EnvelopeIcon,
   MapPinIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   ArrowRightIcon,
   BuildingOffice2Icon,
   SparklesIcon,
-  MegaphoneIcon,
   AcademicCapIcon,
   BookOpenIcon,
   StarIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
-import { Button, IconButton } from '@mui/material';
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ArrowRight, ChevronLeft, ChevronRight, Menu, Home as HomeLucide, LayoutDashboard, Newspaper,
+  Search, HelpCircle, ClipboardList, FilePlus2, Bell,
+} from 'lucide-react';
+import MobileNavDrawer from '../../components/MobileNavDrawer';
 import { redirectToProfileLogin } from '../../utils/sso';
 import NotificationBell from '../../components/NotificationBell';
 import UserProfileMenu from '../../components/UserProfileMenu';
-import QuickActionBar from '../../components/QuickActionBar';
-import FacebookIcon from '../../components/icons/FacebookIcon';
+import UtilityBar from '../../components/UtilityBar';
+import SubNav from '../../components/SubNav';
 import DigitalJourney from '../../components/home/DigitalJourney';
 import FaqAccordion from '../../components/home/FaqAccordion';
 import HomeFooter from '../../components/home/HomeFooter';
+import QuickActionBar from '../../components/QuickActionBar';
+import MobileTabBar from '../../components/MobileTabBar';
 
 const DEFAULT_BANNER = {
   id: 'default',
@@ -39,6 +39,40 @@ const DEFAULT_BANNER = {
   link_url: null,
   link_label: 'ดูรายละเอียด',
 };
+
+// สไลด์สำรองจากไฟล์ใน public/banners (ใช้เมื่อยังไม่มีแบนเนอร์ในฐานข้อมูล) — ข้อความอยู่ในชั้น HTML ไม่ฝังในรูป
+const BANNER_BASE = import.meta.env.BASE_URL || '/';
+const MOCK_BANNERS = [
+  {
+    id: 'mock-1',
+    title: 'รับสมัครที่ฝึกงานประจำปีการศึกษา 2569',
+    subtitle: 'ยื่นคำร้องออนไลน์ ติดตามสถานะได้ทุกขั้นตอน',
+    static_src: `${BANNER_BASE}banners/hero-auditorium.png`,
+    link_url: null,
+    link_label: 'ดูรายละเอียด',
+    show_text_overlay: 1,
+    content_mode: 'overlay',
+  },
+  {
+    id: 'mock-2',
+    title: 'ร่วมเรียนรู้และก้าวสู่อาชีพ',
+    subtitle: 'มหาวิทยาลัยราชภัฏศรีสะเกษ คณะศิลปศาสตร์และวิทยาศาสตร์',
+    static_src: `${BANNER_BASE}banners/hero-triptych.png`,
+    link_url: null,
+    link_label: 'ดูรายละเอียด',
+    show_text_overlay: 1,
+    content_mode: 'overlay',
+  },
+];
+
+// ข่าวสำรองสำหรับดูหน้าตา (ใช้เมื่อยังไม่มีประกาศในฐานข้อมูล) — รูปปกอยู่ใน public/news
+const MOCK_NEWS = [
+  { id: 'mock-news-1', isMock: true, title: 'เปิดรับคำร้องฝึกประสบการณ์วิชาชีพ ภาคการศึกษาที่ 1/2569', content: 'ตั้งแต่วันนี้ถึง 20 พฤศจิกายน 2569 นักศึกษาสามารถยื่นคำร้องฝึกประสบการณ์วิชาชีพผ่านระบบออนไลน์', coverImage: `${BANNER_BASE}news/news-people-1.svg`, created_at: '2026-11-03', is_pinned: 1, category: 'ประกาศ' },
+  { id: 'mock-news-2', isMock: true, title: 'กำหนดการอบรมเตรียมความพร้อมก่อนออกฝึกงาน', content: 'นักศึกษาที่จะออกฝึกงานต้องเข้าร่วมกิจกรรมเตรียมความพร้อมตามกำหนดการที่แจ้งไว้', coverImage: `${BANNER_BASE}news/news-people-2.svg`, created_at: '2026-11-01', is_pinned: 0, category: 'กิจกรรม' },
+  { id: 'mock-news-3', isMock: true, title: 'อัปเดตขั้นตอนการส่งหนังสือตอบรับจากสถานประกอบการ', content: 'สถานประกอบการตอบรับนักศึกษาผ่านลิงก์ทางอีเมล กรุณาตรวจสอบกล่องจดหมายของท่าน', coverImage: `${BANNER_BASE}news/news-people-3.svg`, created_at: '2026-10-28', is_pinned: 0, category: 'แจ้งเตือน' },
+  { id: 'mock-news-4', isMock: true, title: 'อาจารย์ที่ปรึกษานัดนิเทศนักศึกษาฝึกงานรอบเดือนพฤศจิกายน', content: 'อาจารย์ที่ปรึกษาจะเข้านิเทศนักศึกษาตามตารางที่ประสานไว้ล่วงหน้า', coverImage: `${BANNER_BASE}news/news-people-4.svg`, created_at: '2026-10-25', is_pinned: 0, category: 'นิเทศ' },
+  { id: 'mock-news-5', isMock: true, title: 'ขอบคุณสถานประกอบการที่ร่วมรับนักศึกษาฝึกงานปีการศึกษา 2569', content: 'ขอขอบคุณสถานประกอบการทุกแห่งที่ให้โอกาสนักศึกษาได้เรียนรู้และพัฒนาทักษะในการทำงานจริง', coverImage: `${BANNER_BASE}news/news-people-5.svg`, created_at: '2026-10-20', is_pinned: 0, category: 'ขอบคุณ' },
+];
 
 // แปลง HEX เป็น rgba() สำหรับสร้าง overlay จากค่าที่แอดมินตั้งไว้ต่อแบนเนอร์
 const hexToRgba = (hex, alpha) => {
@@ -63,57 +97,86 @@ const bannerOverlayBackground = (banner) => {
 const HomePage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [stats, setStats] = useState({ companies: 0, activeStudents: 0, completedStudents: 0 });
-  const [banners, setBanners] = useState([DEFAULT_BANNER]);
+  const [banners, setBanners] = useState([DEFAULT_BANNER, ...MOCK_BANNERS]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isHeroHovered, setIsHeroHovered] = useState(false);
-  const [urgentAnnouncement, setUrgentAnnouncement] = useState({
-    is_active: true,
-    text: 'ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป',
-    link_url: '',
-  });
   const carouselRef = useRef(null);
   const [isCarouselHovered, setIsCarouselHovered] = useState(false);
   const [activeNewsDot, setActiveNewsDot] = useState(0);
+  const newsSectionRef = useRef(null);
+  const [newsInView, setNewsInView] = useState(false);
+  useEffect(() => {
+    const el = newsSectionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') { setNewsInView(true); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setNewsInView(true); io.disconnect(); }
+    }, { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [announcements.length]);
 
-  const handleNewsScroll = () => {
+  // แถบข่าว: เลื่อนด้วย transform บน track (ลื่นกว่า scroll) — ระยะขยับวัดจากการ์ดจริงใน DOM
+  const [newsStep, setNewsStep] = useState(0);
+  const [newsVisible, setNewsVisible] = useState(1);
+  const [newsIndex, setNewsIndex] = useState(0);
+  const [newsAnimate, setNewsAnimate] = useState(true);
+  const newsCount = announcements.slice(0, 10).length;
+  const newsMaxIndex = Math.max(0, newsCount - newsVisible);
+
+  useEffect(() => {
     const el = carouselRef.current;
-    if (!el) return;
-    const cardNode = el.querySelector('.news-card');
-    const step = cardNode ? cardNode.offsetWidth + 24 : 344;
-    setActiveNewsDot(Math.max(0, Math.round(el.scrollLeft / step)));
+    if (!el) return undefined;
+    const measure = () => {
+      const track = el.querySelector('.news-track');
+      const first = track?.querySelector('.home-news-slide');
+      if (!track || !first) return;
+      const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+      const step = first.offsetWidth + gap;
+      setNewsStep(step);
+      setNewsVisible(Math.max(1, Math.floor((el.clientWidth + gap) / step)));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [announcements.length]);
+
+  useEffect(() => {
+    setNewsIndex((i) => Math.min(i, newsMaxIndex));
+  }, [newsMaxIndex]);
+
+  const slideTo = (idx) => {
+    setNewsAnimate(true);
+    setNewsIndex(Math.max(0, Math.min(idx, newsMaxIndex)));
+  };
+  // วนกลับโดยไม่แอนิเมชันย้อนกลับ แล้วเปิดแอนิเมชันคืนหลังเฟรมถัดไป
+  const jumpWithoutAnimation = (idx) => {
+    setNewsAnimate(false);
+    setNewsIndex(idx);
+    requestAnimationFrame(() => requestAnimationFrame(() => setNewsAnimate(true)));
+  };
+  const goNext = () => {
+    if (newsIndex >= newsMaxIndex) jumpWithoutAnimation(0);
+    else slideTo(newsIndex + 1);
+  };
+  const goPrev = () => {
+    if (newsIndex <= 0) jumpWithoutAnimation(newsMaxIndex);
+    else slideTo(newsIndex - 1);
   };
 
-  const scrollToNewsIndex = (idx) => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const cardNode = el.querySelector('.news-card');
-    const step = cardNode ? cardNode.offsetWidth + 24 : 344;
-    el.scrollTo({ left: idx * step, behavior: 'smooth' });
-  };
-
-  const scrollCarousel = (direction) => {
-    if (carouselRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
-      const cardNode = carouselRef.current.querySelector('.news-card');
-      const scrollAmount = cardNode ? cardNode.offsetWidth + 24 : 344;
-
-      if (direction === 'left') {
-        if (scrollLeft <= 10) {
-          carouselRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' });
-        } else {
-          carouselRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-        }
-      } else {
-        if (scrollLeft + clientWidth >= scrollWidth - 10) {
-          carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-        }
-      }
-    }
-  };
+  // เลื่อนอัตโนมัติทุก 4 วินาที หยุดเมื่อเอาเมาส์ชี้
+  useEffect(() => {
+    if (isCarouselHovered || newsMaxIndex === 0) return undefined;
+    const t = setInterval(goNext, 4000);
+    return () => clearInterval(t);
+  }, [isCarouselHovered, newsIndex, newsMaxIndex]);
 
   const [contactInfo, setContactInfo] = useState({
     phone: '',
@@ -136,8 +199,11 @@ const HomePage = () => {
 
   useEffect(() => {
     api.get('/public/announcements')
-      .then(res => setAnnouncements(res.data.data || []))
-      .catch(() => setAnnouncements([]));
+      .then(res => {
+        const list = res.data?.data || [];
+        setAnnouncements(list.length > 0 ? list : MOCK_NEWS);
+      })
+      .catch(() => setAnnouncements(MOCK_NEWS));
 
     api.get('/public/stats')
       .then(res => {
@@ -165,18 +231,6 @@ const HomePage = () => {
       })
       .catch(() => {});
 
-    api.get('/public/settings')
-      .then(res => {
-        const announcement = res.data?.data?.urgent_announcement;
-        if (announcement && typeof announcement === 'object') {
-          setUrgentAnnouncement({
-            is_active: !!announcement.is_active,
-            text: announcement.text || '',
-            link_url: announcement.link_url || '',
-          });
-        }
-      })
-      .catch(() => {});
   }, []);
 
   // Autoplay Hero Banner Carousel (หยุดเมื่อ hover) — สไลด์เดียวไม่ต้องหมุน
@@ -184,22 +238,12 @@ const HomePage = () => {
     if (isHeroHovered || banners.length <= 1) return undefined;
     const interval = setInterval(() => {
       setActiveSlide(prev => (prev + 1) % banners.length);
-    }, 6000);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [isHeroHovered, banners.length]);
+  }, [isHeroHovered, banners.length, activeSlide]);
 
   const goToSlide = (index) => setActiveSlide((index + banners.length) % banners.length);
 
-  // Autoplay News Carousel Effect
-  useEffect(() => {
-    let interval;
-    if (!isCarouselHovered && announcements.length > 0) {
-      interval = setInterval(() => {
-        scrollCarousel('right');
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [isCarouselHovered, announcements]);
 
   const normalizedRole = String(user?.role || '').toLowerCase();
   const navAction = !user
@@ -210,11 +254,50 @@ const HomePage = () => {
         ? { label: 'แดชบอร์ด', to: '/advisor-dashboard' }
         : { label: 'แดชบอร์ด', to: '/dashboard' };
 
-  const navButtonClass = 'rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold p-2.5 md:px-5 md:py-2.5 flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition cursor-pointer border-none no-underline';
+  const homeRoleLabel =
+    normalizedRole === 'admin' ? 'ผู้ดูแลระบบ'
+      : (normalizedRole === 'advisor' || normalizedRole === 'teacher') ? 'อาจารย์ที่ปรึกษา'
+        : user ? 'นักศึกษา' : '';
+
+  const notificationsPath = normalizedRole === 'admin'
+    ? '/admin-dashboard/notifications'
+    : normalizedRole === 'student' ? '/dashboard/notifications' : null;
+
+  // แถบล่าง (MobileTabBar) — แสดงคู่กับแฮมเบอร์เกอร์ (จอ < 1024px) เพื่อให้เข้าเมนูหลักได้จากนิ้วโป้ง
+  const { pathname } = useLocation();
+  const tabItems = [
+    { key: 'home', label: 'หน้าหลัก', Icon: HomeLucide, to: '/', active: pathname === '/' },
+    { key: 'news', label: 'ข่าวสาร', Icon: Newspaper, to: '/news', active: pathname.startsWith('/news') },
+    { key: 'companies', label: 'ที่ฝึกงาน', Icon: Search, to: '/companies', active: pathname.startsWith('/companies') },
+    user
+      ? { key: 'dashboard', label: 'แดชบอร์ด', Icon: LayoutDashboard, to: navAction.to, active: false }
+      : { key: 'login', label: 'เข้าสู่ระบบ', Icon: ArrowRightIcon, to: '/login', active: false },
+  ];
+
+  // เมนูใน Drawer (จอ < 1024px) — รวมปุ่ม "แดชบอร์ด" และลิงก์หลักที่ถูกซ่อนจาก Navbar
+  const drawerItems = [
+    { key: 'home', label: 'หน้าหลัก', Icon: HomeLucide, to: '/', active: true },
+    ...(user ? [{ key: 'dashboard', label: 'แดชบอร์ด', Icon: LayoutDashboard, to: navAction.to }] : []),
+    ...(user && normalizedRole === 'student'
+      ? [
+          { key: 'new-request', label: 'ยื่นคำร้องใหม่', Icon: FilePlus2, to: '/dashboard/new-request' },
+          { key: 'my-requests', label: 'คำร้องของฉัน', Icon: ClipboardList, to: '/dashboard/my-requests' },
+        ]
+      : []),
+    { key: 'news', label: 'ข่าวสารและประกาศ', Icon: Newspaper, to: '/news' },
+    { key: 'companies', label: 'ค้นหาที่ฝึกงาน', Icon: Search, to: '/companies' },
+    {
+      key: 'faq',
+      label: 'คำถามพบบ่อย',
+      Icon: HelpCircle,
+      onClick: () => document.getElementById('home-faq')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    },
+    ...(user && notificationsPath ? [{ key: 'notifications', label: 'การแจ้งเตือน', Icon: Bell, to: notificationsPath }] : []),
+  ];
+
+  const navButtonClass ='site-nav-cta rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold p-2.5 md:px-5 md:py-2.5 flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition cursor-pointer border-none no-underline';
 
 
-  // ตัดคำนำหน้า "ประกาศด่วน:" ออกเพราะมี badge กำกับแล้ว
-  const announcementText = (urgentAnnouncement.text || '').replace(/^ประกาศด่วน\s*[:：]?\s*/, '');
 
   // normalize ลิงก์เพจ — เติม https:// ให้อัตโนมัติ และปล่อยเฉพาะโปรโตคอล http/https (กัน javascript:)
   const facebookHref = (() => {
@@ -224,37 +307,37 @@ const HomePage = () => {
   })();
 
   return (
-    <div className="home-container bg-slate-50/50">
-      {/* Utility Bar */}
-      <div className="bg-purple-950 text-purple-200 text-xs py-2 px-4 md:px-6 flex justify-end items-center gap-4">
-        {facebookHref ? (
-          <a href={facebookHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-purple-200 hover:text-white transition-colors no-underline">
-            <FacebookIcon className="w-3.5 h-3.5 text-amber-300" />
-            {contactInfo.facebook_name || 'Facebook'}
-          </a>
-        ) : (
-          <span className="inline-flex items-center gap-1.5">
-            <PhoneIcon className="w-3.5 h-3.5 text-amber-300" />
-            {contactInfo.phone ? `ติดต่อสอบถาม ${contactInfo.phone}` : 'ติดต่อสอบถาม 02-XXX-XXXX'}
-          </span>
-        )}
-        <span className="hidden sm:inline-flex items-center gap-1.5">
-          <EnvelopeIcon className="w-3.5 h-3.5 text-amber-300" />
-          {contactInfo.email || 'contact@example.com'}
-        </span>
-      </div>
+    <div className="home-container home-theme bg-slate-50/50">
+      <UtilityBar />
 
       {/* Navbar — glassmorphism sticky */}
-      <nav className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-purple-100/60 shadow-xs">
-        <div className="w-full px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-2.5 min-w-0 no-underline">
-            <img src={logo} alt="LASC Logo" className="h-10 sm:h-12 w-auto object-contain shrink-0" />
-            <span className="hidden sm:block font-extrabold text-slate-900 text-base md:text-lg whitespace-nowrap" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
+      <nav className="site-navbar sticky top-0 z-40">
+        <div className="w-full px-3 sm:px-6 h-full flex items-center justify-between gap-3">
+          <Link to="/" className="mobile-top-logo flex items-center min-w-0 flex-shrink gap-2 sm:gap-2.5 md:gap-3 no-underline">
+            <img
+              src={logo}
+              alt="LASC Logo"
+              className="w-7 h-7 min-[390px]:w-8 min-[390px]:h-8 md:w-8 md:h-8 lg:w-9 lg:h-9 xl:w-10 xl:h-10 object-contain shrink-0"
+            />
+            <span
+              className="site-nav-title block font-extrabold text-white text-sm min-[390px]:text-base md:text-lg lg:text-xl xl:text-[22px] 2xl:text-2xl leading-tight whitespace-nowrap tracking-tight truncate"
+              style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}
+            >
               ระบบฝึกประสบการณ์วิชาชีพ
             </span>
           </Link>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* จอ < 1024px: ซ่อนวิดเจ็ตฝั่งขวาทั้งหมด เหลือเฉพาะปุ่มแฮมเบอร์เกอร์ — ทุกอย่างย้ายไปอยู่ใน Drawer */}
+          <button
+            type="button"
+            className="site-hamburger lg:hidden shrink-0"
+            onClick={() => setIsDrawerOpen(true)}
+            aria-label="เปิดเมนู"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="hidden lg:flex items-center gap-2.5 shrink-0">
             {!user ? (
               <button type="button" onClick={() => redirectToProfileLogin()} className={navButtonClass}>
                 <span>{navAction.label}</span>
@@ -275,34 +358,25 @@ const HomePage = () => {
         </div>
       </nav>
 
-      {/* Slim Announcement Bar — sub-navbar แนบใต้ navbar (เนื้อหาจาก site_settings.urgent_announcement) */}
-      {urgentAnnouncement.is_active && urgentAnnouncement.text && (
-        <div className="bg-transparent">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-center gap-2.5 text-xs">
-            <span className="inline-flex items-center gap-1 bg-purple-50 border border-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">
-              <MegaphoneIcon className="w-3 h-3" />
-              ประกาศด่วน
-            </span>
-            {urgentAnnouncement.link_url ? (
-              <a
-                href={urgentAnnouncement.link_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-600 hover:text-purple-700 hover:underline no-underline truncate"
-              >
-                {announcementText}
-              </a>
-            ) : (
-              <span className="text-slate-600 truncate">{announcementText}</span>
-            )}
-          </div>
-        </div>
-      )}
+      <MobileNavDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        user={user}
+        roleLabel={homeRoleLabel}
+        subline={user && normalizedRole === 'student' ? (user.studentId || user.student_id || user.username || '') : ''}
+        items={drawerItems}
+        onLogout={() => window.dispatchEvent(new CustomEvent('request-logout-confirm'))}
+        onLogin={() => redirectToProfileLogin()}
+      />
+
+      <SubNav />
+
+      <MobileTabBar items={tabItems} onOpenMenu={() => setIsDrawerOpen(true)} menuActive={isDrawerOpen} />
 
       {/* Hero Banner Carousel — สไลด์ประชาสัมพันธ์จากระบบ (fallback = อาคารจุฬาภรณวลัยลักษณ์) */}
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
+      <div className="relative mx-auto max-w-7xl px-0 sm:px-6 lg:px-8 mt-0 sm:mt-8">
         <div
-          className="relative h-[calc(100svh-255px)] min-h-[320px] md:h-auto md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden shadow-md md:shadow-2xl border border-purple-100/50 bg-slate-100"
+          className="home-hero-frame relative h-[44svh] min-h-[240px] sm:h-[calc(100svh-255px)] sm:min-h-[320px] md:h-auto md:aspect-[21/9] rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden shadow-md md:shadow-2xl sm:border sm:border-purple-100/50 bg-slate-100"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -319,13 +393,13 @@ const HomePage = () => {
                   <source media="(min-width: 768px) and (max-width: 1023px)" srcSet={resolveBannerSrc(banner.image_url_tablet, '')} />
                 )}
                 <img
-                  src={resolveBannerSrc(banner.image_url, sskruBg)}
+                  src={banner.static_src || resolveBannerSrc(banner.image_url, sskruBg)}
                   referrerPolicy="no-referrer"
                   alt={banner.title || 'แบนเนอร์ประชาสัมพันธ์'}
                   onError={(e) => {
                     if (e.currentTarget.src !== sskruBg) e.currentTarget.src = sskruBg;
                   }}
-                  className="w-full h-full object-cover object-center transition-transform duration-700"
+                  className={`w-full h-full object-cover object-center transition-transform duration-700 ${index === activeSlide ? 'home-ken-burns' : ''}`}
                 />
               </picture>
             );
@@ -342,14 +416,14 @@ const HomePage = () => {
               ) : bannerImage}
               {/* Overlay — สี/รูปแบบ/ความทึบตั้งค่าได้ต่อแบนเนอร์จากหน้า admin */}
               {showText && (
-                <div className="absolute inset-0" style={{ background: bannerOverlayBackground(banner) }} />
+                <div className="home-hero-tint absolute inset-0" style={{ background: bannerOverlayBackground(banner) }} />
               )}
               {/* เงาดำจางด้านล่าง — ให้อ่านตัวหนังสือชัดโดยไม่ต้องขยายฟอนต์ */}
               {showText && (
-                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
+                <div className="home-hero-tint absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
               )}
               {showText && (
-                <div className="absolute inset-x-0 bottom-0 p-4 pb-8 md:p-8 md:pb-10 text-white">
+                <div className="hidden absolute inset-x-0 bottom-0 p-4 pb-8 md:p-8 md:pb-10 text-white">
                   <h1
                     className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight leading-snug sm:leading-tight drop-shadow-sm text-white m-0"
                     style={banner.title_color ? { color: banner.title_color } : undefined}
@@ -386,25 +460,16 @@ const HomePage = () => {
             );
           })}
 
+          {/* แถบเวลาบอกรอบสไลด์ 5 วินาที — รีสตาร์ตทุกครั้งที่เปลี่ยนสไลด์ และหยุดเมื่อเอาเมาส์ชี้ */}
+          {banners.length > 1 && (
+            <div className="home-hero-progress-track" aria-hidden="true">
+              <div key={activeSlide} className={`home-hero-progress-bar ${isHeroHovered ? 'is-paused' : ''}`} />
+            </div>
+          )}
+
           {/* Carousel controls — แสดงเมื่อมีมากกว่า 1 สไลด์ */}
           {banners.length > 1 && (
             <>
-              <button
-                type="button"
-                onClick={() => goToSlide(activeSlide - 1)}
-                aria-label="สไลด์ก่อนหน้า"
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 p-1 bg-transparent hover:bg-transparent text-white/80 hover:text-white transition-all border-0 shadow-none appearance-none outline-none focus:outline-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] cursor-pointer"
-              >
-                <ChevronLeftIcon className="w-3 h-3 stroke-[2.5]" />
-              </button>
-              <button
-                type="button"
-                onClick={() => goToSlide(activeSlide + 1)}
-                aria-label="สไลด์ถัดไป"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 p-1 bg-transparent hover:bg-transparent text-white/80 hover:text-white transition-all border-0 shadow-none appearance-none outline-none focus:outline-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] cursor-pointer"
-              >
-                <ChevronRightIcon className="w-3 h-3 stroke-[2.5]" />
-              </button>
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
                 {banners.map((banner, index) => (
                   <button
@@ -412,7 +477,7 @@ const HomePage = () => {
                     type="button"
                     onClick={() => goToSlide(index)}
                     aria-label={`ไปสไลด์ที่ ${index + 1}`}
-                    className={`h-2 rounded-full transition-all cursor-pointer border-0 ${index === activeSlide ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/75'}`}
+                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer border-0 p-0 ${index === activeSlide ? 'w-7 bg-[#EAB308]' : 'w-1.5 bg-[#DDD6FE] hover:bg-white'}`}
                   />
                 ))}
               </div>
@@ -421,111 +486,106 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Quick Actions — ทางลัดยื่นคำร้อง/ติดตามสถานะ/ค้นหาบริษัท/ดาวน์โหลดฟอร์ม */}
+
+      {/* Quick Actions — ทางลัดยื่นคำร้อง/ติดตามสถานะ/ค้นหาบริษัท/คำถามพบบ่อย */}
       <QuickActionBar />
 
-      {/* Announcements Section */}
+      {/* Announcements Section — แถบข่าวแบบ track + transform ตามแบบอ้างอิง */}
       {announcements.length > 0 && (
-        <section className="pt-4 pb-12 sm:py-16">
+        <section ref={newsSectionRef} className="pt-8 pb-10 sm:pt-12 sm:pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-4 sm:mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">ข่าวสารและประกาศ</h2>
-              <div className="w-14 h-1 bg-purple-600 rounded-full mt-2.5" />
+            <div className="flex items-center justify-between gap-4 mb-5 sm:mb-7">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 m-0">ข่าวสารและประกาศ</h2>
+              <div className="flex items-center gap-5 sm:gap-6 shrink-0">
+                <button type="button" onClick={() => navigate('/news')} className="news-more-link">
+                  ดูข่าวทั้งหมด
+                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={goPrev} aria-label="ก่อนหน้า" className="news-nav-btn">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={goNext} aria-label="ถัดไป" className="news-nav-btn">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div
-              className="news-carousel-container flex overflow-x-auto gap-6 pb-4"
+              className="w-full overflow-hidden"
               ref={carouselRef}
               onMouseEnter={() => setIsCarouselHovered(true)}
               onMouseLeave={() => setIsCarouselHovered(false)}
-              onScroll={handleNewsScroll}
-              style={{ scrollBehavior: 'smooth', scrollSnapType: 'x mandatory', msOverflowStyle: 'none', scrollbarWidth: 'none' }}
             >
-              {announcements.slice(0, 10).map((news) => (
-                <div
-                  key={news.id}
-                  className="news-card group rounded-2xl border border-gray-100 bg-white hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer relative"
-                  onClick={() => navigate(`/news/${news.id}`)}
-                  style={{ flex: '0 0 auto', width: 'calc((100% - 48px) / 3)', minWidth: '280px', scrollSnapAlign: 'start' }}
-                >
-                  {news.is_pinned === 1 && (
-                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 bg-amber-500/10 text-amber-700 border border-amber-200/50 backdrop-blur-sm text-[11px] font-bold px-2.5 py-1 rounded-full">
-                      <MapPinIcon className="w-3 h-3" /> ปักหมุด
-                    </span>
-                  )}
-                  {news.coverImage ? (
-                    <img src={news.coverImage} alt={news.title} referrerPolicy="no-referrer" className="w-full aspect-[3/2] object-cover" />
-                  ) : (
-                    <div className="w-full aspect-[3/2] bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-50 flex items-center justify-center">
-                      <span className="text-purple-300 text-sm font-medium">ไม่มีรูปภาพ</span>
-                    </div>
-                  )}
-
-                  <div className="p-5 flex flex-col flex-1">
-                    <p className="text-xs text-gray-400 mb-2 m-0">
-                      {news.author || 'admin'} — {new Date(news.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                    <h3 className="text-base font-bold text-gray-800 group-hover:text-purple-700 line-clamp-2 leading-snug m-0 mb-2 transition-colors">
-                      {news.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 m-0 flex-1">
-                      {news.content}
-                    </p>
-                    <span className="text-sm font-bold text-purple-600 group-hover:text-purple-800 mt-4 inline-flex items-center gap-1 transition-colors">
-                      อ่านต่อ <ArrowRightIcon className="w-3.5 h-3.5" />
-                    </span>
+              <div
+                className="news-track flex items-stretch gap-5 md:gap-[30px] will-change-transform"
+                style={{
+                  transform: `translate3d(-${newsIndex * newsStep}px, 0, 0)`,
+                  transition: newsAnimate ? 'transform 1000ms cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+                }}
+              >
+                {announcements.slice(0, 10).map((news, idx) => (
+                  <div
+                    key={news.id}
+                    className={'home-news-slide shrink-0' + (newsInView ? ' is-in' : '')}
+                    style={{ transitionDelay: (idx * 80) + 'ms' }}
+                  >
+                    <article
+                      className="home-news-card group flex flex-col min-h-[480px] sm:min-h-[540px] lg:min-h-[587px] h-full overflow-hidden cursor-pointer"
+                      onClick={() => navigate(news.isMock ? '/news' : '/news/' + news.id)}
+                    >
+                      <div className="relative h-[240px] sm:h-[300px] lg:h-[360px] w-full shrink-0 overflow-hidden bg-slate-100">
+                        {news.coverImage ? (
+                          <img
+                            src={news.coverImage}
+                            alt={news.title}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">ไม่มีรูปภาพ</div>
+                        )}
+                        {news.is_pinned === 1 && (
+                          <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full border border-violet-100 bg-white/90 px-2 py-1 shadow-sm backdrop-blur-sm">
+                            <MapPinIcon className="w-4 h-4 text-violet-600" />
+                            <span className="text-[11px] font-medium text-slate-800">ปักหมุด</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col p-4 sm:p-6">
+                        <div className="mb-4 inline-flex w-fit max-w-full items-center gap-2 bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                          <span className="truncate">{news.author || 'ผู้ดูแลระบบ'}</span>
+                          <span className="h-4 w-px shrink-0 bg-slate-300" aria-hidden="true" />
+                          <span className="shrink-0">{new Date(news.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        </div>
+                        <h3 className="home-news-title mb-4 line-clamp-2 min-h-[3.25rem] text-lg sm:text-xl font-bold leading-snug text-slate-900 transition-colors group-hover:text-violet-700">
+                          {news.title}
+                        </h3>
+                        <p className="mb-4 line-clamp-2 text-sm leading-relaxed text-slate-500">{news.content}</p>
+                        <div className="mt-auto pt-2 text-sm font-semibold text-slate-900 transition-colors group-hover:text-violet-700">
+                          <span>อ่านต่อ</span>
+                        </div>
+                      </div>
+                    </article>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            {/* Bottom controls — dots ซ้าย | ดูทั้งหมด + arrows ขวา */}
-            <div className="flex items-center justify-between gap-3 mt-4 sm:mt-6">
-              {/* Pagination dots — จุดละ 1 การ์ดข่าว กดข้ามได้ */}
-              <div className="flex items-center gap-1.5 overflow-hidden">
-                {announcements.slice(0, 10).map((news, idx) => (
+            {/* จุดบอกตำแหน่ง — ตำแหน่งที่แสดงอยู่เป็นแคปซูลทอง */}
+            {newsMaxIndex > 0 && (
+              <div className="flex items-center gap-1.5 mt-5">
+                {Array.from({ length: newsMaxIndex + 1 }).map((_, i) => (
                   <button
-                    key={news.id}
+                    key={i}
                     type="button"
-                    onClick={() => scrollToNewsIndex(idx)}
-                    aria-label={`ไปข่าวที่ ${idx + 1}`}
-                    className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${
-                      idx === activeNewsDot ? 'w-4 bg-violet-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
-                    }`}
+                    onClick={() => slideTo(i)}
+                    aria-label={`ไปตำแหน่งที่ ${i + 1}`}
+                    className={`h-1.5 rounded-full border-0 cursor-pointer p-0 transition-all duration-300 shrink-0 ${i === newsIndex ? 'w-7 bg-[#EAB308]' : 'w-1.5 bg-[#DDD6FE] hover:bg-violet-400'}`}
                   />
                 ))}
               </div>
-
-              {/* ลิงก์ดูทั้งหมด + ปุ่มเลื่อน */}
-              <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                <Button
-                  variant="text"
-                  endIcon={<ArrowRight className="w-4 h-4" />}
-                  onClick={() => navigate('/news')}
-                  sx={{ color: '#7c3aed', textTransform: 'none', fontSize: '13px', fontWeight: 600, px: 1, minWidth: 0 }}
-                >
-                  ดูข่าวทั้งหมด
-                </Button>
-                <div className="flex items-center gap-2">
-                  <IconButton
-                    size="small"
-                    onClick={() => scrollCarousel('left')}
-                    aria-label="เลื่อนซ้าย"
-                    sx={{ border: '1px solid #e2e8f0', color: '#64748b', bgcolor: '#fff', borderRadius: '50%', '&:hover': { bgcolor: '#f8fafc' } }}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => scrollCarousel('right')}
-                    aria-label="เลื่อนขวา"
-                    sx={{ border: '1px solid #e2e8f0', color: '#64748b', bgcolor: '#fff', borderRadius: '50%', '&:hover': { bgcolor: '#f8fafc' } }}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </IconButton>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       )}
@@ -538,7 +598,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
             onClick={() => navigate('/companies')}
-            className="group bg-white border border-gray-100 hover:border-purple-200 rounded-3xl p-8 sm:p-10 flex flex-wrap items-center justify-between gap-6 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+            className="home-cta-card group rounded-3xl p-8 sm:p-10 flex flex-wrap items-center justify-between gap-6 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
           >
             <div className="flex items-center gap-5 flex-1 min-w-[280px]">
               <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -570,11 +630,11 @@ const HomePage = () => {
           {/* Stats Grid */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 m-0">ภาพรวมความสำเร็จของระบบ</h2>
-            <div className="h-1 w-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mt-2.5 mb-0" />
+            <div className="home-accent-bar h-1 w-12 rounded-full mt-2.5 mb-0" />
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-12">
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+            <div className="home-stat-card rounded-2xl transition-all p-6">
               <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4">
                 <BuildingOffice2Icon className="w-6 h-6" />
               </div>
@@ -584,7 +644,7 @@ const HomePage = () => {
               <div className="text-xs text-slate-500 font-medium mt-1">สถานประกอบการชั้นนำที่ร่วมมือ</div>
             </div>
 
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+            <div className="home-stat-card rounded-2xl transition-all p-6">
               <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
                 <AcademicCapIcon className="w-6 h-6" />
               </div>
@@ -597,7 +657,7 @@ const HomePage = () => {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+            <div className="home-stat-card rounded-2xl transition-all p-6">
               <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
                 <BookOpenIcon className="w-6 h-6" />
               </div>
@@ -605,7 +665,7 @@ const HomePage = () => {
               <div className="text-xs text-slate-500 font-medium mt-1">สาขาวิชา ครอบคลุมทุกหลักสูตรในคณะ</div>
             </div>
 
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all p-6">
+            <div className="home-stat-card rounded-2xl transition-all p-6">
               <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
                 <StarIcon className="w-6 h-6" />
               </div>

@@ -11,6 +11,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { redirectToProfileLogin } from '../utils/sso';
 
+/**
+ * แถบทางลัดหน้าแรก (ธีม Deep Violet & Gold)
+ * การ์ดหลักเป็นม่วงเข้มมีเส้นทอง ปุ่มทางลัดเป็นกระจกขาวโปร่งพร้อมไอคอนสีตามหมวด
+ */
 const QuickActionBar = () => {
   const navigate = useNavigate();
 
@@ -67,61 +71,49 @@ const QuickActionBar = () => {
   };
 
   return (
-    <section className="my-3 sm:my-5">
+    <section className="qa-section">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* การ์ดหลักยื่นคำร้อง — slim แนวนอนเสมอ */}
-        <div className="w-full bg-gradient-to-t from-purple-100/70 via-purple-50/40 to-white border border-purple-200/60 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-50 border border-purple-200/60 flex items-center justify-center shrink-0">
-              <CtaIcon className="w-4 h-4 text-purple-700" />
+        {/* การ์ดหลักยื่นคำร้อง */}
+        <div className="qa-card">
+          <div className="qa-card-info">
+            <div className="qa-card-icon">
+              <CtaIcon />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold m-0 leading-tight truncate text-slate-800">{cta.title}</h3>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 font-light m-0 mt-0.5 truncate">
-                {cta.subtitle}
-              </p>
+              <h3 className="qa-card-title">{cta.title}</h3>
+              <p className="qa-card-sub">{cta.subtitle}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => handleActionClick(cta.path, true)}
-            className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white text-[11px] sm:text-xs font-medium px-3.5 py-2 rounded-xl shadow-sm shrink-0 transition-all active:scale-95 border-0 cursor-pointer"
-          >
+          <button type="button" onClick={() => handleActionClick(cta.path, true)} className="qa-card-btn">
             <span className="sm:hidden">{cta.buttonMobile}</span>
             <span className="hidden sm:inline">{cta.buttonDesktop}</span>
-            <ArrowRightIcon className="w-3.5 h-3.5" />
+            <ArrowRightIcon />
           </button>
         </div>
 
         {/* ทางลัดย่อย — admin/advisor เห็น 2 ช่อง (ไม่มี "ติดตามสถานะ"), นักศึกษา/บุคคลทั่วไปเห็น 3 ช่อง */}
-        <div className={`grid ${(isAdmin || isAdvisor) ? 'grid-cols-2' : 'grid-cols-3'} gap-2 sm:gap-4 mt-2.5 sm:mt-3`}>
+        <div className={`qa-tiles ${(isAdmin || isAdvisor) ? 'qa-tiles-2' : 'qa-tiles-3'}`}>
           {!isAdmin && !isAdvisor && (
-            <button
-              type="button"
-              onClick={() => handleActionClick('/dashboard/my-requests', true)}
-              className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-1 rounded-xl bg-white border border-slate-100 shadow-sm hover:border-purple-200 hover:shadow-md transition-all text-slate-700 hover:text-purple-700 cursor-pointer"
-            >
-              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 shrink-0" />
-              <span className="text-[11px] sm:text-xs font-medium truncate">ติดตามสถานะ</span>
+            <button type="button" onClick={() => handleActionClick('/dashboard/my-requests', true)} className="qa-tile">
+              <span className="qa-tile-icon qa-tile-violet">
+                <ClipboardDocumentCheckIcon />
+              </span>
+              <span className="qa-tile-label">ติดตามสถานะ</span>
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => handleActionClick('/companies', false)}
-            className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-1 rounded-xl bg-white border border-slate-100 shadow-sm hover:border-amber-200 hover:shadow-md transition-all text-slate-700 hover:text-amber-700 cursor-pointer"
-          >
-            <MagnifyingGlassIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
-            <span className="text-[11px] sm:text-xs font-medium truncate">ค้นหาที่ฝึกงาน</span>
+          <button type="button" onClick={() => handleActionClick('/companies', false)} className="qa-tile">
+            <span className="qa-tile-icon qa-tile-gold">
+              <MagnifyingGlassIcon />
+            </span>
+            <span className="qa-tile-label">ค้นหาที่ฝึกงาน</span>
           </button>
 
-          <button
-            type="button"
-            onClick={scrollToFaq}
-            className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 px-1 rounded-xl bg-white border border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all text-slate-700 hover:text-blue-700 cursor-pointer"
-          >
-            <QuestionMarkCircleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
-            <span className="text-[11px] sm:text-xs font-medium truncate">คำถามพบบ่อย</span>
+          <button type="button" onClick={scrollToFaq} className="qa-tile">
+            <span className="qa-tile-icon qa-tile-indigo">
+              <QuestionMarkCircleIcon />
+            </span>
+            <span className="qa-tile-label">คำถามพบบ่อย</span>
           </button>
         </div>
       </div>

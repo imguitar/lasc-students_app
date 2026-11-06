@@ -6,7 +6,7 @@ import { getProfileLoginUrl } from '../../utils/sso';
 import logo from '../../assets/LASC-SSKRU-1.png';
 
 const HomeFooter = ({ contactInfo = {}, facebookHref = '' }) => (
-  <footer className="bg-purple-950 text-white mt-4">
+  <footer className="site-footer text-white mt-4">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* ฝั่งซ้าย — ข้อมูลคณะ */}
