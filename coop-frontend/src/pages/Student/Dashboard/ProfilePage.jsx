@@ -1,6 +1,6 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import {
   TextField,
   Button,
@@ -27,12 +27,9 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
+import { UserCircle } from 'lucide-react';
 import api from '../../../api/axios';
 import './DashboardPage.css';
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const DEPARTMENT_OPTIONS = [
   'สาขาวิชาวิทยาการคอมพิวเตอร์',
@@ -49,22 +46,36 @@ const DEPARTMENT_OPTIONS = [
   'สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม'
 ];
 
+const readStoredStudent = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const ProfilePage = () => {
-  const [user, setUser] = useState(null);
+  const initialUser = readStoredStudent();
+  const [user, setUser] = useState(initialUser);
   const [editing, setEditing] = useState(false);
   const [requestStatus, setRequestStatus] = useState('');
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    username: '',
-    phone: '',
-    studentId: '',
-    major: ''
+  const [form, setForm] = useState(() => {
+    const sid = initialUser?.student_code || initialUser?.studentId || initialUser?.username || '';
+    return {
+      name: initialUser?.full_name || initialUser?.name || '',
+      email: (initialUser?.email && !initialUser.email.includes('@student.sskru.ac.th'))
+        ? initialUser.email
+        : (sid ? `stu${sid}@sskru.ac.th` : ''),
+      username: initialUser?.username || '',
+      phone: initialUser?.phone || '',
+      studentId: sid,
+      major: initialUser?.major || initialUser?.department || ''
+    };
   });
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(() => initialUser?.avatar || null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [passModal, setPassModal] = useState({
     open: false,
@@ -251,54 +262,62 @@ const ProfilePage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await asyncStorage.removeItem('user');
-    setUser(null);
-    navigate('/');
-  };
-
-  if (!user) return null;
+  if (!user) {
+    return (
+      <>
+        <main className="dashboard-main">
+          <div className="content-wrapper">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+              <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center bg-white">
+                <div className="w-28 h-28 rounded-full bg-slate-200 mx-auto mb-4" />
+                <div className="h-6 w-36 bg-slate-200 rounded-lg mx-auto mb-2" />
+                <div className="h-4 w-24 bg-slate-100 rounded-md mx-auto" />
+              </div>
+              <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white">
+                <div className="h-6 w-44 bg-slate-200 rounded-lg mb-6" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="h-3.5 w-24 bg-slate-200 rounded" />
+                      <div className="h-10 bg-slate-100 rounded-xl w-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const inputClass = (editable) =>
     `w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && editable ? 'bg-white' : 'bg-gray-50/70'}`;
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/profile"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div>
-            <h1>ข้อมูลส่วนตัว</h1>
-            <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
-          </div>
-        </header>
-
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+          <header className="unified-card-head">
+            <div className="unified-card-title-wrap">
+              <span className="unified-card-icon"><UserCircle className="w-5 h-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h1 className="unified-card-title">ข้อมูลส่วนตัวนักศึกษา</h1>
+                <p className="unified-card-sub">จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
+              </div>
+            </div>
+            <div className="unified-card-user">
+              <span className="unified-card-dot" aria-hidden="true" />
+              <span className="truncate">{user.full_name || user.name || user.username}{user.username ? " (" + user.username + ")" : ""}</span>
+            </div>
+          </header>
+          <div className="unified-card-body">
         <div className="content-wrapper">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Profile Card */}
-            <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
+            <div className="rounded-2xl border border-[#E9E5F5] p-8 text-center relative overflow-hidden bg-white">
               <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
 
               <div className="relative">
@@ -356,7 +375,7 @@ const ProfilePage = () => {
             </div>
 
             {/* Right: Account Details Card */}
-            <div className="lg:col-span-2 rounded-3xl border border-purple-100 shadow-sm p-6 sm:p-8 bg-white">
+            <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
@@ -609,34 +628,20 @@ const ProfilePage = () => {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2, pt: 1, justifyContent: 'space-between' }}>
-            <Button
-              onClick={() => setPassModal(prev => ({ ...prev, open: false }))}
-              disabled={passModal.submitting}
-              color="inherit"
-              sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSavePassword}
-              disabled={passModal.submitting}
-              sx={{
-                borderRadius: 2,
-                fontWeight: 800,
-                px: 3,
-                background: 'linear-gradient(90deg, #9333ea, #4f46e5)',
-                color: '#ffffff',
-                '&:hover': { background: 'linear-gradient(90deg, #7e22ce, #4338ca)' }
-              }}
-            >
-              {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
-            </Button>
+          <DialogActions sx={{ p: 2, pt: 1 }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setPassModal(prev => ({ ...prev, open: false }))} disabled={passModal.submitting}>ยกเลิก</ModalCancelButton>
+              <ModalConfirmButton tone="confirm" onClick={handleSavePassword} loading={passModal.submitting}>
+                {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
+              </ModalConfirmButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
+          </div>
+        </div>
+        </div>
       </main>
-    </div>
+    </>
   );
 };
 

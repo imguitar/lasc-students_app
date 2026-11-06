@@ -7,7 +7,14 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { parseRequestRow, USER_SELECT_SQL, DEPARTMENT_NAME_TO_ID } = require('../utils/helpers');
 const { createNotification, findUserIdByUsername, findUserIdsByRole } = require('../utils/notificationService');
-const { sendStatusNotifyEmail, findStudentEmail } = require('../utils/mailer');
+const {
+  sendStatusNotifyEmail,
+  findStudentEmail,
+  notifyStudentStatusChange,
+  notifyAdvisorsNewRequest,
+  notifyAdminsPendingReview,
+  notifyAdminsCompanyResponse,
+} = require('../utils/mailer');
 const { autoUpdateInternshipStatuses } = require('../utils/internshipAutoUpdate');
 const { LATEST_COMPLETED_RELOC_JOIN, ACTIVE_COMPANY_COLS } = require('../utils/activeCompany');
 
@@ -277,6 +284,13 @@ router.post('/', authenticate, async (req, res) => {
       console.error('[Mailer] ส่งอีเมลยืนยันการยื่นคำร้องล้มเหลว:', mailErr.message);
     }
 
+    // แจ้งอาจารย์ที่ปรึกษาว่ามีคำร้องใหม่รออนุมัติ (เฉพาะคำร้องที่นักศึกษายื่นเอง)
+    if (initialStatus === 'รออาจารย์ที่ปรึกษาอนุมัติ' && newRow[0]) {
+      notifyAdvisorsNewRequest(newRow[0]).catch((mailErr) =>
+        console.error('[Mailer] แจ้งอาจารย์เรื่องคำร้องใหม่ล้มเหลว:', mailErr.message)
+      );
+    }
+
     res.status(201).json({ success: true, message: 'ยื่นคำร้องสำเร็จ', data: serializeRequestRow(newRow[0]) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -334,8 +348,18 @@ router.patch('/batch/status', authenticate, authorize('admin'), async (req, res)
       return res.status(400).json({ success: false, message: 'กรุณาระบุสถานะที่ต้องการอัปเดต' });
     }
 
+    const [before] = await pool.query('SELECT id, status FROM requests WHERE id IN (?)', [ids]);
+    const previousById = new Map(before.map((r) => [r.id, r.status]));
     await pool.query('UPDATE requests SET status = ? WHERE id IN (?)', [status, ids]);
     const [updated] = await pool.query('SELECT * FROM requests WHERE id IN (?)', [ids]);
+
+    for (const row of updated) {
+      await notifyStudentStatusChange({
+        request: row,
+        previousStatus: previousById.get(row.id),
+        newStatus: status,
+      });
+    }
     res.json({
       success: true,
       message: `อัปเดตสถานะให้ ${updated.length} คำร้องเรียบร้อยแล้ว`,
@@ -570,25 +594,30 @@ const updateStatusHandler = async (req, res) => {
         }
       }
 
-      // ส่งอีเมลแจ้งสถานะคำร้องให้นักศึกษา — ล้มเหลวได้โดยไม่กระทบการอัปเดตสถานะ
+      // อีเมลแจ้งสถานะ — ส่งเฉพาะเมื่อสถานะเปลี่ยนจริงและเป็นสถานะที่นักศึกษาควรรู้
+      // ล้มเหลวได้โดยไม่กระทบการอัปเดตสถานะ
       if (updated[0] && status) {
-        try {
-          const requestRow = updated[0];
-          const recipient = await findStudentEmail(requestRow.studentId);
-          if (recipient) {
-            await sendStatusNotifyEmail({
-              to: recipient,
-              studentName: requestRow.studentName,
-              studentId: requestRow.studentId,
-              requestId: requestRow.id,
-              status,
-              comment: c,
-              company: requestRow.company,
-              position: requestRow.position,
-            });
+        const previousStatus = rows[0].status;
+        await notifyStudentStatusChange({
+          request: updated[0],
+          previousStatus,
+          newStatus: status,
+          comment: c,
+        });
+
+        if (String(previousStatus) !== String(status)) {
+          try {
+            if (status === 'รอผู้ดูแลระบบตรวจสอบ') {
+              await notifyAdminsPendingReview(updated[0]);
+            }
+            if (publicTokenIssued) {
+              const accepted = String(req.body.statusCode) === 'COMPANY_ACCEPTED'
+                || String(status || '').includes('ตอบรับ');
+              await notifyAdminsCompanyResponse(updated[0], { accepted, comment: c });
+            }
+          } catch (mailErr) {
+            console.error('[Mailer] ส่งอีเมลแจ้งแอดมินล้มเหลว:', mailErr.message);
           }
-        } catch (mailErr) {
-          console.error('[Mailer] ส่งอีเมลแจ้งสถานะคำร้องล้มเหลว:', mailErr.message);
         }
       }
 
@@ -635,9 +664,9 @@ router.patch('/:id/internship-period', authenticate, authorize('admin'), async (
   }
 });
 
-// PATCH /api/requests/:id/appointment — กำหนดอาจารย์นิเทศและวันนิเทศ
+// PATCH /api/requests/:id/appointment หรือ /api/requests/:id/supervision/schedule — กำหนดอาจารย์นิเทศและวันนิเทศ
 // เฉพาะ admin หรืออาจารย์ที่เป็นประธานสาขาวิชาเท่านั้น
-router.patch('/:id/appointment', authenticate, async (req, res) => {
+const handleSupervisionAppointment = async (req, res) => {
   try {
     // อ่านสิทธิ์จากฐานข้อมูลทุกครั้ง ไม่เชื่อค่าใน JWT เพราะประธานสาขาเปลี่ยนได้จากระบบ Profile
     const [uRows] = await pool.query(`${USER_SELECT_SQL} WHERE u.id = ? GROUP BY u.id`, [req.user.id]);
@@ -669,6 +698,23 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
     const appointmentObj = body.supervisionAppointment || body;
     const appointmentData = (appointmentObj && typeof appointmentObj === 'object') ? { ...appointmentObj } : {};
 
+    // รองรับ snake_case keys จาก frontend payload ({ advisor_id, supervision_date, supervision_type, note })
+    if (appointmentData.supervision_date && !appointmentData.date) {
+      appointmentData.date = appointmentData.supervision_date;
+    }
+    if (appointmentData.supervision_type && !appointmentData.mode) {
+      appointmentData.mode = appointmentData.supervision_type;
+    }
+    if (appointmentData.advisor_id && !appointmentData.advisorId) {
+      appointmentData.advisorId = appointmentData.advisor_id;
+    }
+    if (appointmentData.advisorId && !appointmentData.advisorName) {
+      const [advRows] = await pool.query('SELECT name, username FROM users WHERE id = ?', [appointmentData.advisorId]);
+      if (advRows[0]) {
+        appointmentData.advisorName = advRows[0].name || advRows[0].username;
+      }
+    }
+
     // วันนิเทศบังคับกรอก และต้องตรงช่วงเวลาฝึกงาน (วันทางการก่อน → fallback วันที่นักศึกษากรอก)
     if (!appointmentData.date) {
       return res.status(400).json({ success: false, message: 'โปรดระบุวันที่นิเทศให้ตรงกับวันที่ในเอกสารราชการ/หนังสือนิเทศ' });
@@ -677,7 +723,7 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
     if (Number.isNaN(apptDate.getTime())) {
       return res.status(400).json({ success: false, message: 'รูปแบบวันที่นิเทศไม่ถูกต้อง' });
     }
-    const [targetRows] = await pool.query('SELECT internship_start_date, internship_end_date, details FROM requests WHERE id = ?', [req.params.id]);
+    const [targetRows] = await pool.query('SELECT internship_start_date, internship_end_date, details, supervisionAppointment FROM requests WHERE id = ?', [req.params.id]);
     const targetRow = targetRows[0];
     if (targetRow) {
       let det = {};
@@ -694,10 +740,23 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
       }
     }
 
-    // บันทึกไว้ว่าใครเป็นคนกำหนดและกำหนดเมื่อไร
-    appointmentData.assignedBy = currentUser.username;
-    appointmentData.assignedAt = new Date().toISOString();
-    const apptStr = JSON.stringify(appointmentData);
+    // คงข้อมูลนัดหมายเดิม (เช่น documents ที่แนบไว้แล้ว) ป้องกันการถูกบันทึกทับหาย
+    let previousAppt = {};
+    if (targetRow && targetRow.supervisionAppointment) {
+      try {
+        previousAppt = typeof targetRow.supervisionAppointment === 'string'
+          ? JSON.parse(targetRow.supervisionAppointment)
+          : (targetRow.supervisionAppointment || {});
+      } catch (_) { previousAppt = {}; }
+    }
+
+    const mergedData = {
+      ...previousAppt,
+      ...appointmentData,
+      assignedBy: currentUser.username,
+      assignedAt: new Date().toISOString()
+    };
+    const apptStr = JSON.stringify(mergedData);
 
     await pool.query('UPDATE requests SET supervisionAppointment = ? WHERE id = ?', [apptStr, req.params.id]);
     const [updated] = await pool.query('SELECT * FROM requests WHERE id = ?', [req.params.id]);
@@ -751,7 +810,14 @@ router.patch('/:id/appointment', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+
+router.patch('/:id/appointment', authenticate, handleSupervisionAppointment);
+router.post('/:id/appointment', authenticate, handleSupervisionAppointment);
+router.put('/:id/appointment', authenticate, handleSupervisionAppointment);
+router.patch('/:id/supervision/schedule', authenticate, handleSupervisionAppointment);
+router.post('/:id/supervision/schedule', authenticate, handleSupervisionAppointment);
+router.put('/:id/supervision/schedule', authenticate, handleSupervisionAppointment);
 
 // ============ เอกสารการนิเทศ (Supervision Documents) ============
 const ACCEPTANCE_DOC_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };

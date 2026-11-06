@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../ModalActions';
 import { useEffect, useState, useRef } from 'react';
 import {
   Box, Button, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -236,7 +237,7 @@ const BannerManager = () => {
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2 }}>
+        <Button variant="contained" onClick={openCreateDialog} sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, width: { xs: '100%', sm: 'auto' }, minHeight: 44 }}>
           + เพิ่มแบนเนอร์
         </Button>
       </Box>
@@ -764,15 +765,12 @@ const BannerManager = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: { xs: 1.5, sm: 2.5 }, position: 'sticky', bottom: 0, bgcolor: '#fff', borderTop: '1px solid #f3f4f6' }}>
-          <Button onClick={handleCloseDialog} sx={{ textTransform: 'none' }}>ยกเลิก</Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={!formData.title.trim()}
-            sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
-          >
-            {formDialog.mode === 'create' ? 'บันทึกแบนเนอร์' : 'บันทึกการแก้ไข'}
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleCloseDialog}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSubmit} disabled={!formData.title.trim()}>
+              {formDialog.mode === 'create' ? 'บันทึกแบนเนอร์' : 'บันทึกการแก้ไข'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

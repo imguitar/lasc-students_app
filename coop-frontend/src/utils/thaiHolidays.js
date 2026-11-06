@@ -1,5 +1,8 @@
+import api from '../api/axios';
+
 // วันหยุดนักขัตฤกษ์ไทย — map 'YYYY-MM-DD' → ชื่อวันหยุด
-// รองรับปี 2568–2570 (2025–2027); วันหยุดตามจันทรคติของปี 2570 อาจต้องปรับเมื่อประกาศอย่างเป็นทางการ
+// แหล่งข้อมูลหลักคือตาราง public_holidays (แอดมินเพิ่ม/ลบได้) ผ่าน GET /api/holidays
+// รายการด้านล่างเป็นค่าตั้งต้น ใช้ระหว่างรอโหลดจากเซิร์ฟเวอร์ หรือเมื่อโหลดไม่สำเร็จ
 export const THAI_PUBLIC_HOLIDAYS = {
   // 2568 (2025)
   '2025-01-01': 'วันขึ้นปีใหม่',
@@ -65,9 +68,35 @@ export const THAI_PUBLIC_HOLIDAYS = {
   '2027-12-31': 'วันสิ้นปี',
 };
 
+// รายการที่ใช้งานจริง — เริ่มจากค่าตั้งต้น แล้วถูกแทนด้วยข้อมูลจากเซิร์ฟเวอร์เมื่อโหลดเสร็จ
+let activeHolidays = { ...THAI_PUBLIC_HOLIDAYS };
+let loadPromise = null;
+
+/** โหลดวันหยุดจากเซิร์ฟเวอร์ (เรียกครั้งเดียวตอนเปิดแอป; force = โหลดใหม่หลังแอดมินแก้ไข) */
+export const loadHolidaysFromServer = (force = false) => {
+  if (loadPromise && !force) return loadPromise;
+  loadPromise = api.get('/holidays')
+    .then((res) => {
+      const rows = (res.data?.data || []).filter((h) => h.isActive === undefined || Number(h.isActive) === 1);
+      const map = {};
+      rows.forEach((h) => { if (h?.date) map[String(h.date).slice(0, 10)] = h.name || 'วันหยุด'; });
+      activeHolidays = map;
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('holidays-updated'));
+      return map;
+    })
+    .catch(() => {
+      loadPromise = null; // ใช้ค่าตั้งต้นต่อไป และลองโหลดใหม่ได้
+      return activeHolidays;
+    });
+  return loadPromise;
+};
+
+/** Set ของวันหยุดทั้งหมด ('YYYY-MM-DD') — ใช้คำนวณวันทำการ */
+export const getHolidaySet = () => new Set(Object.keys(activeHolidays));
+
 /** คืนชื่อวันหยุดนักขัตฤกษ์ หรือ null (รับ 'YYYY-MM-DD' / ISO string) */
 export const getThaiHoliday = (dateStr) =>
-  THAI_PUBLIC_HOLIDAYS[String(dateStr || '').split('T')[0]] || null;
+  activeHolidays[String(dateStr || '').split('T')[0]] || null;
 
 export const isThaiHoliday = (dateStr) => getThaiHoliday(dateStr) !== null;
 
@@ -75,7 +104,7 @@ export const isThaiHoliday = (dateStr) => getThaiHoliday(dateStr) !== null;
 export const countThaiHolidays = (start, end) => {
   if (!start || !end) return 0;
   let n = 0;
-  for (const d in THAI_PUBLIC_HOLIDAYS) {
+  for (const d in activeHolidays) {
     if (d >= start && d <= end) n += 1;
   }
   return n;

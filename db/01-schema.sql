@@ -104,6 +104,9 @@ CREATE TABLE IF NOT EXISTS `student_addresses` (
   `profile_id` VARCHAR(13) NOT NULL,
   `type` ENUM('current','registered') NOT NULL DEFAULT 'current',
   `address_line` VARCHAR(255) DEFAULT NULL,
+  `house_no` VARCHAR(50) DEFAULT NULL,
+  `village_no` VARCHAR(50) DEFAULT NULL,
+  `road` VARCHAR(100) DEFAULT NULL,
   `subdistrict` VARCHAR(100) DEFAULT NULL,
   `district` VARCHAR(100) DEFAULT NULL,
   `province` VARCHAR(100) DEFAULT NULL,
@@ -113,6 +116,25 @@ CREATE TABLE IF NOT EXISTS `student_addresses` (
   PRIMARY KEY (`id`),
   KEY `student_addresses_profile_id_idx` (`profile_id`),
   CONSTRAINT `student_addresses_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `student_educations` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `level` VARCHAR(100) NOT NULL,
+  `institution_name` VARCHAR(255) NOT NULL,
+  `major` VARCHAR(255) DEFAULT NULL,
+  `start_year` INT DEFAULT NULL,
+  `end_year` INT DEFAULT NULL,
+  `gpa` VARCHAR(10) DEFAULT NULL,
+  `order_index` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `student_educations_profile_id_idx` (`profile_id`),
+  CONSTRAINT `student_educations_profile_id_fkey`
     FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -169,6 +191,22 @@ CREATE TABLE IF NOT EXISTS `student_projects` (
   KEY `student_projects_profile_id_idx` (`profile_id`),
   CONSTRAINT `student_projects_profile_id_fkey`
     FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `student_project_files` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `project_id` INT NOT NULL,
+  `file_name` VARCHAR(255) NOT NULL,
+  `original_name` VARCHAR(500) NOT NULL,
+  `file_type` VARCHAR(100) NOT NULL,
+  `file_size` INT NOT NULL,
+  `file_path` VARCHAR(1000) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `spf_project_id_idx` (`project_id`),
+  CONSTRAINT `spf_project_id_fkey`
+    FOREIGN KEY (`project_id`) REFERENCES `student_projects` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -232,6 +270,13 @@ CREATE TABLE IF NOT EXISTS `projects` (
   `has_award` TINYINT(1) NOT NULL DEFAULT 0,
   `tags` JSON DEFAULT NULL,
   `created_by_profile_id` VARCHAR(13) DEFAULT NULL,
+  `approval_status` VARCHAR(30) NOT NULL DEFAULT 'draft',
+  `approval_requested_at` DATETIME(3) DEFAULT NULL,
+  `approved_at` DATETIME(3) DEFAULT NULL,
+  `approved_by` VARCHAR(13) DEFAULT NULL,
+  `rejected_at` DATETIME(3) DEFAULT NULL,
+  `rejected_by` VARCHAR(13) DEFAULT NULL,
+  `rejection_reason` TEXT DEFAULT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
@@ -244,6 +289,42 @@ CREATE TABLE IF NOT EXISTS `projects` (
   CONSTRAINT `projects_created_by_profile_id_fkey`
     FOREIGN KEY (`created_by_profile_id`) REFERENCES `profile` (`profile_id`)
     ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `project_approval_history` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `project_id` INT NOT NULL,
+  `action` VARCHAR(50) NOT NULL,
+  `requested_by` VARCHAR(13) DEFAULT NULL,
+  `requested_at` DATETIME(3) DEFAULT NULL,
+  `acted_by` VARCHAR(13) NOT NULL,
+  `acted_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `rejection_reason` TEXT DEFAULT NULL,
+  `comments` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `project_approval_history_project_id_idx` (`project_id`),
+  KEY `project_approval_history_acted_by_idx` (`acted_by`),
+  CONSTRAINT `project_approval_history_project_id_fkey`
+    FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `project_advisors` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `project_id` INT NOT NULL,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `role` ENUM('main','co') NOT NULL DEFAULT 'main',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `project_advisors_project_profile_key` (`project_id`, `profile_id`),
+  KEY `project_advisors_project_id_idx` (`project_id`),
+  KEY `project_advisors_profile_id_idx` (`profile_id`),
+  CONSTRAINT `project_advisors_project_id_fkey`
+    FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `project_advisors_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `project_comments` (
@@ -277,6 +358,177 @@ CREATE TABLE IF NOT EXISTS `project_members` (
   CONSTRAINT `project_members_profile_id_fkey`
     FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
     ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `department_posts` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `department_id` INT NOT NULL,
+  `author_profile_id` VARCHAR(13) NOT NULL,
+  `author_name` VARCHAR(255) NOT NULL,
+  `author_role` VARCHAR(50) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `content` TEXT NOT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `department_posts_department_id_idx` (`department_id`),
+  KEY `department_posts_author_profile_id_idx` (`author_profile_id`),
+  CONSTRAINT `department_posts_department_id_fkey`
+    FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `department_posts_author_profile_id_fkey`
+    FOREIGN KEY (`author_profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `department_comments` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `post_id` INT NOT NULL,
+  `author_profile_id` VARCHAR(13) NOT NULL,
+  `author_name` VARCHAR(255) NOT NULL,
+  `author_role` VARCHAR(50) NOT NULL,
+  `content` TEXT NOT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `department_comments_post_id_idx` (`post_id`),
+  KEY `department_comments_author_profile_id_idx` (`author_profile_id`),
+  CONSTRAINT `department_comments_post_id_fkey`
+    FOREIGN KEY (`post_id`) REFERENCES `department_posts` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `department_comments_author_profile_id_fkey`
+    FOREIGN KEY (`author_profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `resumes` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `profile_id` VARCHAR(13) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `resumes_profile_id_key` (`profile_id`),
+  KEY `resumes_profile_id_idx` (`profile_id`),
+  CONSTRAINT `resumes_profile_id_fkey`
+    FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `resume_works` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `resume_id` INT NOT NULL,
+  `portfolio_work_id` INT NOT NULL,
+  `order_index` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `resume_works_resume_id_portfolio_work_id_key` (`resume_id`, `portfolio_work_id`),
+  KEY `resume_works_resume_id_idx` (`resume_id`),
+  KEY `resume_works_portfolio_work_id_idx` (`portfolio_work_id`),
+  CONSTRAINT `resume_works_resume_id_fkey`
+    FOREIGN KEY (`resume_id`) REFERENCES `resumes` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `resume_works_portfolio_work_id_fkey`
+    FOREIGN KEY (`portfolio_work_id`) REFERENCES `student_projects` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_rooms` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `department_id` INT NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `description` TEXT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_chat_rooms_department_id` (`department_id`),
+  CONSTRAINT `fk_chat_rooms_department`
+    FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_messages` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `room_id` INT NOT NULL,
+  `author_profile_id` VARCHAR(13) NOT NULL,
+  `author_name` VARCHAR(255) NOT NULL,
+  `author_role` VARCHAR(50) NOT NULL,
+  `author_year` INT NULL,
+  `message` TEXT NOT NULL,
+  `file_url` VARCHAR(500) NULL,
+  `file_name` VARCHAR(255) NULL,
+  `file_size` INT NULL,
+  `file_type` VARCHAR(100) NULL,
+  `image_url` VARCHAR(500) NULL,
+  `reply_to_message_id` INT NULL,
+  `is_edited` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_messages_room_created` (`room_id`, `created_at`),
+  KEY `idx_chat_messages_author` (`author_profile_id`),
+  CONSTRAINT `fk_chat_messages_room`
+    FOREIGN KEY (`room_id`) REFERENCES `chat_rooms` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_chat_messages_author`
+    FOREIGN KEY (`author_profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_chat_messages_reply`
+    FOREIGN KEY (`reply_to_message_id`) REFERENCES `chat_messages` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_message_reactions` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `message_id` INT NOT NULL,
+  `user_profile_id` VARCHAR(13) NOT NULL,
+  `user_name` VARCHAR(255) NOT NULL,
+  `reaction_type` VARCHAR(20) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_message_user_reaction` (`message_id`, `user_profile_id`, `reaction_type`),
+  KEY `idx_reactions_message` (`message_id`),
+  CONSTRAINT `fk_reactions_message`
+    FOREIGN KEY (`message_id`) REFERENCES `chat_messages` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_reactions_user`
+    FOREIGN KEY (`user_profile_id`) REFERENCES `profile` (`profile_id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `news_events` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `title` VARCHAR(255) NOT NULL,
+  `description` TEXT NOT NULL,
+  `type` VARCHAR(100) NOT NULL,
+  `event_date` DATE NOT NULL,
+  `start_time` VARCHAR(20) DEFAULT NULL,
+  `end_time` VARCHAR(20) DEFAULT NULL,
+  `location` VARCHAR(255) DEFAULT NULL,
+  `image_url` VARCHAR(500) DEFAULT NULL,
+  `attachment_url` VARCHAR(500) DEFAULT NULL,
+  `attachment_name` VARCHAR(255) DEFAULT NULL,
+  `is_pinned` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_by` INT DEFAULT NULL,
+  `target_type` VARCHAR(50) NOT NULL DEFAULT 'all',
+  `faculty_id` INT DEFAULT NULL,
+  `department_id` INT DEFAULT NULL,
+  `year_level` INT DEFAULT NULL,
+  `end_date` DATE DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_news_events_date` (`event_date`),
+  KEY `idx_news_events_type` (`type`),
+  KEY `idx_news_events_published` (`is_published`),
+  CONSTRAINT `news_events_created_by_fkey`
+    FOREIGN KEY (`created_by`) REFERENCES `user` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `news_events_faculty_id_fkey`
+    FOREIGN KEY (`faculty_id`) REFERENCES `faculties` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `news_events_department_id_fkey`
+    FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `companies` (

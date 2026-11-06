@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
+import BackButton from '../../../components/BackButton';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import { openDocumentInNewTab, downloadDocument } from '../../../utils/documentViewer';
 import {
-  ArrowLeft,
   Bell,
   Check,
   CheckCheck,
@@ -12,7 +11,6 @@ import {
   Clock,
   FileText,
   Loader2,
-  Menu as MenuIcon,
   Eye,
   Building2,
   PenTool,
@@ -28,11 +26,6 @@ import {
   UserRound,
   ChevronDown,
 } from 'lucide-react';
-import StudentSidebar from '../../../components/StudentSidebar';
-import AdvisorSidebar from '../../../components/AdvisorSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import './DashboardPage.css';
 
 const timeAgo = (dateStr) => {
@@ -116,7 +109,6 @@ const FILTER_OPTIONS = [
 
 const StudentNotificationsPage = () => {
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -237,57 +229,14 @@ const StudentNotificationsPage = () => {
   const internshipEnd = selectedRequest?.internship_end_date || details.endDate;
   const isAccepted = selectedNotice ? isAcceptedNotice(selectedNotice) : true;
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
-
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      {isAdvisor ? (
-        <AdvisorSidebar
-          isMenuOpen={isMenuOpen}
-          setIsMenuOpen={setIsMenuOpen}
-          currentPath="/dashboard/notifications"
-          handleLogout={handleLogout}
-        />
-      ) : (
-        <StudentSidebar
-          isMenuOpen={isMenuOpen}
-          setIsMenuOpen={setIsMenuOpen}
-          currentPath="/dashboard"
-          handleLogout={handleLogout}
-        />
-      )}
+    <>
 
       <main className="dashboard-main max-w-full overflow-x-hidden">
         <div className="px-1 sm:px-2">
           {/* Header */}
           <div className="flex items-start gap-3 mb-5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => navigate(homePath)}
-              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition cursor-pointer"
-              aria-label="ย้อนกลับ"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            <BackButton onClick={() => navigate(homePath)} />
             <div className="min-w-0 grow">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-slate-900 font-extrabold text-xl md:text-2xl tracking-tight m-0">
@@ -753,7 +702,7 @@ const StudentNotificationsPage = () => {
           )}
         </div>
       </main>
-    </div>
+    </>
   );
 };
 

@@ -97,6 +97,132 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/users/students/paged — รายชื่อนักศึกษาแบบแบ่งหน้า (Admin/Advisor)
+// ดึงจากฐานข้อมูลทีละหน้า + แนบคำร้อง/การชำระเงินล่าสุดเฉพาะแถวที่ส่งกลับ (ไม่โหลดทั้งระบบ)
+//   page, limit (ค่าเริ่มต้น 20; limit=all ดึงทั้งหมดที่กรองไว้สำหรับ Export), year, department, q,
+//   codes (รหัสนักศึกษาคั่นด้วยจุลภาค), includeSlip=1 (แนบรูปสลิปเต็ม — ใช้เฉพาะตอน Export)
+router.get('/students/paged', authenticate, authorize('admin', 'advisor'), async (req, res) => {
+  try {
+    const { year, department, q, codes, includeSlip } = req.query;
+    const wantAll = String(req.query.limit || '').toLowerCase() === 'all';
+    const limit = wantAll ? 5000 : Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
+    const page = wantAll ? 1 : Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+    const CODE = "COALESCE(NULLIF(p1.profile_id, ''), NULLIF(p2.profile_id, ''), NULLIF(u.studentId, ''), u.username)";
+    const FROM_SQL = `
+      FROM \`user\` u
+      LEFT JOIN \`profile\` p1 ON p1.profile_id = u.username
+      LEFT JOIN \`profile\` p2 ON p2.profile_id = u.studentId AND u.studentId <> ''`;
+
+    const prefixes = ['66', '67', '68', '69'];
+    const where = [
+      "u.role = 'student'",
+      `(${prefixes.map(() => `${CODE} LIKE ?`).join(' OR ')} OR ${CODE} LIKE 'student%')`,
+    ];
+    const params = prefixes.map((prefix) => `${prefix}%`);
+
+    if (year && year !== 'all') {
+      where.push(`${CODE} LIKE ?`);
+      params.push(`${String(year).replace(/[^0-9]/g, '').slice(0, 2)}%`);
+    }
+    if (department && department !== 'all') {
+      const deptId = DEPARTMENT_NAME_TO_ID[department] || 0;
+      where.push("(u.department = ? OR ((u.department IS NULL OR u.department = '') AND COALESCE(p1.department_id, p2.department_id) = ?))");
+      params.push(department, deptId);
+    }
+    if (q && String(q).trim()) {
+      const like = `%${String(q).trim()}%`;
+      where.push(`(${CODE} LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR CONCAT_WS(' ', COALESCE(p1.firstname, p2.firstname), COALESCE(p1.lastname, p2.lastname)) LIKE ?)`);
+      params.push(like, like, like, like);
+    }
+    if (codes) {
+      const list = String(codes).split(',').map((c) => c.trim()).filter(Boolean).slice(0, 1000);
+      if (list.length === 0) {
+        return res.json({ success: true, data: [], meta: { page: 1, limit, total: 0, totalPages: 1, totalWithSlips: 0, years: [] } });
+      }
+      where.push(`${CODE} IN (?)`);
+      params.push(list);
+    }
+    const WHERE_SQL = `WHERE ${where.join(' AND ')}`;
+
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${FROM_SQL} ${WHERE_SQL}`, params);
+    const [[{ totalWithSlips }]] = await pool.query(
+      `SELECT COUNT(*) AS totalWithSlips ${FROM_SQL} ${WHERE_SQL}
+         AND EXISTS (SELECT 1 FROM payment_proofs pp WHERE pp.studentId = ${CODE} AND pp.slipDataUrl IS NOT NULL AND pp.slipDataUrl <> '')`,
+      params
+    );
+
+    const [rows] = await pool.query(
+      `SELECT u.*, ${CODE} AS profile_id,
+              COALESCE(p1.firstname, p2.firstname) AS firstname, COALESCE(p1.lastname, p2.lastname) AS lastname,
+              COALESCE(p1.faculty_id, p2.faculty_id) AS faculty_id, COALESCE(p1.department_id, p2.department_id) AS department_id,
+              COALESCE(p1.address, p2.address) AS profile_address, COALESCE(p1.phone, p2.phone) AS profile_phone
+       ${FROM_SQL} ${WHERE_SQL}
+       ORDER BY u.createdAt DESC, u.id ASC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, (page - 1) * limit]
+    );
+    const students = rows.map(toFrontendUser);
+    const pageCodes = students.map((s) => String(s.student_code || s.username)).filter(Boolean);
+
+    const latestReq = new Map();
+    const latestPay = new Map();
+    if (pageCodes.length > 0) {
+      const [reqRows] = await pool.query(
+        'SELECT id, studentId, status, department, details FROM requests WHERE studentId IN (?) ORDER BY id ASC',
+        [pageCodes]
+      );
+      reqRows.forEach((r) => latestReq.set(String(r.studentId), r));
+      const slipCol = String(includeSlip) === '1' ? ', slipDataUrl' : '';
+      const [payRows] = await pool.query(
+        `SELECT id, studentId, status, (slipDataUrl IS NOT NULL AND slipDataUrl <> '') AS hasSlip${slipCol}
+         FROM payment_proofs WHERE studentId IN (?) ORDER BY created_at ASC, id ASC`,
+        [pageCodes]
+      );
+      payRows.forEach((p) => latestPay.set(String(p.studentId), p));
+    }
+
+    const data = students.map((student) => {
+      const code = String(student.student_code || student.username);
+      const reqRow = latestReq.get(code) || null;
+      const pay = latestPay.get(code) || null;
+      let details = {};
+      if (reqRow && reqRow.details) {
+        try { details = typeof reqRow.details === 'object' ? reqRow.details : JSON.parse(reqRow.details); } catch (_) { details = {}; }
+      }
+      const phoneFromForm = details.studentPhone || details.student_info?.phone || details.phone || details.mobile || details.tel;
+      const dept = student.major || student.department || reqRow?.department || '';
+      return {
+        ...student,
+        phone: phoneFromForm || student.phone || '-',
+        department: dept,
+        major: dept,
+        requestStatus: reqRow ? reqRow.status : 'ยังไม่ยื่นคำร้อง',
+        paymentStatus: pay ? pay.status : 'ยังไม่ชำระเงิน',
+        paymentId: pay ? pay.id : null,
+        hasSlip: Boolean(pay && pay.hasSlip),
+        paymentSlip: pay && pay.slipDataUrl ? pay.slipDataUrl : null,
+      };
+    });
+
+    const [yearRows] = await pool.query(
+      `SELECT DISTINCT SUBSTRING(COALESCE(NULLIF(u.studentId, ''), u.username), 1, 2) AS yr
+       FROM \`user\` u
+       WHERE u.role = 'student' AND COALESCE(NULLIF(u.studentId, ''), u.username) REGEXP '^(66|67|68|69)'
+       ORDER BY yr`
+    );
+
+    res.json({
+      success: true,
+      data,
+      meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)), totalWithSlips, years: yearRows.map((r) => r.yr) },
+    });
+  } catch (error) {
+    console.error('[Users] students/paged error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/users/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {

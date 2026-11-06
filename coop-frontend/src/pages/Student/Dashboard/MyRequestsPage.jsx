@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import api from '../../../api/axios';
 import { openDocumentInNewTab, downloadFileSmart } from '../../../utils/documentViewer';
@@ -9,14 +8,10 @@ import { getUploadUrl } from '../../../utils/fileUrl';
 import './DashboardPage.css'; // Reusing layout styles
 import './MyRequestsPage.css';
 import { ClockIcon, CheckCircleIcon, BuildingOffice2Icon, CalendarDaysIcon, DocumentTextIcon, PaperAirplaneIcon, AcademicCapIcon, EnvelopeIcon } from '@heroicons/react/24/outline'; // Specific styles for this page
-import { MoreVertical, Eye, Download, Pencil, ArrowRightLeft } from 'lucide-react';
+import { MoreVertical, Eye, Download, Pencil, ArrowRightLeft, FileText } from 'lucide-react';
 import AttendanceDonut from '../../../components/student/AttendanceDonut';
 import RelocationSection from '../../../components/student/RelocationSection';
 import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
-import StudentSidebar from '../../../components/StudentSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import StatusBadge from '../../../components/StatusBadge';
 
@@ -62,7 +57,6 @@ const MyRequestsPage = () => {
   const [checkins, setCheckins] = useState([]);
   const [internshipRounds, setInternshipRounds] = useState([]);
   const [relocations, setRelocations] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [actionMenu, setActionMenu] = useState({ id: null, top: 0, left: 0 });
   const menuPanelRef = useRef(null);
 
@@ -168,11 +162,6 @@ const MyRequestsPage = () => {
     fetchRequests();
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
-
   const filteredRequests = myRequests;
 
   const activeMenuRequest = filteredRequests.find((req) => req.id === actionMenu.id);
@@ -269,38 +258,22 @@ const MyRequestsPage = () => {
 
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/my-requests"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div>
-            <h1>คำร้องของฉัน</h1>
-            <p>ประวัติและสถานะการยื่นคำร้องทั้งหมด</p>
+        <div className="w-full max-w-7xl mx-auto">
+        <div className="unified-card">
+        <header className="unified-card-head">
+          <div className="unified-card-title-wrap">
+            <span className="unified-card-icon"><FileText className="w-5 h-5" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <h1 className="unified-card-title">คำร้องของฉัน</h1>
+              <p className="unified-card-sub">ประวัติและสถานะการยื่นคำร้องทั้งหมด</p>
+            </div>
           </div>
-          <div className="user-info">
-             <span>{studentName}</span>
+          <div className="unified-card-user">
+            <span className="unified-card-dot" aria-hidden="true" />
+            <span className="truncate">{studentName}</span>
           </div>
         </header>
 
@@ -627,6 +600,8 @@ const MyRequestsPage = () => {
               </Table>
             </TableContainer>
         </div>
+        </div>
+        </div>
       </main>
 
       {/* Action Dropdown Panel — เรนเดอร์ผ่าน Portal เพื่อหลบการถูก clip โดย overflow ของตาราง */}
@@ -698,7 +673,7 @@ const MyRequestsPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 

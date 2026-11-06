@@ -1,6 +1,6 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5percent from '@amcharts/amcharts5/percent';
@@ -33,19 +33,13 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, Menu as MenuIcon, MoreVertical } from 'lucide-react';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
+import { QrCode, Pencil, Calendar, FileText, FileUp, Copy, Check, ExternalLink, TriangleAlert, CheckCircle2, XCircle, Trash2, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { getEffectiveInternshipStatus } from '../../../utils/internshipStatus';
 import { STAT_ICON } from '../../../utils/statIcons';
 import './AdminDashboardPage.css';
 import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
 import StatusBadge from '../../../components/StatusBadge';
 import StatCard from '../../../components/StatCard';
-import AdminEvaluationRoundsModal from './AdminEvaluationRoundsModal';
-import AdminInternshipRoundsModal from './AdminInternshipRoundsModal';
 import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 
 // โทนสี badge ตามขั้นตอนคำร้องเปลี่ยนสถานที่ฝึกงาน
@@ -198,14 +192,11 @@ const RequestActionsMenu = ({ request, onView, onEdit, onApprove, onReject, onSc
 };
 
 const AdminDashboardPage = () => {
-  const [evalRoundsModalOpen, setEvalRoundsModalOpen] = useState(false);
-  const [internshipRoundsModalOpen, setInternshipRoundsModalOpen] = useState(false);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [adminName, setAdminName] = useState('');
   const [allRequests, setAllRequests] = useState([]);
   const [relocations, setRelocations] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState({
     open: false,
     requestId: null,
@@ -325,11 +316,6 @@ const AdminDashboardPage = () => {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const filteredRequests = allRequests.filter(req => {
     if (filter === 'all') return true;
@@ -1328,64 +1314,13 @@ const AdminDashboardPage = () => {
     : null;
 
   return (
-    <div className="admin-dashboard-container bg-[#f8f9fc] min-h-screen">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><MenuIcon className="w-5 h-5" /></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard"
-        handleLogout={handleLogout}
-      />
-
+    <>
       <main className="admin-main">
         <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ภาพรวมระบบฝึกประสบการณ์วิชาชีพ</h1>
             <p className="text-sm text-gray-500 mt-1">ติดตาม ตรวจสอบ และจัดการกระบวนการฝึกงานของนักศึกษาแบบเรียลไทม์</p>
           </div>
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              onClick={() => setInternshipRoundsModalOpen(true)}
-              className="rounded-xl inline-flex items-center gap-1.5"
-              sx={{
-                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
-                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
-                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              กำหนดรอบปฏิทินฝึกงาน
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => setEvalRoundsModalOpen(true)}
-              className="rounded-xl inline-flex items-center gap-1.5"
-              sx={{
-                fontWeight: 600, px: 2.5, py: 1, textTransform: 'none',
-                color: '#7c3aed', bgcolor: '#ffffff', borderColor: '#e2e8f0', boxShadow: 'none',
-                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#c4b5fd' },
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              กำหนดรอบการประเมิน นศ.
-            </Button>
-          </Box>
         </header>
 
         <Box
@@ -1689,10 +1624,10 @@ const AdminDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button variant="outlined" onClick={handleRejectClose}>ยกเลิก</Button>
-          <Button variant="contained" onClick={handleRejectConfirm} sx={{ bgcolor: '#111111', '&:hover': { bgcolor: '#000000' } }}>
-            ยืนยัน
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleRejectClose}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleRejectConfirm}>ยืนยัน</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -1950,39 +1885,13 @@ const AdminDashboardPage = () => {
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-          <Button
-            variant="outlined"
-            onClick={handleCloseEditModal}
-            disabled={editModal.submitting}
-            sx={{
-              borderRadius: '10px',
-              borderColor: '#cbd5e1',
-              color: '#475569',
-              textTransform: 'none',
-              fontWeight: 500,
-              '&:hover': { bgcolor: '#f1f5f9', borderColor: '#94a3b8' }
-            }}
-          >
-            ยกเลิก
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveEditRequest}
-            disabled={editModal.submitting}
-            sx={{
-              borderRadius: '10px',
-              bgcolor: '#7c3aed',
-              color: '#ffffff',
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 3,
-              boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.2)',
-              '&:hover': { bgcolor: '#6d28d9' }
-            }}
-          >
-            {editModal.submitting ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
-          </Button>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#f8fafc' }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleCloseEditModal} disabled={editModal.submitting}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSaveEditRequest} loading={editModal.submitting}>
+              {editModal.submitting ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -3206,18 +3115,7 @@ const AdminDashboardPage = () => {
         </div>
       </Dialog>
 
-      {/* จัดการรอบปฏิทินฝึกงาน */}
-      <AdminInternshipRoundsModal
-        open={internshipRoundsModalOpen}
-        onClose={() => setInternshipRoundsModalOpen(false)}
-      />
-
-      {/* จัดการรอบการประเมินสถานประกอบการ */}
-      <AdminEvaluationRoundsModal
-        open={evalRoundsModalOpen}
-        onClose={() => setEvalRoundsModalOpen(false)}
-      />
-    </div>
+    </>
   );
 };
 

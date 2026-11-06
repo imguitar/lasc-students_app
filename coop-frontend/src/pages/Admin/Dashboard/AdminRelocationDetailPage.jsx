@@ -1,6 +1,6 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import api from '../../../api/axios';
 import {
     Alert, Dialog, DialogContent, Snackbar, TextField,
@@ -11,10 +11,6 @@ import {
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import './AdminDashboardPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import RelocationStepper, { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 import SignaturePad from '../../../components/SignaturePad';
 import { getUploadUrl } from '../../../utils/fileUrl';
@@ -38,7 +34,6 @@ const InfoRow = ({ label, children }) => (
 const AdminRelocationDetailPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
@@ -68,8 +63,6 @@ const AdminRelocationDetailPage = () => {
         if (user.role !== 'admin') { navigate('/dashboard'); return; }
         load();
     }, [navigate, id]);
-
-    const handleLogout = () => { localStorage.removeItem('user'); navigate('/'); };
 
     const callApi = async (method, url, body, okMsg) => {
         setSubmitting(true);
@@ -267,27 +260,10 @@ const AdminRelocationDetailPage = () => {
     const hasActions = r && ['advisor_approved_waiting_admin', 'admin_approved_generating_request_letter', 'waiting_company_acceptance', 'company_accepted_generating_dispatch_letter'].includes(r.status);
 
     return (
-        <div className="admin-dashboard-container">
-            <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: 'block' }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
-                    </button>
-                    <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-                        <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-                        <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>ระบบฝึกประสบการณ์วิชาชีพ</span>
-                    </Link>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <DateTimeIndicator />
-                    <NotificationBell />
-                    <UserProfileMenu />
-                </div>
-            </div>
-            <AdminSidebar isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} currentPath="/admin-dashboard/relocations" handleLogout={handleLogout} />
+        <>
 
             <main className="admin-main">
-                <div className="max-w-4xl mx-auto w-full">
+                <div className="max-w-7xl mx-auto w-full">
                     <Link to="/admin-dashboard/relocations" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 no-underline hover:text-violet-700 transition mb-4">
                         <ArrowLeft style={{ width: 14, height: 14 }} /> กลับไปหน้ารายการคำร้อง
                     </Link>
@@ -478,15 +454,17 @@ const AdminRelocationDetailPage = () => {
                     <TextField fullWidth size="small" label="หมายเหตุ (ไม่บังคับ)" value={deanDialog.comment}
                         onChange={(e) => setDeanDialog((p) => ({ ...p, comment: e.target.value }))} />
 
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setDeanDialog((p) => ({ ...p, open: false }))} disabled={submitting}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitDean} disabled={submitting || !deanDialog.signature}
-                            className={`px-5 py-2 rounded-xl text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${deanDialog.decision === 'allow' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setDeanDialog((p) => ({ ...p, open: false }))} disabled={submitting}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton
+                            tone={deanDialog.decision === 'allow' ? 'approve' : 'danger'}
+                            onClick={submitDean}
+                            disabled={!deanDialog.signature}
+                            loading={submitting}
+                        >
                             {deanDialog.decision === 'allow' ? 'ลงนามอนุญาต' : 'ลงนามไม่อนุญาต'}
-                        </button>
-                    </div>
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -597,15 +575,12 @@ const AdminRelocationDetailPage = () => {
                             value={uploadDialog.comment}
                             onChange={(e) => setUploadDialog((p) => ({ ...p, comment: e.target.value }))} />
                     </div>
-                    <div className="flex gap-2.5 mt-4">
-                        <button type="button" onClick={() => setUploadDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 h-11 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-medium transition-all cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitUpload} disabled={submitting || !uploadDialog.dataUrl}
-                            className="flex-1 h-11 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-xl text-xs font-semibold shadow-xs border-0 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer">
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setUploadDialog((p) => ({ ...p, open: false }))}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton tone="confirm" onClick={submitUpload} disabled={!uploadDialog.dataUrl} loading={submitting}>
                             บันทึกและออกเอกสาร
-                        </button>
-                    </div>
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -615,14 +590,10 @@ const AdminRelocationDetailPage = () => {
                     <h3 className="text-base font-bold text-slate-800 mt-0 mb-3">ตีกลับคำร้อง — ระบุเหตุผล</h3>
                     <TextField fullWidth multiline minRows={3} size="small" label="เหตุผล *" value={rejectDialog.comment}
                         onChange={(e) => setRejectDialog((p) => ({ ...p, comment: e.target.value }))} />
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setRejectDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={adminReject} disabled={submitting}
-                            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}ยืนยันตีกลับ
-                        </button>
-                    </div>
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setRejectDialog((p) => ({ ...p, open: false }))}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton tone="danger" onClick={adminReject} loading={submitting}>ยืนยันตีกลับ</ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -660,20 +631,19 @@ const AdminRelocationDetailPage = () => {
                             ? 'ลิงก์ใช้งานได้ครั้งเดียว — เมื่อสถานประกอบการตอบรับแล้วจะใช้ซ้ำไม่ได้'
                             : 'ลิงก์ใช้งานได้ครั้งเดียว — เมื่อคณบดีลงนามพิจารณาแล้วจะใช้ซ้ำไม่ได้'}
                     </p>
-                    <div className="flex gap-2 mt-4">
-                        <button type="button" onClick={() => {
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setDeanQr({ open: false, link: '', copied: false })}>ปิด</ModalCancelButton>
+                        <ModalConfirmButton tone="confirm" onClick={() => {
                             const canvas = document.getElementById('relocation-dean-qr-canvas');
                             if (!canvas) return;
                             const a = document.createElement('a');
                             a.href = canvas.toDataURL('image/png');
                             a.download = `relocation-dean-qr-${item?.id}.png`;
                             a.click();
-                        }} className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center justify-center gap-1.5">
+                        }}>
                             <Download className="w-3.5 h-3.5" /> ดาวน์โหลด QR Code
-                        </button>
-                        <button type="button" onClick={() => setDeanQr({ open: false, link: '', copied: false })}
-                            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ปิด</button>
-                    </div>
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -691,7 +661,7 @@ const AdminRelocationDetailPage = () => {
             <Snackbar open={toast.open} autoHideDuration={3000} onClose={() => setToast((p) => ({ ...p, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
                 <Alert onClose={() => setToast((p) => ({ ...p, open: false }))} severity={toast.severity} variant="filled">{toast.message}</Alert>
             </Snackbar>
-        </div>
+        </>
     );
 };
 

@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import {
   Box, Button, Paper, TextField, Typography, Switch, Snackbar, Alert as MuiAlert, Divider
 } from '@mui/material';
 import api from '../../../api/axios';
 import '../Dashboard/AdminDashboardPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 import BannerManager from '../../../components/admin/BannerManager';
 import AnnouncementManager from '../../../components/admin/AnnouncementManager';
 import {
@@ -18,7 +13,6 @@ import {
 
 const AdminHomeEditorPage = () => {
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
@@ -61,8 +55,6 @@ const AdminHomeEditorPage = () => {
     }
   };
 
-  const handleLogout = () => { localStorage.removeItem('user'); navigate('/'); };
-
   const saveSetting = async (key, value, successMessage) => {
     setSaving(true);
     try {
@@ -82,44 +74,23 @@ const AdminHomeEditorPage = () => {
     saveSetting('contact_info', contact, 'บันทึกข้อมูลติดต่อสำเร็จ');
 
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard/home-editor"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="admin-main" style={{ overflowX: 'hidden' }}>
-        <header className="admin-header">
-          <div>
-            <h1 style={{display:'flex', alignItems:'center', gap:'8px'}}><HomeModernIcon style={{width: 32, height: 32}} /> จัดการเนื้อหาหน้าแรก</h1>
-            <p>ศูนย์รวมแก้ไขเนื้อหาหน้าแรกของระบบ — แถบประกาศด่วน ข้อมูลติดต่อ สไลด์แบนเนอร์ และข่าวสาร</p>
+        <header className="hm-header">
+          <span className="hm-header-icon" aria-hidden="true"><HomeModernIcon style={{ width: 22, height: 22 }} /></span>
+          <div className="min-w-0">
+            <h1 className="hm-title">จัดการเนื้อหาหน้าแรก</h1>
+            <p className="hm-desc">ศูนย์รวมแก้ไขเนื้อหาหน้าแรกของระบบ — แถบประกาศด่วน ข้อมูลติดต่อ สไลด์แบนเนอร์ และข่าวสาร</p>
           </div>
         </header>
 
         {loading ? (
           <Typography sx={{ color: '#94a3b8', py: 4, textAlign: 'center' }}>กำลังโหลด...</Typography>
         ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box className="hm-grid">
             {/* แถบประกาศด่วน */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <MegaphoneIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
@@ -146,7 +117,7 @@ const AdminHomeEditorPage = () => {
                   multiline
                   minRows={4}
                   placeholder="เช่น ประกาศด่วน: ระบบเปิดรับคำร้องฝึกงานตั้งแต่วันที่ 1 สิงหาคม เป็นต้นไป"
-                  sx={{ '& textarea': { resize: 'vertical', minHeight: '80px' } }}
+                  sx={{ '& textarea': { resize: 'vertical', height: '120px !important', minHeight: '120px !important' } }}
                 />
                 <TextField
                   label="ลิงก์ปลายทาง (ไม่บังคับ — กดที่แถบแล้วเปิดลิงก์นี้)"
@@ -161,7 +132,7 @@ const AdminHomeEditorPage = () => {
                     variant="contained"
                     onClick={saveAnnouncement}
                     disabled={saving}
-                    sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
+                    sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
                   >
                     บันทึกประกาศด่วน
                   </Button>
@@ -170,7 +141,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* ข้อมูลติดต่อ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <PhoneIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
                 <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>ข้อมูลติดต่อ (แถบด้านบนสุดของเว็บ)</Typography>
@@ -219,7 +190,7 @@ const AdminHomeEditorPage = () => {
                   variant="contained"
                   onClick={saveContact}
                   disabled={saving}
-                  sx={{ bgcolor: '#111', '&:hover': { bgcolor: '#000' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
+                  sx={{ bgcolor: '#3B0764', '&:hover': { bgcolor: '#4c1d95' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 4 }}
                 >
                   บันทึกข้อมูลติดต่อ
                 </Button>
@@ -227,7 +198,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* สไลด์แบนเนอร์ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} className="hm-span-full" sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <RectangleGroupIcon style={{ width: 22, height: 22, color: '#7c3aed' }} />
                 <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>สไลด์แบนเนอร์หน้าแรก</Typography>
@@ -237,7 +208,7 @@ const AdminHomeEditorPage = () => {
             </Paper>
 
             {/* ข่าวสารและประกาศ */}
-            <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 3 }}>
+            <Paper elevation={0} className="hm-span-full" sx={{ border: '1px solid #E9E5F5', borderRadius: '20px', p: { xs: 2.25, sm: 3 }, bgcolor: '#ffffff', boxShadow: '0 12px 30px -20px rgba(76, 29, 149, 0.35)' }}>
               <AnnouncementManager title="ข่าวสารและประกาศ (News & Announcements)" />
             </Paper>
           </Box>
@@ -247,7 +218,7 @@ const AdminHomeEditorPage = () => {
       <Snackbar open={toast.open} autoHideDuration={2600} onClose={() => setToast(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
         <MuiAlert elevation={6} variant="filled" onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>{toast.message}</MuiAlert>
       </Snackbar>
-    </div>
+    </>
   );
 };
 

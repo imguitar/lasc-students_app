@@ -381,18 +381,23 @@
 .btn-primary {
   display: inline-block;
   padding: 0.875rem 2rem;
-  background: #111111;
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
   color: #ffffff;
   text-decoration: none;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: transform 0.3s, box-shadow 0.3s;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px -4px rgba(109, 40, 217, 0.45);
+  transition: transform 0.3s, box-shadow 0.3s, filter 0.3s;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  filter: brightness(1.08);
+  box-shadow: 0 10px 22px -6px rgba(109, 40, 217, 0.55);
 }
+
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.6); }
 
 /* Footer */
 .dashboard-footer {
@@ -584,7 +589,7 @@
   display: block;
 }
 
-@media (max-width: 1199px) {
+@media (max-width: 1023px) {
   .mobile-menu-btn {
     display: flex;
     margin-left: 0;
@@ -637,7 +642,7 @@
 
   .dashboard-main {
     margin-left: 0;
-    padding-top: 5rem;
+    padding-top: 1rem; /* ระยะจากแถบบนถึงการ์ดแรก (เดิม 5rem ทำให้เว้นช่องว่างมาก) */
     padding-bottom: 6rem !important;
   }
 }

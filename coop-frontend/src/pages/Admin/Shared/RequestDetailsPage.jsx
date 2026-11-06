@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert, InputAdornment, IconButton } from '@mui/material';
@@ -611,6 +612,25 @@ const RequestDetailsPage = () => {
                   <span className="detail-value">{request.supervisionAppointment.note}</span>
                 </div>
               )}
+              {Array.isArray(request.supervisionAppointment.documents) && request.supervisionAppointment.documents.length > 0 && (
+                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="detail-label">เอกสารนิเทศที่แนบ</span>
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    {request.supervisionAppointment.documents.map((doc) => (
+                      <a
+                        key={doc.id || doc.url}
+                        href={doc.url?.startsWith('http') || doc.url?.startsWith('data:') ? doc.url : `http://localhost:5002${doc.url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition no-underline"
+                      >
+                        <FileText style={{ width: 14, height: 14 }} />
+                        <span>{doc.name || 'เอกสารนิเทศ'}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
                 </>
               )}
             </div>
@@ -942,13 +962,15 @@ const RequestDetailsPage = () => {
             disabled={editEvalEmailModal.submitting}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditEvalEmailModal(prev => ({ ...prev, open: false }))} disabled={editEvalEmailModal.submitting}>
-            ยกเลิก
-          </Button>
-          <Button variant="contained" onClick={handleSaveEvalEmail} disabled={editEvalEmailModal.submitting} sx={{ fontWeight: 700 }}>
-            {editEvalEmailModal.submitting ? 'กำลังบันทึก...' : 'บันทึกอีเมล'}
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={() => setEditEvalEmailModal(prev => ({ ...prev, open: false }))} disabled={editEvalEmailModal.submitting}>
+              ยกเลิก
+            </ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSaveEvalEmail} loading={editEvalEmailModal.submitting}>
+              {editEvalEmailModal.submitting ? 'กำลังบันทึก...' : 'บันทึกอีเมล'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

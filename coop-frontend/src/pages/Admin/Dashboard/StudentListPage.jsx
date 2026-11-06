@@ -1,7 +1,7 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../../assets/LASC-SSKRU-1.png';
 import { API_BASE } from '../../../api/axios';
 import {
   TrashIcon,
@@ -12,7 +12,9 @@ import {
   ArrowDownTrayIcon,
   PrinterIcon,
 } from '@heroicons/react/24/outline';
-import { MoreVertical, Eye, Trash2, Loader2 } from 'lucide-react';
+import { MoreVertical, Eye, Trash2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const PAGE_SIZE = 20;
 import {
   Box,
   Paper,
@@ -41,10 +43,6 @@ import { useReactToPrint } from 'react-to-print';
 import PrintablePaymentReceipt from '../../../components/PrintablePaymentReceipt';
 import './AdminDashboardPage.css';
 import './StudentListPage.css';
-import AdminSidebar from '../../../components/AdminSidebar';
-import UserProfileMenu from '../../../components/UserProfileMenu';
-import NotificationBell from '../../../components/NotificationBell';
-import DateTimeIndicator from '../../../components/DateTimeIndicator';
 
 const dataUrlToBlob = (dataUrl) => {
   if (!dataUrl) return null;
@@ -90,11 +88,19 @@ const StudentListPage = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exportingSlips, setExportingSlips] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedYear, setSelectedYear] = useState('66');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudentCodes, setSelectedStudentCodes] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalWithSlips, setTotalWithSlips] = useState(0);
+  const [years, setYears] = useState(['66']);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
+  const selectedCacheRef = useRef(new Map());
+  const requestSeqRef = useRef(0);
   const [slipModal, setSlipModal] = useState({ open: false, imageUrl: '', paymentId: null, studentCode: null, studentName: null, paymentStatus: null });
   
   const [receiptStudents, setReceiptStudents] = useState([]);
@@ -184,76 +190,99 @@ const StudentListPage = () => {
     }
   };
 
-  const fetchStudentData = async () => {
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${getToken()}`,
+  });
+
+  const filterParams = () => {
+    const params = new URLSearchParams();
+    if (selectedYear !== 'all') params.set('year', selectedYear);
+    if (selectedDepartment !== 'all') params.set('department', selectedDepartment);
+    if (debouncedQuery) params.set('q', debouncedQuery);
+    return params;
+  };
+
+  // ดึงรายชื่อจาก backend ทีละหน้า (หน้าละ PAGE_SIZE คน) — กดถัดไปแล้วค่อยโหลดหน้าถัดไป
+  const fetchStudentData = async (targetPage = page) => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}`,
-      };
-      
-      const [usersRes, reqsRes, paysRes] = await Promise.all([
-        fetch(`${API_BASE}/users?role=student`, { headers }),
-        fetch(`${API_BASE}/requests`, { headers }),
-        fetch(`${API_BASE}/payments`, { headers })
-      ]);
+      const params = filterParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(PAGE_SIZE));
+      const res = await fetch(`${API_BASE}/users/students/paged?${params}`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || 'ไม่สามารถโหลดรายชื่อนักศึกษาได้');
+      if (seq !== requestSeqRef.current) return; // มีคำขอใหม่กว่าแล้ว ทิ้งผลเก่า
 
-      if (!usersRes.ok) throw new Error('ไม่สามารถโหลดรายชื่อนักศึกษาได้');
-
-      const [usersData, reqsData, paysData] = await Promise.all([
-        usersRes.json(),
-        reqsRes.json(),
-        paysRes.json()
-      ]);
-
-      const rawStudents = usersData.data || [];
-      const allowedPrefixes = ['66', '67', '68', '69'];
-      const studentList = rawStudents.filter(student => {
-        const code = String(student.student_code || student.studentId || student.username || '').trim();
-        return allowedPrefixes.some(prefix => code.startsWith(prefix)) || code.startsWith('student');
-      });
-      const requestsList = reqsData.data || [];
-      const paymentsList = paysData.data || [];
-
-      const enrichedStudents = studentList.map(student => {
-        const studentIdStr = String(student.student_code || student.studentId || student.username);
-        
-        const studentReqs = requestsList.filter(r => String(r.studentId) === studentIdStr);
-        const latestReq = studentReqs.length > 0 ? studentReqs[studentReqs.length - 1] : null;
-        
-        const studentPays = paymentsList.filter(p => String(p.studentId) === studentIdStr);
-        const latestPay = studentPays.length > 0 ? studentPays[studentPays.length - 1] : null;
-
-        let reqDetails = {};
-        if (latestReq && latestReq.details) {
-          if (typeof latestReq.details === 'string') {
-            try { reqDetails = JSON.parse(latestReq.details); } catch(e) {}
-          } else if (typeof latestReq.details === 'object') {
-            reqDetails = latestReq.details;
-          }
-        }
-
-        const phoneFromForm = reqDetails.studentPhone || reqDetails.student_info?.phone || reqDetails.phone || reqDetails.mobile || reqDetails.tel;
-        const phone = phoneFromForm || student.phone || student.mobile || '-';
-        const department = student.major || student.department || latestReq?.department || '';
-
-        return {
-          ...student,
-          phone,
-          department,
-          major: department,
-          requestStatus: latestReq ? latestReq.status : 'ยังไม่ยื่นคำร้อง',
-          paymentStatus: latestPay ? latestPay.status : 'ยังไม่ชำระเงิน',
-          paymentSlip: latestPay ? latestPay.slipDataUrl : null,
-          paymentId: latestPay ? latestPay.id : null
-        };
-      });
-
-      setStudents(enrichedStudents);
+      const meta = json.meta || {};
+      if ((json.data || []).length === 0 && targetPage > 1) {
+        setPage(Math.max(1, Math.min(targetPage - 1, meta.totalPages || 1)));
+        return;
+      }
+      setStudents(json.data || []);
+      setTotal(meta.total || 0);
+      setTotalPages(meta.totalPages || 1);
+      setTotalWithSlips(meta.totalWithSlips || 0);
+      if (Array.isArray(meta.years) && meta.years.length > 0) setYears(Array.from(new Set(['66', ...meta.years])).sort());
     } catch (error) {
-      console.error("Failed to load students", error);
+      console.error('Failed to load students', error);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
+    }
+  };
+
+  // ดึงข้อมูลสำหรับ Export (ทั้งหมดที่กรองอยู่ หรือเฉพาะที่เลือก) พร้อมรูปสลิป
+  const loadExportList = async (scope) => {
+    const params = scope === 'selected' ? new URLSearchParams() : filterParams();
+    if (scope === 'selected') params.set('codes', selectedStudentCodes.join(','));
+    params.set('limit', 'all');
+    params.set('includeSlip', '1');
+    const res = await fetch(`${API_BASE}/users/students/paged?${params}`, { headers: authHeaders() });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.message || 'โหลดข้อมูลสำหรับ Export ไม่สำเร็จ');
+    return json.data || [];
+  };
+
+  const runExport = async (kind, scope) => {
+    if (exportLoading) return;
+    setExportLoading(true);
+    try {
+      const list = await loadExportList(scope);
+      if (kind === 'receipts') await handleExportReceipts(list);
+      else await handleExportBatchSlips(list);
+    } catch (err) {
+      setToast({ open: true, message: err.message || 'Export ไม่สำเร็จ', severity: 'error' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // รูปสลิปเต็มโหลดเมื่อกดดูเท่านั้น (หน้ารายการไม่แนบรูปมาให้เพื่อความเร็ว)
+  const fetchSlipDataUrl = async (paymentId) => {
+    const res = await fetch(`${API_BASE}/payments/${paymentId}`, { headers: authHeaders() });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.message || 'ไม่สามารถโหลดสลิปได้');
+    return json.data?.slipDataUrl || null;
+  };
+
+  const openSlip = async (student) => {
+    try {
+      const imageUrl = await fetchSlipDataUrl(student.paymentId);
+      if (!imageUrl) throw new Error('ไม่พบรูปสลิป');
+      setSlipModal({ open: true, imageUrl, paymentId: student.paymentId, studentCode: student.student_code || student.username, studentName: student.full_name, paymentStatus: student.paymentStatus });
+    } catch (err) {
+      setToast({ open: true, message: err.message, severity: 'error' });
+    }
+  };
+
+  const downloadSlipFor = async (student) => {
+    try {
+      const imageUrl = await fetchSlipDataUrl(student.paymentId);
+      handleDownloadSingleSlip({ ...student, paymentSlip: imageUrl });
+    } catch (err) {
+      setToast({ open: true, message: err.message, severity: 'error' });
     }
   };
 
@@ -270,93 +299,82 @@ const StudentListPage = () => {
       return;
     }
 
-    fetchStudentData();
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  const availableYears = useMemo(() => {
-    const years = new Set(['66']);
-    students.forEach(s => {
-      const code = String(s.student_code || s.studentId || s.username || '').trim();
-      const match = code.match(/^(\d{2})/);
-      if (match) {
-        years.add(match[1]);
-      }
-    });
-    return Array.from(years).sort();
-  }, [students]);
+  // เปลี่ยนตัวกรอง -> กลับหน้า 1, เปลี่ยนหน้า -> โหลดหน้านั้น
+  const filtersKey = `${selectedYear}|${selectedDepartment}|${debouncedQuery}`;
+  const lastFiltersKeyRef = useRef(filtersKey);
+  useEffect(() => {
+    if (lastFiltersKeyRef.current !== filtersKey) {
+      lastFiltersKeyRef.current = filtersKey;
+      if (page !== 1) { setPage(1); return; }
+    }
+    fetchStudentData(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filtersKey]);
 
-  const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
-      const code = String(student.student_code || student.studentId || student.username || '').trim();
-
-      // Filter Year
-      if (selectedYear !== 'all') {
-        if (!code.startsWith(selectedYear)) return false;
-      }
-
-      // Filter Department
-      if (selectedDepartment !== 'all') {
-        const dept = student.major || student.department || '';
-        if (dept !== selectedDepartment) return false;
-      }
-
-      // Filter Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const fullName = String(student.full_name || student.name || '').toLowerCase();
-        const email = String(student.email || '').toLowerCase();
-        if (!code.toLowerCase().includes(q) && !fullName.includes(q) && !email.includes(q)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [students, selectedDepartment, selectedYear, searchQuery]);
+  const availableYears = years;
+  const filteredStudents = students; // แถวของหน้าปัจจุบัน (กรอง/แบ่งหน้าที่ฝั่ง backend แล้ว)
 
   useEffect(() => {
     setSelectedStudentCodes([]);
-  }, [selectedDepartment, selectedYear, searchQuery]);
+    selectedCacheRef.current.clear();
+  }, [selectedDepartment, selectedYear, debouncedQuery]);
+
+  const currentPage = Math.min(page, totalPages);
+  const rangeFrom = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeTo = total === 0 ? 0 : Math.min(rangeFrom + students.length - 1, total);
+
+  const goToPage = (nextPage) => {
+    setPage(Math.min(Math.max(1, nextPage), totalPages));
+    document.querySelector('.compact-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const isAllSelected = useMemo(() => {
-    if (filteredStudents.length === 0) return false;
-    return filteredStudents.every(s => selectedStudentCodes.includes(s.student_code || s.username));
-  }, [filteredStudents, selectedStudentCodes]);
-
-  const selectedStudents = useMemo(() => {
-    return students.filter(s => selectedStudentCodes.includes(s.student_code || s.username));
+    if (students.length === 0) return false;
+    return students.every(s => selectedStudentCodes.includes(s.student_code || s.username));
   }, [students, selectedStudentCodes]);
 
+  const selectedStudents = useMemo(
+    () => selectedStudentCodes.map(code => selectedCacheRef.current.get(code)).filter(Boolean),
+    [selectedStudentCodes]
+  );
+
   const selectedWithSlips = useMemo(() => {
-    return selectedStudents.filter(s => Boolean(s.paymentSlip));
+    return selectedStudents.filter(s => Boolean(s.hasSlip));
   }, [selectedStudents]);
 
-  const filteredWithSlips = useMemo(() => {
-    return filteredStudents.filter(s => Boolean(s.paymentSlip));
-  }, [filteredStudents]);
+
 
   const activeMenuStudent = filteredStudents.find(
     (s) => (s.student_code || s.username) === actionMenu.id
   );
 
   const handleSelectAll = (e) => {
+    const pageCodes = students.map(s => s.student_code || s.username).filter(Boolean);
     if (e.target.checked) {
-      const allCodes = filteredStudents.map(s => s.student_code || s.username).filter(Boolean);
-      setSelectedStudentCodes(allCodes);
+      students.forEach(st => selectedCacheRef.current.set(st.student_code || st.username, st));
+      setSelectedStudentCodes(prev => Array.from(new Set([...prev, ...pageCodes])));
     } else {
-      setSelectedStudentCodes([]);
+      pageCodes.forEach(code => selectedCacheRef.current.delete(code));
+      setSelectedStudentCodes(prev => prev.filter(code => !pageCodes.includes(code)));
     }
   };
 
-  const handleToggleSelect = (code) => {
-    setSelectedStudentCodes(prev => 
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
-    );
+  const handleToggleSelect = (student) => {
+    const code = student.student_code || student.username;
+    if (selectedStudentCodes.includes(code)) {
+      selectedCacheRef.current.delete(code);
+      setSelectedStudentCodes(prev => prev.filter(c => c !== code));
+    } else {
+      selectedCacheRef.current.set(code, student);
+      setSelectedStudentCodes(prev => [...prev, code]);
+    }
   };
 
   const handleOpenDeleteSingle = (student) => {
@@ -372,7 +390,7 @@ const StudentListPage = () => {
   };
 
   const handleOpenDeleteBatch = () => {
-    const targetStudents = students.filter(s => selectedStudentCodes.includes(s.student_code || s.username));
+    const targetStudents = selectedStudents;
     setDeleteModal({
       open: true,
       targetStudents,
@@ -415,6 +433,7 @@ const StudentListPage = () => {
       setToast({ open: true, message: data.message || 'ลบข้อมูลเรียบร้อยแล้ว', severity: 'success' });
       setDeleteModal({ open: false, targetStudents: [], deleteRequests: true, deleteCheckins: true, deletePayments: true, deleteUser: false, submitting: false });
       setSelectedStudentCodes([]);
+      selectedCacheRef.current.clear();
 
       // Reload data
       fetchStudentData();
@@ -540,30 +559,7 @@ const StudentListPage = () => {
   };
 
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdminSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/admin-dashboard/students"
-        handleLogout={handleLogout}
-      />
-
+    <>
       <main className="admin-main">
         <header className="admin-header">
           <div>
@@ -574,7 +570,7 @@ const StudentListPage = () => {
 
         <div className="content-section">
           <div className="section-header">
-            <h2>นักศึกษาทั้งหมด ({filteredStudents.length})</h2>
+            <h2>นักศึกษาทั้งหมด ({total})</h2>
           </div>
 
           {/* Filters & Bulk Actions */}
@@ -627,7 +623,7 @@ const StudentListPage = () => {
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={() => handleExportReceipts(selectedStudents)}
+                    onClick={() => runExport('receipts', 'selected')}
                     startIcon={<PrinterIcon style={{ width: 16, height: 16 }} />}
                     sx={{ 
                       borderRadius: 1.75, 
@@ -643,14 +639,14 @@ const StudentListPage = () => {
                     variant="contained"
                     size="small"
                     disabled={selectedWithSlips.length === 0 || exportingSlips}
-                    onClick={() => handleExportBatchSlips(selectedStudents)}
+                    onClick={() => runExport('slips', 'selected')}
                     startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
                     sx={{ 
                       borderRadius: 1.75, 
                       fontWeight: 700, 
                       textTransform: 'none',
-                      bgcolor: '#0284c7',
-                      '&:hover': { bgcolor: '#0369a1' }
+                      bgcolor: '#6d28d9',
+                      '&:hover': { bgcolor: '#5b21b6' }
                     }}
                   >
                     {exportingSlips ? 'กำลัง Export...' : `Export สลีป (${selectedWithSlips.length})`}
@@ -671,8 +667,8 @@ const StudentListPage = () => {
                   <Button
                     variant="outlined"
                     size="small"
-                    disabled={filteredStudents.length === 0}
-                    onClick={() => handleExportReceipts(filteredStudents)}
+                    disabled={total === 0 || exportLoading}
+                    onClick={() => runExport('receipts', 'all')}
                     startIcon={<PrinterIcon style={{ width: 16, height: 16 }} />}
                     sx={{
                       borderRadius: 2,
@@ -685,34 +681,34 @@ const StudentListPage = () => {
                       '&.Mui-disabled': { borderColor: '#e2e8f0', color: '#94a3b8', bgcolor: '#f8fafc' }
                     }}
                   >
-                    Export ใบสำคัญรับเงินทั้งหมด ({filteredStudents.length})
+                    Export ใบสำคัญรับเงินทั้งหมด ({total})
                   </Button>
                   <Button
                     variant="outlined"
                     size="small"
-                    disabled={filteredWithSlips.length === 0 || exportingSlips}
-                    onClick={() => handleExportBatchSlips(filteredStudents)}
+                    disabled={totalWithSlips === 0 || exportingSlips || exportLoading}
+                    onClick={() => runExport('slips', 'all')}
                     startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
                     sx={{
                       borderRadius: 2,
                       fontWeight: 700,
                       textTransform: 'none',
-                      borderColor: '#0284c7',
-                      color: '#0284c7',
-                      bgcolor: '#f0f9ff',
-                      '&:hover': { borderColor: '#0369a1', bgcolor: '#e0f2fe' },
+                      borderColor: '#6d28d9',
+                      color: '#6d28d9',
+                      bgcolor: '#f5f3ff',
+                      '&:hover': { borderColor: '#5b21b6', bgcolor: '#ede9fe' },
                       '&.Mui-disabled': { borderColor: '#e2e8f0', color: '#94a3b8', bgcolor: '#f8fafc' }
                     }}
                   >
-                    {exportingSlips ? 'กำลัง Export...' : `Export สลีปทั้งหมด (${filteredWithSlips.length})`}
+                    {exportingSlips ? 'กำลัง Export...' : `Export สลีปทั้งหมด (${totalWithSlips})`}
                   </Button>
                 </Box>
               )}
             </Box>
           </div>
 
-          <TableContainer component={Box} className="compact-table">
-            {loading ? (
+          <TableContainer component={Box} className="compact-table" sx={{ opacity: loading && students.length > 0 ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
+            {loading && students.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 w-full">
                   <Loader2 className="w-8 h-8 text-violet-600 animate-spin stroke-[2.2]" />
                   <p className="text-xs font-medium text-slate-400 mt-3 m-0">กำลังโหลดข้อมูลรายชื่อนักศึกษา...</p>
@@ -739,16 +735,16 @@ const StudentListPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredStudents.length > 0 ? filteredStudents.map((student, index) => {
+                {students.length > 0 ? students.map((student) => {
                   const studentCode = student.student_code || student.username;
                   const isChecked = selectedStudentCodes.includes(studentCode);
 
                   return (
-                    <TableRow key={index} hover selected={isChecked}>
+                    <TableRow key={studentCode} hover selected={isChecked}>
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={isChecked}
-                          onChange={() => handleToggleSelect(studentCode)}
+                          onChange={() => handleToggleSelect(student)}
                         />
                       </TableCell>
                       <TableCell>{student.student_code}</TableCell>
@@ -774,10 +770,10 @@ const StudentListPage = () => {
                           }}>
                             {student.paymentStatus === 'approved' ? 'ชำระเงินแล้ว' : student.paymentStatus === 'pending' ? 'รอตรวจสอบ' : student.paymentStatus === 'rejected' ? 'ไม่อนุมัติ' : 'ยังไม่ชำระเงิน'}
                           </span>
-                          {student.paymentSlip && (
+                          {student.hasSlip && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <button 
-                                onClick={() => setSlipModal({ open: true, imageUrl: student.paymentSlip, paymentId: student.paymentId, studentCode: student.student_code, studentName: student.full_name, paymentStatus: student.paymentStatus })}
+                                onClick={() => openSlip(student)}
                                 style={{ border: 'none', background: 'none', color: '#be185d', textDecoration: 'underline', cursor: 'pointer', fontSize: '12px', padding: 0, fontWeight: 700 }}
                               >
                                 ดูสลิป
@@ -785,8 +781,8 @@ const StudentListPage = () => {
                               <Tooltip title="ดาวน์โหลดสลิป (Export Image)" arrow>
                                 <IconButton 
                                   size="small" 
-                                  onClick={() => handleDownloadSingleSlip(student)}
-                                  sx={{ p: 0.25, color: '#0284c7', '&:hover': { bgcolor: '#e0f2fe' } }}
+                                  onClick={() => downloadSlipFor(student)}
+                                  sx={{ p: 0.25, color: '#6d28d9', '&:hover': { bgcolor: '#ede9fe' } }}
                                 >
                                   <ArrowDownTrayIcon style={{ width: 15, height: 15 }} />
                                 </IconButton>
@@ -827,6 +823,25 @@ const StudentListPage = () => {
             </Table>
             )}
           </TableContainer>
+
+          {total > 0 && (
+            <nav className="pager" aria-label="เปลี่ยนหน้ารายชื่อนักศึกษา">
+              <span className="pager-info">
+                แสดง {rangeFrom}-{rangeTo} จาก {total} คน
+              </span>
+              <div className="pager-controls">
+                <button type="button" className="pager-btn" disabled={currentPage <= 1 || loading} onClick={() => goToPage(currentPage - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                  ก่อนหน้า
+                </button>
+                <span className="pager-page">หน้า {currentPage} / {totalPages}</span>
+                <button type="button" className="pager-btn" disabled={currentPage >= totalPages || loading} onClick={() => goToPage(currentPage + 1)}>
+                  ถัดไป
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </nav>
+          )}
         </div>
 
         {/* Delete Confirmation Modal */}
@@ -1075,39 +1090,18 @@ const StudentListPage = () => {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, px: 3, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0', justifyContent: 'space-between' }}>
-            <Button
-              onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))}
-              disabled={deleteModal.submitting}
-              variant="outlined"
-              sx={{ borderRadius: 2.5, px: 3, fontWeight: 700, color: '#334155', borderColor: '#cbd5e1' }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleConfirmDelete}
-              startIcon={<TrashIcon style={{ width: 18, height: 18 }} />}
-              disabled={deleteModal.submitting || (!deleteModal.deleteRequests && !deleteModal.deleteCheckins && !deleteModal.deletePayments)}
-              sx={{
-                borderRadius: 2.5,
-                px: 3.5,
-                py: 1,
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                  boxShadow: '0 6px 20px rgba(239, 68, 68, 0.45)',
-                },
-                '&.Mui-disabled': {
-                  background: '#e2e8f0',
-                  color: '#94a3b8',
-                }
-              }}
-            >
-              {deleteModal.submitting ? 'กำลังลบข้อมูล...' : 'ยืนยันการลบข้อมูลที่เลือก'}
-            </Button>
+          <DialogActions sx={{ p: 2.5, px: 3, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={deleteModal.submitting}>ยกเลิก</ModalCancelButton>
+              <ModalConfirmButton
+                tone="danger"
+                onClick={handleConfirmDelete}
+                disabled={!deleteModal.deleteRequests && !deleteModal.deleteCheckins && !deleteModal.deletePayments}
+                loading={deleteModal.submitting}
+              >
+                {deleteModal.submitting ? 'กำลังลบข้อมูล...' : 'ยืนยันการลบข้อมูลที่เลือก'}
+              </ModalConfirmButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
 
@@ -1115,7 +1109,7 @@ const StudentListPage = () => {
         <Dialog open={slipModal.open} onClose={() => setSlipModal({ open: false, imageUrl: '', paymentId: null, studentCode: null, studentName: null, paymentStatus: null })} maxWidth="sm" fullWidth>
           <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #f1f5f9', pb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CreditCardIcon style={{ width: 20, height: 20, color: '#0284c7' }} />
+              <CreditCardIcon style={{ width: 20, height: 20, color: '#6d28d9' }} />
               <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                 หลักฐานการชำระเงิน {slipModal.studentName ? `(${slipModal.studentName})` : ''}
               </Typography>
@@ -1139,7 +1133,7 @@ const StudentListPage = () => {
                 variant="contained" 
                 onClick={handleDownloadSlipFromModal}
                 startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
-                sx={{ bgcolor: '#0284c7', '&:hover': { bgcolor: '#0369a1' }, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+                sx={{ bgcolor: '#6d28d9', '&:hover': { bgcolor: '#5b21b6' }, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
               >
                 ดาวน์โหลดสลิป
               </Button>
@@ -1151,7 +1145,7 @@ const StudentListPage = () => {
                     full_name: slipModal.studentName,
                     paymentSlip: slipModal.imageUrl
                   };
-                  handleExportReceipts([s]);
+                  handleExportReceipts([{ ...s, paymentSlip: slipModal.imageUrl }]);
                 }}
                 startIcon={<PrinterIcon style={{ width: 16, height: 16 }} />}
                 sx={{ borderColor: '#166534', color: '#166534', '&:hover': { bgcolor: '#f0fdf4' }, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
@@ -1162,8 +1156,8 @@ const StudentListPage = () => {
             <div style={{ display: 'flex', gap: '8px' }}>
               {slipModal.paymentId && slipModal.paymentStatus !== 'approved' && (
                 <>
-                  <Button variant="contained" color="success" onClick={() => handleUpdatePaymentStatus('approve')} sx={{ borderRadius: 2, fontWeight: 700 }}>อนุมัติ</Button>
-                  <Button variant="contained" color="error" onClick={() => handleUpdatePaymentStatus('reject')} sx={{ borderRadius: 2, fontWeight: 700 }}>ไม่อนุมัติ</Button>
+                  <ModalConfirmButton tone="approve" onClick={() => handleUpdatePaymentStatus('approve')}>อนุมัติ</ModalConfirmButton>
+                  <ModalConfirmButton tone="danger" onClick={() => handleUpdatePaymentStatus('reject')}>ไม่อนุมัติ</ModalConfirmButton>
                 </>
               )}
             </div>
@@ -1230,7 +1224,7 @@ const StudentListPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 
