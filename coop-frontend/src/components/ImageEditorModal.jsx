@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from './ModalActions';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
@@ -322,22 +323,11 @@ const ImageEditorModal = ({ open, onClose, imageSrc, onSave, title = 'ราย�
       </Box>
 
       {/* Bottom action bar — ตรึงล่างสุด ปุ่มไม่ทับกัน */}
-      <Box sx={{ display: 'flex', gap: 1.5, p: { xs: 1.5, md: 2 }, borderTop: '1px solid #e5e7eb', bgcolor: '#ffffff', flexShrink: 0 }}>
-        <Button
-          variant="contained"
-          onClick={onClose}
-          sx={{ bgcolor: '#f3f4f6', color: '#111827', fontWeight: 700, borderRadius: 2, textTransform: 'none', px: 3, '&:hover': { bgcolor: '#e5e7eb' } }}
-        >
-          ยกเลิก
-        </Button>
-        <Button
-          variant="contained"
-          fullWidth
-          onClick={handleSave}
-          sx={{ bgcolor: '#2374e1', color: '#fff', fontWeight: 700, borderRadius: 2, textTransform: 'none', '&:hover': { bgcolor: '#1a64c4' } }}
-        >
-          บันทึกรูปภาพ
-        </Button>
+      <Box sx={{ p: { xs: 1.5, md: 2 }, borderTop: '1px solid #e5e7eb', bgcolor: '#ffffff', flexShrink: 0 }}>
+        <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+          <ModalCancelButton onClick={onClose}>ยกเลิก</ModalCancelButton>
+          <ModalConfirmButton tone="confirm" onClick={handleSave}>บันทึกรูปภาพ</ModalConfirmButton>
+        </ModalActions>
       </Box>
     </Dialog>
     </>

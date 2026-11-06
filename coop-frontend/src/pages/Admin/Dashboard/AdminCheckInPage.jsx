@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -690,9 +691,11 @@ const AdminCheckInPage = () => {
             />
           </div>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEdit}>ยกเลิก</Button>
-          <Button variant="contained" onClick={handleSaveEdit}>บันทึก</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleCloseEdit}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSaveEdit}>บันทึก</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

@@ -74,6 +74,19 @@ const theme = createTheme({
   },
 })
 
+// แถบล่างมือถือ (.m-tabbar) เป็น fixed อ้างอิง layout viewport ซึ่งอาจสูงกว่าจอที่เห็นจริง
+// (เช่นตอนแถบ URL ของ Safari แสดงอยู่) จึงคำนวณระยะที่ต้องยกขึ้นจาก visualViewport
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const updateTabbarOffset = () => {
+    const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--tabbar-offset', `${offset}px`);
+  };
+  vv.addEventListener('resize', updateTabbarOffset);
+  vv.addEventListener('scroll', updateTabbarOffset);
+  updateTabbarOffset();
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider theme={theme}>

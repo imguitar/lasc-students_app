@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useState, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
@@ -540,15 +541,17 @@ const AdminRelocationsPage = () => {
                     <TextField fullWidth size="small" label="หมายเหตุ (ไม่บังคับ)" value={deanDialog.comment}
                         onChange={(e) => setDeanDialog((p) => ({ ...p, comment: e.target.value }))} />
 
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setDeanDialog((p) => ({ ...p, open: false }))} disabled={submitting}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitDean} disabled={submitting || !deanDialog.signature}
-                            className={`px-5 py-2 rounded-xl text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${deanDialog.decision === 'allow' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setDeanDialog((p) => ({ ...p, open: false }))} disabled={submitting}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton
+                            tone={deanDialog.decision === 'allow' ? 'approve' : 'danger'}
+                            onClick={submitDean}
+                            disabled={!deanDialog.signature}
+                            loading={submitting}
+                        >
                             {deanDialog.decision === 'allow' ? 'ลงนามอนุญาต' : 'ลงนามไม่อนุญาต'}
-                        </button>
-                    </div>
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -595,15 +598,12 @@ const AdminRelocationsPage = () => {
                         <TextField fullWidth size="small" label="หมายเหตุ (ไม่บังคับ)" value={uploadDialog.comment}
                             onChange={(e) => setUploadDialog((p) => ({ ...p, comment: e.target.value }))} />
                     </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setUploadDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitUpload} disabled={submitting || !uploadDialog.dataUrl}
-                            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setUploadDialog((p) => ({ ...p, open: false }))}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton tone="confirm" onClick={submitUpload} disabled={!uploadDialog.dataUrl} loading={submitting}>
                             ยืนยัน
-                        </button>
-                    </div>
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -634,15 +634,17 @@ const AdminRelocationsPage = () => {
                     {datesDialog.startDate && datesDialog.endDate && datesDialog.endDate < datesDialog.startDate && (
                         <p className="text-[11px] text-rose-600 font-semibold m-0 mt-2">วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น</p>
                     )}
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setDatesDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={submitDates}
-                            disabled={submitting || !datesDialog.startDate || !datesDialog.endDate || datesDialog.endDate < datesDialog.startDate}
-                            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}บันทึกวันฝึกงาน
-                        </button>
-                    </div>
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setDatesDialog((p) => ({ ...p, open: false }))}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton
+                            tone="confirm"
+                            onClick={submitDates}
+                            disabled={!datesDialog.startDate || !datesDialog.endDate || datesDialog.endDate < datesDialog.startDate}
+                            loading={submitting}
+                        >
+                            บันทึกวันฝึกงาน
+                        </ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -652,14 +654,10 @@ const AdminRelocationsPage = () => {
                     <h3 className="text-base font-bold text-slate-800 mt-0 mb-3">ตีกลับคำร้อง — ระบุเหตุผล</h3>
                     <TextField fullWidth multiline minRows={3} size="small" label="เหตุผล *" value={rejectDialog.comment}
                         onChange={(e) => setRejectDialog((p) => ({ ...p, comment: e.target.value }))} />
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setRejectDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ยกเลิก</button>
-                        <button type="button" onClick={adminReject} disabled={submitting}
-                            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50">
-                            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}ยืนยันตีกลับ
-                        </button>
-                    </div>
+                    <ModalActions className="!pt-0 !mt-4 !border-0">
+                        <ModalCancelButton onClick={() => setRejectDialog((p) => ({ ...p, open: false }))}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton tone="danger" onClick={adminReject} loading={submitting}>ยืนยันตีกลับ</ModalConfirmButton>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 
@@ -782,14 +780,12 @@ const AdminRelocationsPage = () => {
                                     ? 'ลิงก์ใช้งานได้ครั้งเดียว — เมื่อคณบดีลงนามพิจารณาแล้วจะใช้ซ้ำไม่ได้'
                                     : 'ลิงก์ใช้งานได้ครั้งเดียว — เมื่อบริษัทลงนาม/ตอบรับแล้วจะใช้ซ้ำไม่ได้'}
                             </p>
-                            <div className="flex gap-2 mt-4">
-                                <button type="button" onClick={downloadQrPng}
-                                    className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold border-0 cursor-pointer flex items-center justify-center gap-1.5">
+                            <ModalActions className="!pt-0 !mt-4 !border-0">
+                                <ModalCancelButton onClick={() => setQrModal({ open: false, row: null, link: '', copied: false })}>ปิด</ModalCancelButton>
+                                <ModalConfirmButton tone="confirm" onClick={downloadQrPng}>
                                     <Download className="w-3.5 h-3.5" /> ดาวน์โหลด QR Code
-                                </button>
-                                <button type="button" onClick={() => setQrModal({ open: false, row: null, link: '', copied: false })}
-                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">ปิด</button>
-                            </div>
+                                </ModalConfirmButton>
+                            </ModalActions>
                         </>
                     ) : (
                         <p className="text-xs text-slate-400 text-center m-0 py-6">คำร้องนี้ไม่มีลิงก์ที่ใช้งานได้ (โทเค็นถูกใช้ไปแล้วหรือผ่านขั้นนี้แล้ว)</p>

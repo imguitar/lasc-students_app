@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
@@ -964,10 +965,10 @@ const AdminCompanyManagementPage = () => {
               );
             })()}
           </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2.5, flexShrink: 0, borderTop: '1px solid #f1f5f9' }}>
-            <Button onClick={() => setStudentsModal({ open: false, company: null, students: [], loading: false })} sx={{ textTransform: 'none', fontWeight: 700 }}>
-              ปิด
-            </Button>
+          <DialogActions sx={{ px: 3, pb: 2.5, flexShrink: 0 }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setStudentsModal({ open: false, company: null, students: [], loading: false })}>ปิด</ModalCancelButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
 
@@ -1067,18 +1068,18 @@ const AdminCompanyManagementPage = () => {
             )}
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, px: 3, borderTop: '1px solid #f1f5f9', justifyContent: 'space-between' }}>
-            <Button onClick={() => setImportModal(prev => ({ ...prev, open: false }))} color="inherit">
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              disabled={importModal.parsedRows.length === 0 || importModal.submitting}
-              onClick={handleConfirmImport}
-              sx={{ bgcolor: '#0284c7', '&:hover': { bgcolor: '#0369a1' }, borderRadius: 2, fontWeight: 700, px: 3 }}
-            >
-              {importModal.submitting ? 'กำลังนำเข้าข้อมูล...' : `ยืนยันนำเข้าข้อมูล (${importModal.parsedRows.length} รายการ)`}
-            </Button>
+          <DialogActions sx={{ p: 2.5, px: 3 }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setImportModal(prev => ({ ...prev, open: false }))}>ยกเลิก</ModalCancelButton>
+              <ModalConfirmButton
+                tone="confirm"
+                disabled={importModal.parsedRows.length === 0}
+                loading={importModal.submitting}
+                onClick={handleConfirmImport}
+              >
+                {importModal.submitting ? 'กำลังนำเข้าข้อมูล...' : `ยืนยันนำเข้าข้อมูล (${importModal.parsedRows.length} รายการ)`}
+              </ModalConfirmButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
 

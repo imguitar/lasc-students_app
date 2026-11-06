@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton } from '../../components/ModalActions';
 import { useEffect, useMemo, useState } from 'react';
 import AttendanceCalendar from '../../components/AttendanceCalendar';
 import { ArrowRight, Calendar, ListOrdered, PenLine, X } from 'lucide-react';
@@ -563,8 +564,10 @@ const AdvisorProgressCheckPage = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-          <Button onClick={closeHistoryDialog} variant="contained" sx={{ px: 3, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}>ปิด</Button>
+        <DialogActions sx={{ p: 2, backgroundColor: '#ffffff' }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={closeHistoryDialog}>ปิด</ModalCancelButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
     </>

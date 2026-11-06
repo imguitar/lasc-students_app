@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from './ModalActions';
 import { useState, useMemo, useRef } from 'react';
 import {
   Box,
@@ -1140,33 +1141,20 @@ const AttendanceCalendar = ({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', bgcolor: '#ffffff' }}>
-          <Button
-            variant="outlined"
-            onClick={() => setSignModalOpen(false)}
-            disabled={submitting}
-            sx={{ borderRadius: 2, color: '#64748b', borderColor: '#cbd5e1', textTransform: 'none' }}
-          >
-            ยกเลิก
-          </Button>
-
-          <Button
-            variant="contained"
-            onClick={handleSubmitBatchSign}
-            disabled={submitting || selectedDates.length === 0}
-            startIcon={<CheckBadgeIcon style={{ width: 18, height: 18 }} />}
-            sx={{
-              bgcolor: accent.main,
-              '&:hover': { bgcolor: accent.dark },
-              fontWeight: 800,
-              borderRadius: 2,
-              textTransform: 'none',
-              px: 3,
-              boxShadow: `0 2px 8px ${accent.main}40`
-            }}
-          >
-            {submitting ? 'กำลังบันทึก...' : `ยืนยันเซ็นรับรอง (${selectedDates.length} วัน)`}
-          </Button>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#ffffff' }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0">
+            <ModalCancelButton onClick={() => setSignModalOpen(false)} disabled={submitting}>
+              ยกเลิก
+            </ModalCancelButton>
+            <ModalConfirmButton
+              tone="confirm"
+              onClick={handleSubmitBatchSign}
+              disabled={selectedDates.length === 0}
+              loading={submitting}
+            >
+              {submitting ? 'กำลังบันทึก...' : `ยืนยันเซ็นรับรอง (${selectedDates.length} วัน)`}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
     </Box>

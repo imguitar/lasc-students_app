@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../ModalActions';
 import { useEffect, useState } from 'react';
 import {
   Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -438,25 +439,16 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2, borderTop: '1px solid #f3f4f6', bgcolor: '#f9fafb', flexShrink: 0 }}>
-          <Button
-            variant="contained"
-            fullWidth
-            disableElevation
-            onClick={handleSubmit}
-            disabled={!formData.title.trim() || !formData.content.trim()}
-            sx={{
-              bgcolor: (!formData.title.trim() || !formData.content.trim()) ? '#e5e7eb !important' : '#111111',
-              color: (!formData.title.trim() || !formData.content.trim()) ? '#9ca3af !important' : '#ffffff',
-              fontWeight: 700,
-              py: 1.25,
-              borderRadius: 2,
-              textTransform: 'none',
-              fontSize: '1rem',
-              '&:hover': { bgcolor: '#000000' }
-            }}
-          >
-            {formDialog.mode === 'create' ? 'เผยแพร่' : 'บันทึกการแก้ไข'}
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleCloseDialog}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton
+              tone="confirm"
+              onClick={handleSubmit}
+              disabled={!formData.title.trim() || !formData.content.trim()}
+            >
+              {formDialog.mode === 'create' ? 'เผยแพร่' : 'บันทึกการแก้ไข'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -477,8 +469,10 @@ const AnnouncementManager = ({ title = 'ข่าวสารและประ�
           <Typography>คุณต้องการลบข่าว <strong>"{deleteDialog.title}"</strong> ใช่หรือไม่?</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialog({ open: false, id: null, title: '' })}>ยกเลิก</Button>
-          <Button variant="contained" color="error" onClick={handleDeleteConfirm}>ลบ</Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={() => setDeleteDialog({ open: false, id: null, title: '' })}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleDeleteConfirm}>ลบ</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

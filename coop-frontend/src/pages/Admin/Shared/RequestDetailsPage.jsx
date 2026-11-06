@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Snackbar, Alert as MuiAlert, Alert, InputAdornment, IconButton } from '@mui/material';
@@ -961,13 +962,15 @@ const RequestDetailsPage = () => {
             disabled={editEvalEmailModal.submitting}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditEvalEmailModal(prev => ({ ...prev, open: false }))} disabled={editEvalEmailModal.submitting}>
-            ยกเลิก
-          </Button>
-          <Button variant="contained" onClick={handleSaveEvalEmail} disabled={editEvalEmailModal.submitting} sx={{ fontWeight: 700 }}>
-            {editEvalEmailModal.submitting ? 'กำลังบันทึก...' : 'บันทึกอีเมล'}
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={() => setEditEvalEmailModal(prev => ({ ...prev, open: false }))} disabled={editEvalEmailModal.submitting}>
+              ยกเลิก
+            </ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSaveEvalEmail} loading={editEvalEmailModal.submitting}>
+              {editEvalEmailModal.submitting ? 'กำลังบันทึก...' : 'บันทึกอีเมล'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

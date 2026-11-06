@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
@@ -1655,10 +1656,10 @@ const AdminDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button variant="outlined" onClick={handleRejectClose}>ยกเลิก</Button>
-          <Button variant="contained" onClick={handleRejectConfirm} sx={{ bgcolor: '#111111', '&:hover': { bgcolor: '#000000' } }}>
-            ยืนยัน
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleRejectClose}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleRejectConfirm}>ยืนยัน</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -1916,39 +1917,13 @@ const AdminDashboardPage = () => {
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-          <Button
-            variant="outlined"
-            onClick={handleCloseEditModal}
-            disabled={editModal.submitting}
-            sx={{
-              borderRadius: '10px',
-              borderColor: '#cbd5e1',
-              color: '#475569',
-              textTransform: 'none',
-              fontWeight: 500,
-              '&:hover': { bgcolor: '#f1f5f9', borderColor: '#94a3b8' }
-            }}
-          >
-            ยกเลิก
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveEditRequest}
-            disabled={editModal.submitting}
-            sx={{
-              borderRadius: '10px',
-              bgcolor: '#7c3aed',
-              color: '#ffffff',
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 3,
-              boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.2)',
-              '&:hover': { bgcolor: '#6d28d9' }
-            }}
-          >
-            {editModal.submitting ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
-          </Button>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#f8fafc' }}>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleCloseEditModal} disabled={editModal.submitting}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="confirm" onClick={handleSaveEditRequest} loading={editModal.submitting}>
+              {editModal.submitting ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

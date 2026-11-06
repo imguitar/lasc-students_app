@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton } from '../../../components/ModalActions';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -430,14 +431,9 @@ const AdminInternshipRoundsModal = ({ open, onClose }) => {
       </DialogContent>
 
       <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
-        <Button onClick={onClose} variant="outlined"
-          sx={{
-            width: { xs: '100%', sm: 'auto' }, px: 2, py: 1, borderRadius: '0.75rem',
-            borderColor: '#e2e8f0', color: '#475569', textTransform: 'none', fontWeight: 500,
-            fontSize: { xs: '0.78rem', sm: '0.875rem' }, '&:hover': { bgcolor: '#f8fafc', borderColor: '#cbd5e1' },
-          }}>
-          ปิดหน้าต่าง
-        </Button>
+        <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+          <ModalCancelButton onClick={onClose}>ปิดหน้าต่าง</ModalCancelButton>
+        </ModalActions>
       </DialogActions>
     </Dialog>
   );

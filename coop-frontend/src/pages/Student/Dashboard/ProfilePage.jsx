@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -617,30 +618,13 @@ const ProfilePage = () => {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2, pt: 1, justifyContent: 'space-between' }}>
-            <Button
-              onClick={() => setPassModal(prev => ({ ...prev, open: false }))}
-              disabled={passModal.submitting}
-              color="inherit"
-              sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSavePassword}
-              disabled={passModal.submitting}
-              sx={{
-                borderRadius: 2,
-                fontWeight: 800,
-                px: 3,
-                background: 'linear-gradient(90deg, #9333ea, #4f46e5)',
-                color: '#ffffff',
-                '&:hover': { background: 'linear-gradient(90deg, #7e22ce, #4338ca)' }
-              }}
-            >
-              {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
-            </Button>
+          <DialogActions sx={{ p: 2, pt: 1 }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setPassModal(prev => ({ ...prev, open: false }))} disabled={passModal.submitting}>ยกเลิก</ModalCancelButton>
+              <ModalConfirmButton tone="confirm" onClick={handleSavePassword} loading={passModal.submitting}>
+                {passModal.submitting ? 'กำลังบันทึก...' : 'บันทึกรหัสผ่านใหม่'}
+              </ModalConfirmButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
       </main>

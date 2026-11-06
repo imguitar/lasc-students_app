@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
@@ -879,22 +880,11 @@ const AdvisorSupervisionPage = () => {
                     </div>
                 </DialogContent>
 
-                <div className="px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-[#E9E5F5] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
-                    <button
-                        type="button"
-                        onClick={closeAppointmentDialog}
-                        className="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] text-sm font-semibold transition cursor-pointer"
-                    >
-                        ยกเลิก
-                    </button>
-                    <button
-                        type="button"
-                        onClick={saveAppointment}
-                        style={{ background: 'linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%)' }}
-                        className="w-full sm:w-auto min-h-[44px] px-6 rounded-xl text-white text-sm font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.3)] transition cursor-pointer border-none"
-                    >
-                        บันทึกการนัดหมาย
-                    </button>
+                <div className="px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-[#E9E5F5]">
+                    <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+                        <ModalCancelButton onClick={closeAppointmentDialog}>ยกเลิก</ModalCancelButton>
+                        <ModalConfirmButton tone="confirm" onClick={saveAppointment}>บันทึกการนัดหมาย</ModalConfirmButton>
+                    </ModalActions>
                 </div>
             </Dialog>
 

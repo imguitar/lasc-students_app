@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import {
-    Alert, Box, Dialog, DialogContent, Paper, Snackbar, Tab, Table, TableBody,
+    Alert, Box, Button, Dialog, DialogContent, Paper, Snackbar, Tab, Table, TableBody,
     TableCell, TableContainer, TableHead, TableRow, Tabs, TextField,
 } from '@mui/material';
-import { CheckCircle2, FileText, History, Inbox, Loader2, MessageSquareText, XCircle } from 'lucide-react';
+import { CheckCircle2, FileText, History, Inbox, MessageSquareText, XCircle } from 'lucide-react';
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import '../Admin/Dashboard/AdminDashboardPage.css';
 import { RELOCATION_STATUS_LABEL } from '../../components/RelocationStepper';
 import SignaturePad from '../../components/SignaturePad';
@@ -158,8 +159,8 @@ const AdvisorRelocationsPage = () => {
                         ))}
                     </Tabs>
 
-                    {/* Desktop: ตาราง / Mobile: การ์ด — ไม่มี horizontal scroll */}
-                    <div className="hidden md:block">
+                    {/* Desktop (>= lg): ตาราง / จออื่น: การ์ด — ตารางมี 6 คอลัมน์ จึงต้องมีพื้นที่ >= 1024px ไม่ให้ล้น */}
+                    <div className="hidden lg:block">
                     <TableContainer component={Box} className="compact-table">
                         <Table size="small">
                             <TableHead>
@@ -201,16 +202,20 @@ const AdvisorRelocationsPage = () => {
                                         </TableCell>
                                         <TableCell>
                                             {['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status) ? (
-                                                <div className="flex gap-1.5">
-                                                    <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-semibold border border-emerald-200/80 cursor-pointer transition">
-                                                        <CheckCircle2 style={{ width: 12, height: 12 }} /> อนุญาต
-                                                    </button>
-                                                    <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 text-[11px] font-medium border border-rose-200 cursor-pointer transition">
-                                                        <XCircle style={{ width: 12, height: 12 }} /> ไม่อนุญาต
-                                                    </button>
-                                                </div>
+                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'nowrap' }}>
+                                                    <Button size="small" variant="contained" color="primary" disableElevation
+                                                        startIcon={<CheckCircle2 size={14} />}
+                                                        onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
+                                                        sx={{ borderRadius: 2, px: 1.75, py: 0.6, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                        อนุญาต
+                                                    </Button>
+                                                    <Button size="small" variant="outlined" color="error"
+                                                        startIcon={<XCircle size={14} />}
+                                                        onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
+                                                        sx={{ borderRadius: 2, px: 1.75, py: 0.6, fontSize: '0.75rem', whiteSpace: 'nowrap', borderColor: '#fecdd3', '&:hover': { borderColor: '#fb7185', bgcolor: '#fff1f2' } }}>
+                                                        ไม่อนุญาต
+                                                    </Button>
+                                                </Box>
                                             ) : (
                                                 <span className="text-[11px] text-slate-400">
                                                     {r.advisor_comment ? `เห็น: ${r.advisor_comment}` : '—'}
@@ -231,8 +236,8 @@ const AdvisorRelocationsPage = () => {
                     </TableContainer>
                     </div>
 
-                    {/* Mobile Card View (< md) — การ์ดแนวตั้งเต็มความกว้างจอ */}
-                    <div className="md:hidden px-1">
+                    {/* Card View (< lg) — การ์ดแนวตั้งเต็มความกว้างจอ */}
+                    <div className="lg:hidden px-1">
                         {displayRows.length > 0 ? displayRows.map((r) => {
                             const isPending = ['company_approved_waiting_advisor', 'submitted_waiting_advisor'].includes(r.status);
                             return (
@@ -265,21 +270,26 @@ const AdvisorRelocationsPage = () => {
 
                                     {/* Actions */}
                                     {isPending ? (
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
-                                                className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition">
-                                                <CheckCircle2 style={{ width: 14, height: 14 }} /> อนุญาต
-                                            </button>
-                                            <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
-                                                className="px-4 py-2.5 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition">
-                                                <XCircle style={{ width: 14, height: 14 }} /> ไม่อนุญาต
-                                            </button>
-                                        </div>
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Button fullWidth variant="contained" color="primary" disableElevation
+                                                startIcon={<CheckCircle2 size={14} />}
+                                                onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
+                                                sx={{ borderRadius: 2, py: 1, fontSize: '0.8rem' }}>
+                                                อนุญาต
+                                            </Button>
+                                            <Button fullWidth variant="outlined" color="error"
+                                                startIcon={<XCircle size={14} />}
+                                                onClick={() => setReviewDialog({ open: true, item: r, approve: false, comment: '', signature: '' })}
+                                                sx={{ borderRadius: 2, py: 1, fontSize: '0.8rem', borderColor: '#fecdd3', '&:hover': { borderColor: '#fb7185', bgcolor: '#fff1f2' } }}>
+                                                ไม่อนุญาต
+                                            </Button>
+                                        </Box>
                                     ) : (
-                                        <button type="button" onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
-                                            className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 shadow-sm border-0 cursor-pointer transition">
+                                        <Button fullWidth variant="outlined" color="primary"
+                                            onClick={() => setReviewDialog({ open: true, item: r, approve: true, comment: '', signature: '' })}
+                                            sx={{ borderRadius: 2, py: 1, fontSize: '0.8rem' }}>
                                             ดูรายละเอียด
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             );
@@ -372,17 +382,20 @@ const AdvisorRelocationsPage = () => {
                             <SignaturePad height={120} onChange={(d) => setReviewDialog((p) => ({ ...p, signature: d || '' }))} />
                         </div>
                     )}
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setReviewDialog((p) => ({ ...p, open: false }))}
-                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold bg-white cursor-pointer">{isReviewable ? 'ยกเลิก' : 'ปิด'}</button>
+                    <ModalActions>
+                        <ModalCancelButton onClick={() => setReviewDialog((p) => ({ ...p, open: false }))}>
+                            {isReviewable ? 'ยกเลิก' : 'ปิด'}
+                        </ModalCancelButton>
                         {isReviewable && (
-                            <button type="button" onClick={submitReview} disabled={submitting}
-                                className={`px-5 py-2 rounded-xl text-white text-xs font-semibold border-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${reviewDialog.approve ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                                {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <ModalConfirmButton
+                                tone={reviewDialog.approve ? 'approve' : 'danger'}
+                                onClick={submitReview}
+                                loading={submitting}
+                            >
                                 ยืนยัน
-                            </button>
+                            </ModalConfirmButton>
                         )}
-                    </div>
+                    </ModalActions>
                 </DialogContent>
             </Dialog>
 

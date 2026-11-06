@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -662,8 +663,10 @@ const AdvisorDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleRejectClose}>ยกเลิก</Button>
-          <Button variant="contained" color="error" onClick={handleRejectConfirm}>ยืนยันการปฏิเสธ</Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleRejectClose}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleRejectConfirm}>ยืนยันการปฏิเสธ</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -692,18 +695,14 @@ const AdvisorDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setApproveModal(prev => ({ ...prev, open: false }))} disabled={approveModal.submitting}>
-            ยกเลิก
-          </Button>
-          <Button 
-            variant="contained" 
-            color="success" 
-            onClick={handleConfirmApprove} 
-            disabled={approveModal.submitting}
-            sx={{ fontWeight: 700, px: 3 }}
-          >
-            {approveModal.submitting ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติ'}
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={() => setApproveModal(prev => ({ ...prev, open: false }))} disabled={approveModal.submitting}>
+              ยกเลิก
+            </ModalCancelButton>
+            <ModalConfirmButton tone="approve" onClick={handleConfirmApprove} loading={approveModal.submitting}>
+              {approveModal.submitting ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติ'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 

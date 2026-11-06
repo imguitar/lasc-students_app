@@ -413,6 +413,21 @@ code {
   background: linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%);
 }
 
+/* มือถือ/แท็บเล็ต: background-attachment: fixed ทำให้ Navbar ขยับจนเห็นช่องขาวตอนเลื่อน (iOS Safari)
+   จึงใช้ scroll แทน และมีสีรองพื้นกันช่องขาว (ไม่ promote layer ด้วย transform เพราะทำให้ sticky กระพริบบน iOS) */
+@media (max-width: 1023px) {
+  /* Safe area: ไฟล์ index.html ตั้ง viewport-fit=cover แถบบนของ iPhone (รอยบาก) จึงว่าง
+     ให้ padding-top ของ Navbar เป็นสีม่วงเหมือนกัน; ความสูงเนื้อหาเท่าเดิม (--navbar-h) */
+  :is(.mobile-top-navbar, .site-navbar) {
+    background-attachment: scroll !important;
+    background-color: #3b0764;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: calc(var(--navbar-h) + env(safe-area-inset-top, 0px)) !important;
+    margin-top: 0 !important;
+    top: 0 !important;
+  }
+}
+
 /* Contact Bar และ Subnav ประกาศด่วน: โทนเดียวกับ Navbar */
 .utility-bar {
   background:
@@ -691,7 +706,7 @@ code {
 body.has-utility-bar .mobile-top-navbar { top: var(--utility-h, 0px) !important; }
 
 .admin-dashboard-container,
-.dashboard-container { padding-top: calc(var(--navbar-h) + var(--utility-h, 0px) + var(--subnav-h, 0px)) !important; }
+.dashboard-container { padding-top: calc(var(--navbar-h) + env(safe-area-inset-top, 0px) + var(--utility-h, 0px) + var(--subnav-h, 0px)) !important; }
 @media (min-width: 1024px) {
   aside.sidebar {
     top: calc(var(--navbar-h) + var(--utility-h, 0px) + var(--subnav-h, 0px)) !important;
@@ -777,7 +792,8 @@ body.has-subnav {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    /* ตั้งโดย main.jsx: ระยะที่ visual viewport (จอที่เห็นจริง) สั้นกว่า layout viewport เช่นแถบ URL ของ Safari */
+    bottom: var(--tabbar-offset, 0px);
     z-index: 1070;
     background: var(--vio-grad-v);
     border-top: 3px solid transparent;
@@ -987,8 +1003,8 @@ footer.footer p, footer.footer { color: var(--lav) !important; }
    ครอบคลุม MUI Dialog และ Modal แบบ Tailwind (fixed inset-0) ทั้งระบบ
    ====================================================================== */
 @keyframes mSheetUp {
-  from { transform: translateY(40px); opacity: 0.4; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateY(100%); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 /* ---------- 1) Backdrop มัว + เบลอ ---------- */
@@ -1099,8 +1115,7 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
     max-width: 100% !important;
     max-height: 85vh !important;
     border-radius: 16px 16px 0 0 !important;
-    transform: none !important;
-    animation: mSheetUp 0.28s ease;
+    animation: mSheetUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .MuiDialogActions-root { flex-direction: column-reverse; align-items: stretch !important; justify-content: stretch !important; }
   .MuiDialogActions-root > :not(style) { width: 100%; margin: 0 !important; }
@@ -1774,7 +1789,6 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
     background-color: #2e1065;
   }
   .m-tabbar {
-    bottom: 0;
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     backface-visibility: hidden;
@@ -1786,17 +1800,5 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
   }
 }
 
-/* แถบล่างลอยทับหน้า: ปิดช่องว่างที่อาจเห็นใต้แถบ (เช่นตอนแถบ URL ของเบราว์เซอร์หดหรือขยาย)
-   ด้วยแผ่นสีม่วงที่ต่อจากขอบล่างของแถบลงไปจนสุดจอ */
-@media (max-width: 1023px) {
-  .m-tabbar::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 100%;
-    height: 240px;
-    background: #2e1065;
-    pointer-events: none;
-  }
-}
+/* ไม่ใช้แผ่นทึบใต้แถบแล้ว (เคยเป็น .m-tabbar::after สูง 240px ทำให้แถบดูลอยสูงกว่าขอบล่าง)
+   แถบชิดขอบล่างด้วย bottom: 0 และเผื่อ safe area ด้วย padding-bottom ที่กำหนดไว้ด้านบนแล้ว */

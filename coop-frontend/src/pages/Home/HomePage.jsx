@@ -267,11 +267,11 @@ const HomePage = () => {
   const { pathname } = useLocation();
   const tabItems = [
     { key: 'home', label: 'หน้าหลัก', Icon: HomeLucide, to: '/', active: pathname === '/' },
-    { key: 'news', label: 'ข่าวสาร', Icon: Newspaper, to: '/news', active: pathname.startsWith('/news') },
-    { key: 'companies', label: 'ที่ฝึกงาน', Icon: Search, to: '/companies', active: pathname.startsWith('/companies') },
     user
       ? { key: 'dashboard', label: 'แดชบอร์ด', Icon: LayoutDashboard, to: navAction.to, active: false }
       : { key: 'login', label: 'เข้าสู่ระบบ', Icon: ArrowRightIcon, to: '/login', active: false },
+    { key: 'companies', label: 'ที่ฝึกงาน', Icon: Search, to: '/companies', active: pathname.startsWith('/companies') },
+    { key: 'news', label: 'ข่าวสาร', Icon: Newspaper, to: '/news', active: pathname.startsWith('/news') },
   ];
 
   // เมนูใน Drawer (จอ < 1024px) — รวมปุ่ม "แดชบอร์ด" และลิงก์หลักที่ถูกซ่อนจาก Navbar

@@ -1,3 +1,4 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -1089,39 +1090,18 @@ const StudentListPage = () => {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, px: 3, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0', justifyContent: 'space-between' }}>
-            <Button
-              onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))}
-              disabled={deleteModal.submitting}
-              variant="outlined"
-              sx={{ borderRadius: 2.5, px: 3, fontWeight: 700, color: '#334155', borderColor: '#cbd5e1' }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleConfirmDelete}
-              startIcon={<TrashIcon style={{ width: 18, height: 18 }} />}
-              disabled={deleteModal.submitting || (!deleteModal.deleteRequests && !deleteModal.deleteCheckins && !deleteModal.deletePayments)}
-              sx={{
-                borderRadius: 2.5,
-                px: 3.5,
-                py: 1,
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                  boxShadow: '0 6px 20px rgba(239, 68, 68, 0.45)',
-                },
-                '&.Mui-disabled': {
-                  background: '#e2e8f0',
-                  color: '#94a3b8',
-                }
-              }}
-            >
-              {deleteModal.submitting ? 'กำลังลบข้อมูล...' : 'ยืนยันการลบข้อมูลที่เลือก'}
-            </Button>
+          <DialogActions sx={{ p: 2.5, px: 3, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+            <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+              <ModalCancelButton onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={deleteModal.submitting}>ยกเลิก</ModalCancelButton>
+              <ModalConfirmButton
+                tone="danger"
+                onClick={handleConfirmDelete}
+                disabled={!deleteModal.deleteRequests && !deleteModal.deleteCheckins && !deleteModal.deletePayments}
+                loading={deleteModal.submitting}
+              >
+                {deleteModal.submitting ? 'กำลังลบข้อมูล...' : 'ยืนยันการลบข้อมูลที่เลือก'}
+              </ModalConfirmButton>
+            </ModalActions>
           </DialogActions>
         </Dialog>
 
@@ -1176,8 +1156,8 @@ const StudentListPage = () => {
             <div style={{ display: 'flex', gap: '8px' }}>
               {slipModal.paymentId && slipModal.paymentStatus !== 'approved' && (
                 <>
-                  <Button variant="contained" color="success" onClick={() => handleUpdatePaymentStatus('approve')} sx={{ borderRadius: 2, fontWeight: 700 }}>อนุมัติ</Button>
-                  <Button variant="contained" color="error" onClick={() => handleUpdatePaymentStatus('reject')} sx={{ borderRadius: 2, fontWeight: 700 }}>ไม่อนุมัติ</Button>
+                  <ModalConfirmButton tone="approve" onClick={() => handleUpdatePaymentStatus('approve')}>อนุมัติ</ModalConfirmButton>
+                  <ModalConfirmButton tone="danger" onClick={() => handleUpdatePaymentStatus('reject')}>ไม่อนุมัติ</ModalConfirmButton>
                 </>
               )}
             </div>
