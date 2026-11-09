@@ -3,6 +3,13 @@ import { redirectToProfileLogin } from '../utils/sso';
 
 const getApiBaseUrl = () => {
   let url = import.meta.env.VITE_API_BASE_URL || 'https://students.sci-sskru.com/coop/api';
+  const isProductionHost = window.location.hostname === 'students.sci-sskru.com';
+  const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url);
+
+  if (isProductionHost && isLocalApi) {
+    url = `${window.location.origin}/coop/api`;
+  }
+
   url = url.trim().replace(/\/+$/, '');
   if (!url.endsWith('/api') && !url.includes('/api/')) {
     url += '/api';

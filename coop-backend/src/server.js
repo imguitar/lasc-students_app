@@ -67,7 +67,9 @@ const allowedOrigins = [
   'http://localhost:5174',
   toOrigin(process.env.FRONTEND_URL),
   toOrigin(process.env.COOP_PUBLIC_URL),
-  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()) : []),
+  ...(process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(toOrigin)
+    : []),
 ].filter(Boolean);
 
 app.use(cors({
