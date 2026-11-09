@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import UtilityBar from '../../components/UtilityBar';
+import PublicSiteHeader from '../../components/PublicSiteHeader';
+import SubNav from '../../components/SubNav';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import {
@@ -118,18 +121,13 @@ const NewsListPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-purple-100/60 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-purple-700 no-underline transition-colors">
-            <ArrowLeftIcon className="w-4 h-4" /> กลับหน้าแรก
-          </Link>
-          <span className="text-xs font-medium text-slate-400 hidden sm:block">ระบบฝึกประสบการณ์วิชาชีพ</span>
-        </div>
-      </nav>
+      <UtilityBar />
+      <PublicSiteHeader />
+      <SubNav />
 
       {/* Hero Header */}
-      <div className="bg-gradient-to-r from-purple-800 via-indigo-800 to-purple-900 text-white relative overflow-hidden">
+      <div className="text-white relative overflow-hidden" style={{ background: 'linear-gradient(90deg, #1e1b4b 0%, #3b0764 18%, #5b21b6 48%, #6d28d9 66%, #4c1d95 86%, #2e1065 100%)' }}>
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] z-10 pointer-events-none" style={{ background: 'linear-gradient(90deg, #b8860b 0%, #d4af37 18%, #fde047 50%, #f59e0b 78%, #b8860b 100%)' }} />
         <div className="absolute -top-16 -right-10 w-64 h-64 bg-purple-400/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-20 -left-10 w-72 h-72 bg-fuchsia-400/15 rounded-full blur-3xl" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 relative">

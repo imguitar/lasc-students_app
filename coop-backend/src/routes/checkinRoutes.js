@@ -47,7 +47,10 @@ const getCheckinGuard = async (studentId) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { studentId, date, status, department, search } = req.query;
-    let sql = "SELECT dc.*, DATE_FORMAT(dc.date, '%Y-%m-%d') AS date FROM daily_checkins dc WHERE 1=1";
+    // submittedAt = เวลาที่กดส่งจริง (เวลาไทย)
+    // isBackfill = ส่งหลังสิ้นสุดวันของรายงาน — วันใหม่เริ่ม 07:00 น. ตามกติกาหน้ารายงานประจำวัน
+    //             (ส่งรายงานของวันที่ D ได้ถึง D+1 เวลา 06:59 โดยยังนับว่าตรงวัน)
+    let sql = "SELECT dc.*, DATE_FORMAT(dc.date, '%Y-%m-%d') AS date, DATE_FORMAT(dc.createdAt, '%Y-%m-%d %H:%i:%s') AS submittedAt, (dc.createdAt >= TIMESTAMP(DATE_ADD(dc.date, INTERVAL 1 DAY), '07:00:00')) AS isBackfill FROM daily_checkins dc WHERE 1=1";
     const params = [];
 
     if (studentId) { sql += ' AND dc.studentId = ?'; params.push(studentId); }

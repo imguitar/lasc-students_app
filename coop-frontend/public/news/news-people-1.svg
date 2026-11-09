@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2e1065"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+  <rect width="1200" height="800" fill="#4c1d95"/>
+  <g fill="#ffffff" fill-opacity="0.08">
+  <rect x="80" y="520" width="260" height="200" rx="10"/>
+  <rect x="900" y="480" width="240" height="240" rx="10"/>
+  <polygon points="60,520 210,430 360,520"/>
+  <rect x="150" y="470" width="20" height="50"/>
+</g><circle cx="980" cy="160" r="90" fill="#eab308" fill-opacity="0.3"/>
+  <rect x="0" y="650" width="1200" height="150" fill="#2e1065"/>
+     <rect x="380" y="120" width="440" height="90" rx="18" fill="#eab308"/>
+     <rect x="437.5" y="615" width="27.5" height="65" rx="7.5" fill="#312e81"/><rect x="475" y="615" width="27.5" height="65" rx="7.5" fill="#312e81"/><rect x="417.5" y="506.25" width="105" height="116.25" rx="27.5" fill="#ffffff"/><path d="M425 523.75 L385 443.75" stroke="#ffffff" stroke-width="20" stroke-linecap="round"/><circle cx="385" cy="436.25" r="13.75" fill="#c68642"/><rect x="460" y="486.25" width="20" height="20" fill="#c68642"/><circle cx="470" cy="461.25" r="32.5" fill="#c68642"/><path d="M432.5 466.25 Q430 416.25 470 423.75 Q510 416.25 507.5 466.25 L512.5 518.75 L427.5 518.75 Z" fill="#1f2937"/><circle cx="458.75" cy="463.75" r="3.25" fill="#1e1b4b"/><circle cx="481.25" cy="463.75" r="3.25" fill="#1e1b4b"/><path d="M458.75 475 Q470 485 481.25 475" stroke="#7c2d12" stroke-width="3" fill="none" stroke-linecap="round"/>
+     <rect x="697.5" y="615" width="27.5" height="65" rx="7.5" fill="#1e1b4b"/><rect x="735" y="615" width="27.5" height="65" rx="7.5" fill="#1e1b4b"/><rect x="677.5" y="506.25" width="105" height="116.25" rx="27.5" fill="#fde68a"/><path d="M685 523.75 L645 443.75" stroke="#fde68a" stroke-width="20" stroke-linecap="round"/><circle cx="645" cy="436.25" r="13.75" fill="#8d5524"/><rect x="720" y="486.25" width="20" height="20" fill="#8d5524"/><circle cx="730" cy="461.25" r="32.5" fill="#8d5524"/><path d="M697.5 458.75 Q700 418.75 730 423.75 Q760 418.75 762.5 458.75 Q755 438.75 730 436.25 Q705 438.75 697.5 458.75 Z" fill="#111827"/><circle cx="718.75" cy="463.75" r="3.25" fill="#1e1b4b"/><circle cx="741.25" cy="463.75" r="3.25" fill="#1e1b4b"/><path d="M718.75 475 Q730 485 741.25 475" stroke="#7c2d12" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

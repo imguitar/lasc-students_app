@@ -1,7 +1,7 @@
+import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import api from '../../api/axios';
 import {
   Box,
@@ -32,16 +32,11 @@ import { STAT_ICON } from '../../utils/statIcons';
 import '../Admin/Dashboard/AdminDashboardPage.css'; // Reuse Admin styles
 import { ClockIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { MoreVertical, Eye, Check, X, BadgeCheck, ArrowRightLeft } from 'lucide-react';
-import AdvisorSidebar from '../../components/AdvisorSidebar';
-import UserProfileMenu from '../../components/UserProfileMenu';
-import NotificationBell from '../../components/NotificationBell';
-import DateTimeIndicator from '../../components/DateTimeIndicator';
 import StatusBadge from '../../components/StatusBadge';
 import StatCard from '../../components/StatCard';
 
 const AdvisorDashboardPage = () => {
   const navigate = useNavigate();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [advisorName, setAdvisorName] = useState('');
   const [advisorDepartment, setAdvisorDepartment] = useState('');
@@ -135,11 +130,6 @@ const AdvisorDashboardPage = () => {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
     }
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const departmentFilteredRequests = allRequests.filter((req) => {
     const dept = req.department || req.details?.student_info?.major || '';
@@ -349,29 +339,7 @@ const AdvisorDashboardPage = () => {
   const activeMenuIsEvaluated = activeMenuStatus === 'ประเมินเสร็จแล้ว';
 
   return (
-    <div className="admin-dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" style={{ width: 24, height: 24, display: "block" }}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg></button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <AdvisorSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/advisor-dashboard"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="admin-main">
         <header className="admin-header">
@@ -695,8 +663,10 @@ const AdvisorDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleRejectClose}>ยกเลิก</Button>
-          <Button variant="contained" color="error" onClick={handleRejectConfirm}>ยืนยันการปฏิเสธ</Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={handleRejectClose}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleRejectConfirm}>ยืนยันการปฏิเสธ</ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -725,18 +695,14 @@ const AdvisorDashboardPage = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setApproveModal(prev => ({ ...prev, open: false }))} disabled={approveModal.submitting}>
-            ยกเลิก
-          </Button>
-          <Button 
-            variant="contained" 
-            color="success" 
-            onClick={handleConfirmApprove} 
-            disabled={approveModal.submitting}
-            sx={{ fontWeight: 700, px: 3 }}
-          >
-            {approveModal.submitting ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติ'}
-          </Button>
+          <ModalActions className="!pt-0 !mt-0 !border-0 w-full">
+            <ModalCancelButton onClick={() => setApproveModal(prev => ({ ...prev, open: false }))} disabled={approveModal.submitting}>
+              ยกเลิก
+            </ModalCancelButton>
+            <ModalConfirmButton tone="approve" onClick={handleConfirmApprove} loading={approveModal.submitting}>
+              {approveModal.submitting ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติ'}
+            </ModalConfirmButton>
+          </ModalActions>
         </DialogActions>
       </Dialog>
 
@@ -846,7 +812,7 @@ const AdvisorDashboardPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 

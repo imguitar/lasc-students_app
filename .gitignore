@@ -1,4 +1,3 @@
-.env
 .env.production
 .DS_Store
 node_modules/
@@ -12,7 +11,6 @@ db/lascstudent.sql
 *_dev/
 
 # Environment variables (all variants)
-.env
 .env*.local
 .env.development
 .env.production
@@ -28,3 +26,8 @@ build/
 
 # Runtime user uploads (banners, signatures, attachments — live in disk/volumes)
 coop-backend/uploads/
+
+# ไฟล์ตั้งค่าลับ (ห้าม commit)
+.env
+.env.*
+!.env.example

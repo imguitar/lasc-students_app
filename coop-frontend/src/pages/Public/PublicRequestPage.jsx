@@ -1,3 +1,4 @@
+import { ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Typography, Chip, CircularProgress, Dialog, Alert } from '@mui/material';
@@ -680,23 +681,10 @@ const PublicRequestPage = () => {
           />
 
           <div className="mt-5 flex flex-col-reverse sm:flex-row items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setRejectDialog({ open: false, reason: '' })}
-              disabled={updating}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-transparent disabled:opacity-50"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              onClick={handleRejectConfirm}
-              disabled={updating}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(225,29,72,0.25)] transition cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#e11d48', color: '#ffffff' }}
-            >
+            <ModalCancelButton onClick={() => setRejectDialog({ open: false, reason: '' })} disabled={updating}>ยกเลิก</ModalCancelButton>
+            <ModalConfirmButton tone="danger" onClick={handleRejectConfirm} loading={updating}>
               {updating ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ'}
-            </button>
+            </ModalConfirmButton>
           </div>
         </div>
       </Dialog>

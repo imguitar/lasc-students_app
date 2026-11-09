@@ -200,19 +200,19 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
             ? `h-9 w-9 rounded-full transition cursor-pointer focus:outline-none flex items-center justify-center p-0 border-none outline-none ${
                 open ? 'ring-2 ring-violet-400 ring-offset-1' : 'hover:opacity-90'
               }`
-            : `flex items-center rounded-full bg-white p-0.5 sm:py-1 sm:pl-1 sm:pr-3.5 shadow-xs transition cursor-pointer focus:outline-none ${
-                open
-                  ? 'border-2 border-violet-300'
-                  : 'border border-slate-200 hover:border-slate-300'
+            : `flex items-center rounded-full bg-white p-0.5 sm:py-1 sm:pl-1 sm:pr-3.5 shadow-xs transition cursor-pointer focus:outline-none border ${
+                open ? 'border-violet-300' : 'border-slate-200 hover:border-slate-300'
               }`
         }
         style={
           compact
             ? { border: 'none', background: 'transparent', padding: 0 }
             : {
+                // ความหนาขอบคงที่ 1px เพื่อไม่ให้แคปซูลขยับตอนเปิด-ปิด — เน้นสถานะเปิดด้วยเงาวงแหวนแทน
                 borderColor: open ? '#c4b5fd' : '#e2e8f0',
-                borderWidth: open ? '2px' : '1px',
+                borderWidth: '1px',
                 borderStyle: 'solid',
+                boxShadow: open ? '0 0 0 1px #c4b5fd' : undefined,
               }
         }
       >
@@ -338,39 +338,33 @@ const UserProfileMenu = ({ user: propUser, compact = false } = {}) => {
 
       {/* Logout Confirmation Dialog (ธีมโมเดิร์นคลีน ม่วง-ขาว / Rose) — portal ไป body เพื่อไม่ให้ fixed ถูกยึดกับ header ที่มี backdrop-blur */}
       {isLogoutModalOpen && createPortal(
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[2000] flex items-center justify-center p-4"
-          onClick={handleCancelLogout}
-        >
+        <div className="logout-modal-backdrop" onClick={handleCancelLogout}>
           <div
-            className="bg-white rounded-[28px] p-6 max-w-sm w-full shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-slate-100 text-center flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-150"
+            className="logout-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100/80 flex items-center justify-center text-rose-500">
-              <LogOut className="w-6 h-6 stroke-[2]" />
+            <div className="logout-modal-accent" aria-hidden="true">
+              <span className="logout-modal-accent-purple" />
+              <span className="logout-modal-accent-gold" />
             </div>
 
-            <div>
-              <h3 className="text-base font-bold text-slate-800 m-0">ยืนยันการออกจากระบบ</h3>
-              <p className="text-xs text-slate-500 leading-relaxed max-w-[240px] mt-1.5 mb-0 mx-auto">
-                คุณต้องการออกจากระบบการฝึกประสบการณ์วิชาชีพใช่หรือไม่?
-              </p>
+            <div className="logout-modal-icon" aria-hidden="true">
+              <LogOut className="w-6 h-6" strokeWidth={2.2} />
             </div>
 
-            <div className="flex w-full gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={handleCancelLogout}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer bg-white outline-none"
-              >
+            <h3 id="logout-modal-title" className="logout-modal-title">ยืนยันการออกจากระบบ</h3>
+            <p className="logout-modal-desc">คุณต้องการออกจากระบบการฝึกประสบการณ์วิชาชีพใช่หรือไม่?</p>
+
+            <div className="logout-modal-actions">
+              <button type="button" onClick={handleCancelLogout} className="logout-btn-cancel">
                 ยกเลิก
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmLogout}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer border-none outline-none"
-              >
-                ออกจากระบบ
+              <button type="button" onClick={handleConfirmLogout} className="logout-btn-confirm">
+                <LogOut className="w-4 h-4" strokeWidth={2.2} />
+                <span>ออกจากระบบ</span>
               </button>
             </div>
           </div>

@@ -4,6 +4,9 @@
 
 - `01-schema.sql` สร้างฐานข้อมูลและโครงสร้างตารางทั้งหมด โดยไม่มีข้อมูลผู้ใช้
 - `02-reference-data.sql` เพิ่มเฉพาะคณะและสาขาวิชาที่ระบบต้องใช้
+- `03-seed-users.sql` บัญชีผู้ใช้จริง (admin, อาจารย์ AD001–AD065, นักศึกษา/ศิษย์เก่า) **สร้างอัตโนมัติ ห้ามแก้ด้วยมือ**
+  สร้างใหม่ด้วย `cd profile-backend && node scripts/generate-seed-users.js` (อ่านจาก `advisors.xlsx` และไฟล์ `นักศึกษา_*.xlsx`)
+  รหัสผ่านเริ่มต้นเท่ากับ username (admin ใช้ `password123`) รันซ้ำแล้วจะไม่เขียนทับรหัสผ่านที่ผู้ใช้เปลี่ยนไปแล้ว
 - `migrations/20260904-align-existing-schema.sql` ปรับฐานข้อมูล production เดิมให้มีคอลัมน์ที่ระบบปัจจุบันใช้
 - `migrations/20260916-add-department-head.sql` เพิ่ม `departments.department_head_id` สำหรับฟีเจอร์ประธานสาขาวิชา
 - `migrations/20260916-add-evaluator-email.sql` เพิ่ม `requests.evaluator_email` สำหรับส่งแบบประเมินให้สถานประกอบการ

@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import lascLogo from '../../assets/LASC-SSKRU-1.png';
 import {
   TextField,
   MenuItem,
@@ -24,14 +23,41 @@ import {
   Typography,
 } from '@mui/material';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users, CalendarDays } from 'lucide-react';
+import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users, CalendarDays, CheckCircle2, GraduationCap, ArrowRight, Send, Check, ChevronDown, Clock } from 'lucide-react';
 import api from '../../api/axios';
+
+// ขั้นตอนของฟอร์มคำร้อง (Wizard) — แต่ละขั้นแสดงเฉพาะหมวดของตัวเอง
+const WIZARD_STEPS = [
+  { key: 'student', label: 'ข้อมูลนักศึกษา' },
+  { key: 'company', label: 'สถานประกอบการ' },
+  { key: 'training', label: 'รายละเอียดการฝึก' },
+  { key: 'confirm', label: 'ตรวจสอบและยืนยัน' },
+];
+
+// ประเภทการฝึก — นักศึกษาต้องเลือกก่อนกรอกฟอร์ม (เก็บใน requests.details.internshipType)
+const INTERNSHIP_TYPES = [
+  {
+    value: 'internship',
+    title: 'การฝึกงานทั่วไป',
+    subtitle: 'Internship / Practicum',
+    description: 'ปฏิบัติงานช่วงปิดภาคเรียนฤดูร้อน (2–3 เดือน / 200–300 ชั่วโมง) เน้นเรียนรู้วิธีการทำงานและวัฒนธรรมองค์กรจริง ไม่มีข้อกำหนดทำโครงงานวิจัย',
+    badge: 'ฝึกงานทั่วไป',
+    badgeClass: 'bg-slate-100 text-slate-700 border border-slate-200',
+    Icon: Briefcase,
+  },
+  {
+    value: 'cwie',
+    comingSoon: true,
+    title: 'สหกิจศึกษา (CWIE)',
+    subtitle: 'Cooperative Education',
+    description: 'ปฏิบัติงานเต็มเวลาตลอด 1 ภาคเรียน (16 สัปดาห์ขึ้นไป) เสมือนพนักงานประจำจริง บังคับจัดทำโครงงาน (Project) นวัตกรรมหรือแก้ปัญหาให้องค์กร',
+    badge: 'สหกิจศึกษา',
+    badgeClass: 'bg-purple-900/10 text-purple-900 border border-amber-400/40',
+    Icon: GraduationCap,
+  },
+];
 import './NewRequestPage.css';
 import './Dashboard/DashboardPage.css'; // Import dashboard styles
-import StudentSidebar from '../../components/StudentSidebar';
-import UserProfileMenu from '../../components/UserProfileMenu';
-import NotificationBell from '../../components/NotificationBell';
-import DateTimeIndicator from '../../components/DateTimeIndicator';
 import ModernButton from '../../components/ModernButton';
 import StatusBadge from '../../components/StatusBadge';
 import { isStudentEditableStatus } from './Dashboard/MyRequestsPage';
@@ -123,12 +149,32 @@ const NewRequestPage = () => {
   ];
   const navigate = useNavigate();
   const { id } = useParams();
+  // ขั้นตอนหน้า: 'select' = เลือกประเภทการฝึกก่อน, 'form' = กรอกฟอร์ม (โหมดแก้ไขเข้าฟอร์มทันที)
+  const [step, setStep] = useState(id ? 'form' : 'select');
+  const [internshipType, setInternshipType] = useState(null);
+  // Wizard: ขั้นปัจจุบัน และขั้นสูงสุดที่ผ่านการตรวจแล้ว (ข้ามไปขั้นที่ยังไม่เคยผ่านไม่ได้)
+  const [wizardStep, setWizardStep] = useState(1);
+  const [maxStep, setMaxStep] = useState(1);
+  const formRef = useRef(null);
+  const goToStep = (n) => {
+    setWizardStep(n);
+    setMaxStep((m) => Math.max(m, n));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const goBack = () => {
+    setWizardStep((n) => Math.max(1, n - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  // ตรวจเฉพาะช่องที่แสดงอยู่ในขั้นปัจจุบันก่อนไปขั้นถัดไป
+  const goNext = () => {
+    if (formRef.current && !formRef.current.reportValidity()) return;
+    goToStep(Math.min(WIZARD_STEPS.length, wizardStep + 1));
+  };
   const [hasExistingRequest, setHasExistingRequest] = useState(false);
   const [existingActiveRequest, setExistingActiveRequest] = useState(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [existingStatus, setExistingStatus] = useState('');
   const _alertShown = useRef(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [useManualAddress, _setUseManualAddress] = useState(false);
   const [useManualCompanyAddress, _setUseManualCompanyAddress] = useState(false);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
@@ -166,6 +212,7 @@ const NewRequestPage = () => {
           const targetStudentId = studentInfo.studentId || reqData.studentId || '';
           const targetStudentYear = studentInfo.year || calculateStudentYear(targetStudentId) || '';
 
+          setInternshipType(details.internshipType || 'internship');
           setFormData(prev => ({
             ...prev,
             studentTitle: studentInfo.title || '',
@@ -258,11 +305,6 @@ const NewRequestPage = () => {
   }, [navigate, id]);
 
 
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/');
-  };
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -540,6 +582,7 @@ const NewRequestPage = () => {
         contactEmail: formData.supervisorEmail,
         contactPhone: formData.supervisorPhone,
         internshipTerm: formData.internshipTerm,
+        internshipType: internshipType || 'internship',
         description: formData.jobDescription,
         skills: formData.skills,
         studentPhoto: photoData ? { name: studentPhoto.name, dataUrl: photoData } : null
@@ -761,49 +804,24 @@ const NewRequestPage = () => {
   }, [companyPickerOpen]);
 
   return (
-    <div className="dashboard-container">
-      <div className="mobile-top-navbar flex h-16 w-full items-center justify-between px-4 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
-            <Menu className="w-5 h-5 text-slate-700" />
-          </button>
-          <Link to="/" className="mobile-top-logo flex items-center shrink-0" aria-label="LASC Home">
-            <img src={lascLogo} alt="LASC Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} />
-            <span className="hidden sm:inline text-base md:text-lg font-extrabold text-slate-900 tracking-tight whitespace-nowrap ml-2" style={{ fontFamily: '"Prompt", "Kanit", "Inter", sans-serif' }}>
-              ระบบฝึกประสบการณ์วิชาชีพ
-            </span>
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <DateTimeIndicator />
-          <NotificationBell />
-          <UserProfileMenu />
-        </div>
-      </div>
-      <StudentSidebar
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        currentPath="/dashboard/new-request"
-        handleLogout={handleLogout}
-      />
+    <>
 
       <main className="dashboard-main bg-slate-50/50 min-h-screen">
-        <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-          <div className="mb-6">
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-violet-600 mb-2.5 transition no-underline"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              กลับหน้าแดชบอร์ด
-            </Link>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <div className="w-full max-w-7xl mx-auto px-3.5 py-3 md:px-8 md:py-6">
+        <div className="unified-card w-full">
+          <header className="unified-card-head">
+            <div className="unified-card-title-wrap">
+              <span className="unified-card-icon"><FileCheck className="w-5 h-5" aria-hidden="true" /></span>
+              <div className="min-w-0">
+            <h1 className="unified-card-title">
               {id ? (isReadOnly ? 'รายละเอียดคำร้องฝึกงาน (โหมดอ่านอย่างเดียว)' : 'แก้ไขคำร้องฝึกงานวิชาชีพ') : 'ยื่นคำร้องฝึกงานวิชาชีพ'}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="unified-card-sub">
               {id ? (isReadOnly ? 'คำร้องนี้ได้รับการอนุมัติแล้ว อยู่ในโหมดอ่านอย่างเดียว' : 'แก้ไขข้อมูลและบันทึกการเปลี่ยนแปลงคำร้อง') : 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง'}
             </p>
-          </div>
+              </div>
+            </div>
+          </header>
 
           {/* Read Only Mode Banner */}
           {isReadOnly && (
@@ -942,9 +960,152 @@ const NewRequestPage = () => {
             </div>
           )}
           
-          <form onSubmit={handleSubmit} className="w-full rounded-[28px] bg-white p-6 sm:p-10 shadow-[0_10px_40px_rgba(124,58,237,0.05)] border border-violet-100/60 flex flex-col gap-8 request-form">
+          {step === 'select' && !hasExistingRequest ? (
+            <section className="type-select" aria-labelledby="type-select-title">
+              {/* แถบขั้นตอน */}
+              <div className="type-steps" aria-label="ขั้นตอนการยื่นคำร้อง">
+                <span className="type-step is-current"><span className="type-step-dot">1</span><span className="type-step-label">เลือกประเภท</span></span>
+                <span className="type-step-line" aria-hidden="true" />
+                <span className="type-step"><span className="type-step-dot">2</span><span className="type-step-label">กรอกข้อมูล</span></span>
+                <span className="type-step-line" aria-hidden="true" />
+                <span className="type-step"><span className="type-step-dot">3</span><span className="type-step-label">ส่งคำร้อง</span></span>
+              </div>
+
+              <div className="type-head">
+                <h2 id="type-select-title" className="type-title">เลือกประเภทการฝึก</h2>
+                <p className="type-sub">เลือกรูปแบบการฝึกก่อนกรอกคำร้อง ระบบจะจัดขั้นตอนและเอกสารให้ตรงกับประเภทที่เลือก</p>
+              </div>
+
+              <div className="type-grid" role="radiogroup" aria-label="ประเภทการฝึก">
+                {INTERNSHIP_TYPES.map((t) => {
+                  const selected = internshipType === t.value;
+                  const TypeIcon = t.Icon;
+                  if (t.comingSoon) {
+                    // สหกิจศึกษา: ยังเปิดใช้งานไม่ได้ — แสดงแบบจางและไม่รับการคลิก พร้อม tooltip เมื่อชี้เมาส์
+                    return (
+                      <span key={t.value} className="relative group block">
+                        <span className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 z-30">
+                          <span className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-xl">
+                            <Clock className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                            <span>จะเปิดใช้งานเร็วๆ นี้ อยู่ในช่วงพัฒนา</span>
+                          </span>
+                          <span className="mx-auto -mt-1 block h-2 w-2 rotate-45 border-b border-r border-slate-700 bg-slate-900" />
+                        </span>
+                        <span
+                          role="radio"
+                          aria-checked="false"
+                          aria-disabled="true"
+                          title="จะเปิดใช้งานเร็วๆ นี้ อยู่ในช่วงพัฒนา"
+                          className="type-card is-disabled opacity-60 cursor-not-allowed bg-slate-50/80 border-slate-200 select-none"
+                        >
+                          <span className="type-card-top">
+                            <span className="type-card-icon"><TypeIcon className="w-5 h-5" aria-hidden="true" /></span>
+                            <span className="type-radio !border-slate-300 !bg-slate-100" aria-hidden="true" />
+                          </span>
+                          <span className="type-badge bg-slate-100 text-slate-500 border border-slate-200">{t.badge}</span>
+                          <span className="type-card-title">{t.title}</span>
+                          <span className="type-card-en">{t.subtitle}</span>
+                          <span className="type-card-desc">{t.description}</span>
+                          <span className="type-card-foot text-slate-400">อยู่ระหว่างการพัฒนา</span>
+                        </span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setInternshipType(t.value)}
+                      className={`type-card ${selected ? 'is-selected' : ''}`}
+                    >
+                      <span className="type-card-top">
+                        <span className="type-card-icon"><TypeIcon className="w-5 h-5" aria-hidden="true" /></span>
+                        <span className={`type-radio ${selected ? 'is-on' : ''}`} aria-hidden="true">
+                          {selected && <CheckCircle2 className="w-4 h-4" />}
+                        </span>
+                      </span>
+                      <span className={`type-badge ${t.badgeClass}`}>{t.badge}</span>
+                      <span className="type-card-title">{t.title}</span>
+                      <span className="type-card-en">{t.subtitle}</span>
+                      <span className="type-card-desc">{t.description}</span>
+                      <span className="type-card-foot">
+                        {selected ? 'เลือกแล้ว' : 'แตะเพื่อเลือก'}
+                        <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="type-actions">
+                <p className="type-hint">
+                  {internshipType ? 'พร้อมดำเนินการต่อ' : 'กรุณาเลือกประเภทการฝึกก่อนดำเนินการต่อ'}
+                </p>
+                <button
+                  type="button"
+                  disabled={!internshipType || INTERNSHIP_TYPES.some((x) => x.value === internshipType && x.comingSoon)}
+                  onClick={() => { setStep('form'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="type-continue"
+                >
+                  ดำเนินการต่อ
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+            </section>
+          ) : (
+          <>
+          {/* ประเภทการฝึก: Dropdown เปลี่ยนค่าได้ทันที */}
+          {internshipType && (
+            <div className="w-full mb-6">
+              <label htmlFor="internshipTypeSelect" className="block text-xs font-bold text-slate-700 mb-1.5">
+                ประเภทการฝึกประสบการณ์วิชาชีพ
+              </label>
+              <div className="relative">
+                <select
+                  id="internshipTypeSelect"
+                  value={internshipType}
+                  onChange={(e) => setInternshipType(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full h-11 pl-4 pr-9 text-xs sm:text-sm font-medium text-slate-800 bg-[#F8FAFC] border border-slate-200/90 rounded-xl appearance-none focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-600/10 transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <option value="internship">การฝึกงานทั่วไป (300 ชม.)</option>
+                  <option value="cwie" disabled>สหกิจศึกษา CWIE (เร็วๆ นี้)</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400">
+                  <ChevronDown className="w-4 h-4 text-purple-700" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+          )}
+          <form ref={formRef} onSubmit={handleSubmit} className="w-full flex flex-col gap-8 request-form">
+            <nav className="wiz-steps" aria-label="ขั้นตอนการกรอกคำร้อง">
+              {WIZARD_STEPS.map((st, idx) => {
+                const n = idx + 1;
+                const state = n === wizardStep ? 'is-current' : n < wizardStep ? 'is-done' : 'is-todo';
+                return (
+                  <Fragment key={st.key}>
+                    {idx > 0 && <span className={`wiz-line ${n <= wizardStep ? 'is-done' : ''}`} aria-hidden="true" />}
+                    <button
+                      type="button"
+                      className={`wiz-step ${state}`}
+                      onClick={() => goToStep(n)}
+                      disabled={n > maxStep}
+                      aria-current={n === wizardStep ? 'step' : undefined}
+                    >
+                      <span className="wiz-dot">{n < wizardStep ? <Check className="w-4 h-4" aria-hidden="true" /> : n}</span>
+                      <span className="wiz-label">{st.label}</span>
+                    </button>
+                  </Fragment>
+                );
+              })}
+            </nav>
+            <div className="wiz-mobile-banner">ขั้นตอนที่ {wizardStep} จาก {WIZARD_STEPS.length}: {WIZARD_STEPS[wizardStep - 1].label}</div>
             <fieldset disabled={isReadOnly} style={{ border: 'none', padding: 0, margin: 0 }} className="flex flex-col gap-8 space-y-8">
               
+              {wizardStep === 1 && (
+                <>
               {/* Section 1: ข้อมูลส่วนตัวนักศึกษา */}
               <div className="flex flex-col gap-5">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
@@ -1033,7 +1194,7 @@ const NewRequestPage = () => {
                   {/* Home Address (ที่อยู่ตามบัตรประชาชน) */}
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-slate-700 mb-2 block">ที่อยู่ตามบัตรประชาชน</label>
-                    <div className="p-4 sm:p-6 rounded-2xl bg-slate-50/50 border border-slate-200/70 space-y-4">
+                    <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                         <TextField fullWidth size="small" type="text" id="homeHouse" name="homeHouse" value={formData.homeHouse} onChange={handleChange} placeholder="บ้านเลขที่" />
                         <TextField fullWidth size="small" type="text" id="homeMoo" name="homeMoo" value={formData.homeMoo} onChange={handleChange} placeholder="หมู่" />
@@ -1183,6 +1344,11 @@ const NewRequestPage = () => {
                 </div>
               </div>
 
+                </>
+              )}
+
+              {wizardStep === 2 && (
+                <>
               {/* Section 2: ข้อมูลสถานประกอบการ */}
               <div className="flex flex-col gap-5 pt-2">
                 <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-wrap">
@@ -1196,7 +1362,7 @@ const NewRequestPage = () => {
                     type="button"
                     onClick={handleOpenCompanyPicker}
                     disabled={hasExistingRequest}
-                    className="px-3.5 py-2 rounded-xl border border-violet-200 text-violet-600 bg-violet-50/60 hover:bg-violet-100 font-semibold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="rec-trigger px-3.5 py-2 rounded-xl font-semibold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <Search className="w-3.5 h-3.5" />
                     เลือกจากรายการแนะนำ
@@ -1285,7 +1451,7 @@ const NewRequestPage = () => {
                   {/* Company Address Fields */}
                   <div className="space-y-2">
                     <label htmlFor="companyAddress" className="text-xs font-semibold text-slate-700 mb-2 block">ที่อยู่สถานประกอบการ *</label>
-                    <div className="p-4 sm:p-6 rounded-2xl bg-slate-50/50 border border-slate-200/70 space-y-4">
+                    <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                         <TextField fullWidth size="small" type="text" id="companyHouse" name="companyHouse" value={formData.companyHouse} onChange={handleChange} placeholder="เลขที่ตั้ง / อาคาร" required />
                         <TextField fullWidth size="small" type="text" id="companyMoo" name="companyMoo" value={formData.companyMoo} onChange={handleChange} placeholder="หมู่" />
@@ -1512,6 +1678,11 @@ const NewRequestPage = () => {
                 </div>
               </div>
 
+                </>
+              )}
+
+              {wizardStep === 3 && (
+                <>
               {/* Section 4: รายละเอียดงานที่ฝึก */}
               <div className="flex flex-col gap-5 pt-2">
                 <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
@@ -1555,57 +1726,83 @@ const NewRequestPage = () => {
                   </div>
                 </div>
               </div>
+                </>
+              )}
+
+              {wizardStep === 4 && (
+                <div className="wiz-summary">
+                  <h2 className="text-base font-bold text-slate-800 m-0">ตรวจสอบข้อมูลก่อนส่งคำร้อง</h2>
+                  <p className="text-xs text-slate-500 mt-1 mb-4">หากต้องการแก้ไขข้อมูลส่วนใด ให้กดย้อนกลับไปยังขั้นตอนนั้น</p>
+                  <dl className="wiz-summary-grid">
+                    <div><dt>ชื่อ-นามสกุล</dt><dd>{formData.studentName || '-'}</dd></div>
+                    <div><dt>รหัสนักศึกษา</dt><dd>{formData.studentId || '-'}</dd></div>
+                    <div><dt>สถานประกอบการ</dt><dd>{formData.companyName || '-'}</dd></div>
+                    <div><dt>ตำแหน่งที่ได้รับมอบหมาย</dt><dd>{formData.position || '-'}</dd></div>
+                    <div><dt>ผู้ประสานงาน</dt><dd>{formData.supervisor || '-'}</dd></div>
+                    <div><dt>เบอร์โทรผู้ประสานงาน</dt><dd>{formData.supervisorPhone || '-'}</dd></div>
+                  </dl>
+                </div>
+              )}
+
             </fieldset>
 
-            {/* Bottom Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100">
-              <Link
-                to="/dashboard"
-                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs sm:text-sm transition flex items-center justify-center no-underline text-center cursor-pointer"
-              >
-                {isReadOnly ? 'กลับหน้าแดชบอร์ด' : 'ยกเลิก'}
-              </Link>
-              {isReadOnly ? (
-                <div className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs sm:text-sm flex items-center justify-center cursor-not-allowed">
-                  โหมดอ่านอย่างเดียว (อนุมัติแล้ว)
-                </div>
+            {/* Bottom Actions: ย้อนกลับ / ถัดไป / ยืนยันและส่งคำร้อง */}
+            <div className="wiz-actions">
+              {wizardStep === 1 ? (
+                <Link to="/dashboard" className="wiz-btn wiz-btn-secondary no-underline">
+                  {isReadOnly ? 'กลับหน้าแดชบอร์ด' : 'ยกเลิก'}
+                </Link>
               ) : (
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition flex items-center justify-center cursor-pointer border-none outline-none"
-                >
-                  {id ? 'บันทึกการแก้ไขคำร้อง' : 'ยื่นคำร้อง'}
+                <button type="button" onClick={goBack} className="wiz-btn wiz-btn-secondary">
+                  <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                  ย้อนกลับ
+                </button>
+              )}
+              {isReadOnly ? (
+                <div className="wiz-readonly">โหมดอ่านอย่างเดียว (อนุมัติแล้ว)</div>
+              ) : wizardStep < WIZARD_STEPS.length ? (
+                <button type="button" onClick={goNext} className="wiz-btn wiz-btn-primary">
+                  ถัดไป
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </button>
+              ) : (
+                <button type="submit" className="wiz-btn wiz-btn-success">
+                  <Send className="w-4 h-4" aria-hidden="true" />
+                  {id ? 'บันทึกการแก้ไขคำร้อง' : 'ยืนยันและส่งคำร้อง'}
                 </button>
               )}
             </div>
           </form>
+          </>
+          )}
+        </div>
         </div>
       </main>
 
       {companyPickerOpen && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          className="rec-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
           onClick={handleCloseCompanyPicker}
         >
           <div
-            className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-purple-50 overflow-hidden flex flex-col max-h-[85vh]"
+            className="rec-modal w-full max-w-xl overflow-hidden flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
+            <div className="rec-modal-head flex items-center justify-between gap-3 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+                <div className="rec-modal-icon w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 m-0">เลือกสถานประกอบการแนะนำ</h3>
-                  <p className="text-xs text-gray-500 mt-0.5 m-0">เลือกจากรายชื่อที่รุ่นพี่เคยฝึกงานเพื่อกรอกข้อมูลอัตโนมัติ</p>
+                  <h3 className="rec-modal-title text-lg font-bold m-0">เลือกสถานประกอบการแนะนำ</h3>
+                  <p className="rec-modal-sub text-xs mt-0.5 m-0">เลือกจากรายชื่อที่รุ่นพี่เคยฝึกงานเพื่อกรอกข้อมูลอัตโนมัติ</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={handleCloseCompanyPicker}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition cursor-pointer border-none bg-transparent"
+                className="rec-modal-close p-2 rounded-full transition cursor-pointer border-none"
                 aria-label="ปิดหน้าต่าง"
               >
                 <X className="w-5 h-5" />
@@ -1652,7 +1849,7 @@ const NewRequestPage = () => {
                       value={companySearch}
                       onChange={(e) => setCompanySearch(e.target.value)}
                       placeholder="ค้นหาบริษัท / ประเภทธุรกิจ / ผู้ติดต่อ..."
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-11 pr-4 py-2.5 text-sm text-gray-700 transition focus:border-purple-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-purple-500/10"
+                      className="rec-search w-full rounded-xl pl-11 pr-4 py-2.5 text-sm transition focus:outline-none"
                     />
                   </div>
 
@@ -1662,10 +1859,10 @@ const NewRequestPage = () => {
                       <div
                         key={`${company.name}-${idx}`}
                         onClick={() => applyRecommendedCompany(company)}
-                        className="p-4 rounded-2xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/30 transition cursor-pointer flex justify-between items-center group"
+                        className="rec-card p-4 rounded-2xl transition cursor-pointer flex justify-between items-center group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                          <div className="rec-card-icon w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all">
                             <Building2 className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
@@ -1755,11 +1952,11 @@ const NewRequestPage = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-gray-50/60 border-t border-gray-100 flex justify-end">
+            <div className="rec-modal-foot p-4 flex justify-end">
               <button
                 type="button"
                 onClick={handleCloseCompanyPicker}
-                className="px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200/60 rounded-xl transition cursor-pointer bg-transparent border border-gray-200"
+                className="rec-btn-close px-5 py-2 text-sm font-semibold rounded-xl transition cursor-pointer"
               >
                 ปิดหน้าต่าง
               </button>
@@ -1768,7 +1965,7 @@ const NewRequestPage = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };
 

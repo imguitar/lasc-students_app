@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { getHolidaySet } = require('./holidayRoutes');
+const { computeEndDate, isValidYMD, DEFAULT_REQUIRED_HOURS } = require('../utils/workingDays');
 
 // ==================== Schema (idempotent — ตรงกับ db/migrations/20261004-add-internship-rounds.sql) ====================
 // รอบปฏิทินฝึกงานกลางต่อภาคการศึกษา — แอดมินประกาศครั้งเดียว ระบบเติมวันให้คำร้องทั้งเทอม
@@ -21,8 +23,39 @@ const ensureTable = async () => {
     KEY internship_rounds_is_active_idx (isActive),
     KEY internship_rounds_semester_idx (semester)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`).catch(() => {});
+  // ชั่วโมงฝึกที่หลักสูตรกำหนดต่อรอบ (ใช้คำนวณวันสิ้นสุดอัตโนมัติ วันละ 8 ชม.)
+  const [cols] = await pool.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'internship_rounds' AND COLUMN_NAME = 'requiredHours'"
+  ).catch(() => [[{ COLUMN_NAME: 'requiredHours' }]]);
+  if (!cols.length) {
+    await pool.query(
+      `ALTER TABLE internship_rounds ADD COLUMN requiredHours INT NOT NULL DEFAULT ${DEFAULT_REQUIRED_HOURS} COMMENT 'ชั่วโมงฝึกตามหลักสูตร — วันสิ้นสุดคำนวณจากวันเริ่ม + วันทำการ (จ.-ศ. ไม่รวมวันหยุด)' AFTER endDate`
+    ).catch(() => {});
+  }
 };
 ensureTable();
+
+// วันสิ้นสุดฝึกงานจากวันเริ่ม + ชั่วโมงตามหลักสูตร (นับเฉพาะ จ.-ศ. และข้ามวันหยุดในตาราง public_holidays)
+const calcRoundEndDate = async (startDate, requiredHours) => {
+  const holidays = await getHolidaySet();
+  return computeEndDate(String(startDate).slice(0, 10), requiredHours, holidays);
+};
+const normalizeHours = (h) => {
+  const n = Math.round(Number(h));
+  return Number.isFinite(n) && n > 0 && n <= 5000 ? n : DEFAULT_REQUIRED_HOURS;
+};
+
+// GET /api/internship-rounds/preview-end-date?start=YYYY-MM-DD&hours=300 — ตรวจผลคำนวณวันสิ้นสุด (ไม่บันทึก)
+router.get('/internship-rounds/preview-end-date', async (req, res) => {
+  try {
+    const start = String(req.query.start || '').slice(0, 10);
+    if (!isValidYMD(start)) return res.status(400).json({ success: false, message: 'รูปแบบวันเริ่มไม่ถูกต้อง' });
+    const result = await calcRoundEndDate(start, normalizeHours(req.query.hours));
+    res.json({ success: true, data: { startDate: start, requiredHours: normalizeHours(req.query.hours), ...result } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // semester '1'/'2' ↔ details.internshipTerm — คำร้องเก็บได้หลายรูปแบบ
 // (ฟอร์มนักศึกษา: 'term1'/'term2', schedule modal แอดมิน: 'ภาคการศึกษาที่ 1'/'ภาคการศึกษาที่ 2')
@@ -72,18 +105,18 @@ router.get('/internship-rounds/active', async (req, res) => {
 // POST /api/admin/internship-rounds — สร้างรอบใหม่
 router.post('/admin/internship-rounds', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const { title, academicYear, semester, startDate, endDate, note, isActive } = req.body;
-    if (!title || !startDate || !endDate) {
-      return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อรอบ วันที่เริ่มต้น และวันที่สิ้นสุด' });
+    const { title, academicYear, semester, startDate, note, isActive } = req.body;
+    if (!title || !isValidYMD(startDate)) {
+      return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อรอบและวันเริ่มฝึกงาน' });
     }
-    if (new Date(endDate) < new Date(startDate)) {
-      return res.status(400).json({ success: false, message: 'วันที่สิ้นสุดต้องไม่มาก่อนวันที่เริ่มต้น' });
-    }
+    const requiredHours = normalizeHours(req.body.requiredHours);
+    const calc = await calcRoundEndDate(startDate, requiredHours);
+    if (!calc) return res.status(400).json({ success: false, message: 'คำนวณวันสิ้นสุดฝึกงานไม่ได้' });
 
     const [result] = await pool.query(
-      `INSERT INTO internship_rounds (title, academicYear, semester, startDate, endDate, note, isActive)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [title, academicYear || null, semester || null, startDate, endDate, note || null, isActive === undefined ? 1 : (isActive ? 1 : 0)]
+      `INSERT INTO internship_rounds (title, academicYear, semester, startDate, endDate, requiredHours, note, isActive)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, academicYear || null, semester || null, startDate, calc.endDate, requiredHours, note || null, isActive === undefined ? 1 : (isActive ? 1 : 0)]
     );
 
     const [newRow] = await pool.query('SELECT * FROM internship_rounds WHERE id = ?', [result.insertId]);
@@ -96,14 +129,24 @@ router.post('/admin/internship-rounds', authenticate, authorize('admin'), async 
 // PUT /api/admin/internship-rounds/:id — แก้ไขรอบ
 router.put('/admin/internship-rounds/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
-    const { title, academicYear, semester, startDate, endDate, note, isActive } = req.body;
+    const { title, academicYear, semester, startDate, note, isActive } = req.body;
     const [existing] = await pool.query('SELECT * FROM internship_rounds WHERE id = ?', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ success: false, message: 'ไม่พบรอบฝึกงาน' });
+    if (startDate !== undefined && !isValidYMD(startDate)) {
+      return res.status(400).json({ success: false, message: 'รูปแบบวันเริ่มฝึกงานไม่ถูกต้อง' });
+    }
 
-    const nextStart = startDate !== undefined ? startDate : existing[0].startDate;
-    const nextEnd = endDate !== undefined ? endDate : existing[0].endDate;
-    if (new Date(nextEnd) < new Date(nextStart)) {
-      return res.status(400).json({ success: false, message: 'วันที่สิ้นสุดต้องไม่มาก่อนวันที่เริ่มต้น' });
+    // วันสิ้นสุดคำนวณใหม่ทุกครั้งที่แก้วันเริ่มหรือจำนวนชั่วโมง (ไม่รับค่าวันสิ้นสุดจากผู้ใช้)
+    let endDate;
+    let requiredHours;
+    if (startDate !== undefined || req.body.requiredHours !== undefined) {
+      const nextStart = startDate !== undefined
+        ? startDate
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date(existing[0].startDate));
+      requiredHours = normalizeHours(req.body.requiredHours !== undefined ? req.body.requiredHours : existing[0].requiredHours);
+      const calc = await calcRoundEndDate(nextStart, requiredHours);
+      if (!calc) return res.status(400).json({ success: false, message: 'คำนวณวันสิ้นสุดฝึกงานไม่ได้' });
+      endDate = calc.endDate;
     }
 
     const updates = [];
@@ -113,6 +156,7 @@ router.put('/admin/internship-rounds/:id', authenticate, authorize('admin'), asy
     if (semester !== undefined) { updates.push('semester = ?'); params.push(semester || null); }
     if (startDate !== undefined) { updates.push('startDate = ?'); params.push(startDate); }
     if (endDate !== undefined) { updates.push('endDate = ?'); params.push(endDate); }
+    if (requiredHours !== undefined) { updates.push('requiredHours = ?'); params.push(requiredHours); }
     if (note !== undefined) { updates.push('note = ?'); params.push(note || null); }
     if (isActive !== undefined) { updates.push('isActive = ?'); params.push(isActive ? 1 : 0); }
 

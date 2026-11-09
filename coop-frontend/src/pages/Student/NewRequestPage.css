@@ -5,10 +5,9 @@
 }
 
 .request-form {
-  background: #ffffff;
-  border-radius: 28px;
-  border: 1px solid rgba(237, 233, 254, 0.6);
-  box-shadow: 0 10px 40px rgba(124, 58, 237, 0.05);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   width: 100%;
   max-width: 100%;
 }
@@ -120,3 +119,49 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* ช่องเลือกจังหวัด/อำเภอ (Autocomplete) ให้สูงและระยะข้อความเท่ากับช่องกรอกข้อความอื่นในฟอร์ม */
+.request-form .MuiAutocomplete-root .MuiOutlinedInput-root {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 8px 0 0 !important;
+}
+@media (max-width: 639px) {
+  .request-form .MuiAutocomplete-root .MuiOutlinedInput-root { height: 46px; min-height: 44px; }
+}
+.request-form .MuiAutocomplete-root .MuiAutocomplete-input {
+  padding: 12px 8px 12px 16px !important;
+  font-size: 0.875rem;
+  color: #0f172a;
+  height: auto;
+  min-width: 0;
+}
+.request-form .MuiAutocomplete-popupIndicator,
+.request-form .MuiAutocomplete-clearIndicator {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  margin-right: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #64748b;
+}
+
+/* ซ่อนกรอบ notch ของ Autocomplete (สูงเกินช่อง 5px) ให้ตรงกับช่องกรอกข้อความอื่นที่ไม่มีกรอบ */
+.request-form .MuiAutocomplete-root .MuiOutlinedInput-notchedOutline {
+  display: none;
+}
+
+/* สหกิจศึกษา (CWIE) ยังปิดใช้งาน: ไม่มีเอฟเฟกต์ hover/selected และไม่ยกการ์ดขึ้น */
+.type-card.is-disabled,
+.type-card.is-disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: #e2e8f0 !important;
+  transition: none !important;
+}
+.type-card.is-disabled .type-card-title,
+.type-card.is-disabled .type-card-desc { color: #94a3b8; }
+
+.type-card.is-disabled { cursor: not-allowed !important; }
