@@ -577,7 +577,7 @@ const ChatBoard = () => {
   );
 
   return (
-    <div className="h-[calc(100vh-5.5rem)] flex flex-col bg-slate-100 rounded-2xl overflow-hidden border border-slate-200/80 shadow-md">
+    <div className="h-full sm:h-[calc(100vh-5.5rem)] md:h-full flex-1 flex flex-col bg-slate-100 rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-200/80 shadow-none sm:shadow-md">
       <div className="flex-1 flex overflow-hidden relative">
 
         {/* ============================================================== */}
@@ -708,51 +708,51 @@ const ChatBoard = () => {
               {/* ---------------------------------------------------- */}
               {/* CHAT HEADER                                          */}
               {/* ---------------------------------------------------- */}
-              <div className="h-16 px-4 bg-white border-b border-slate-200/80 flex items-center justify-between shadow-xs z-10 shrink-0">
-                <div className="flex items-center gap-3 min-w-0">
+              <div className="h-14 sm:h-16 px-3 sm:px-4 bg-white border-b border-slate-200/80 flex items-center justify-between shadow-xs z-10 shrink-0 gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   {/* Mobile Back Button */}
                   <button
                     onClick={() => setMobileView('list')}
-                    className="md:hidden p-1.5 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                    className="md:hidden p-1.5 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition shrink-0"
                     title="กลับไปยังรายการห้อง"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
 
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm shadow-indigo-100">
-                    <Building2 className="w-5 h-5" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm shadow-indigo-100">
+                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
 
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-800 truncate flex items-center gap-2">
-                      <span>{formatRoomTitle(activeRoom)}</span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xs sm:text-sm font-bold text-slate-800 truncate" title={formatRoomTitle(activeRoom)}>
+                      {formatRoomTitle(activeRoom)}
                     </h2>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-1 font-medium">
-                        <Users className="w-3.5 h-3.5 text-indigo-500" />
-                        สมาชิก {activeRoom.member_count || 0} คน
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-slate-500 whitespace-nowrap overflow-hidden mt-0.5">
+                      <span className="flex items-center gap-1 font-medium shrink-0">
+                        <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-500" />
+                        <span>สมาชิก {activeRoom.member_count || 0} คน</span>
                       </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        ออนไลน์ในสาขา
+                      <span className="text-slate-300">•</span>
+                      <span className="flex items-center gap-1 text-emerald-600 font-medium shrink-0">
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>ออนไลน์ในสาขา</span>
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Right Header Controls */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1 shrink-0">
                   {/* Search in chat toggle */}
                   <div className="relative">
                     {isSearchOpen ? (
                       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
                         <input
                           type="text"
-                          placeholder="ค้นหาข้อความ..."
+                          placeholder="ค้นหา..."
                           value={messageSearch}
                           onChange={(e) => setMessageSearch(e.target.value)}
-                          className="px-2 py-1 text-xs bg-transparent focus:outline-none w-32 sm:w-48"
+                          className="px-2 py-0.5 sm:py-1 text-xs bg-transparent focus:outline-none w-24 sm:w-48"
                           autoFocus
                         />
                         <button
@@ -768,7 +768,7 @@ const ChatBoard = () => {
                     ) : (
                       <button
                         onClick={() => setIsSearchOpen(true)}
-                        className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
+                        className="p-1.5 sm:p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
                         title="ค้นหาข้อความในห้องนี้"
                       >
                         <Search className="w-4 h-4" />
@@ -1247,7 +1247,7 @@ const ChatBoard = () => {
                 )}
 
                 {/* Main Input Form */}
-                <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                <form onSubmit={handleSendMessage} className="flex items-end gap-1.5 sm:gap-2">
                   {/* File Upload Hidden Input */}
                   <input
                     type="file"
@@ -1262,24 +1262,24 @@ const ChatBoard = () => {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingFile}
-                    className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition shrink-0"
+                    className="p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition shrink-0"
                     title="แนบรูปภาพหรือไฟล์ (สูงสุด 20MB)"
                   >
-                    <Paperclip className="w-5 h-5" />
+                    <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
 
                   {/* Emoji Picker Toggle */}
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-2.5 text-slate-500 hover:text-amber-500 hover:bg-slate-100 rounded-xl transition shrink-0"
+                    className="p-2 sm:p-2.5 text-slate-500 hover:text-amber-500 hover:bg-slate-100 rounded-xl transition shrink-0"
                     title="เลือก Emoji"
                   >
-                    <Smile className="w-5 h-5" />
+                    <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
 
                   {/* Text Input / Textarea */}
-                  <div className="flex-1 relative">
+                  <div className="flex-1 min-w-0 relative">
                     <textarea
                       rows={1}
                       value={inputText}
@@ -1288,9 +1288,9 @@ const ChatBoard = () => {
                       placeholder={
                         editingMessage
                           ? 'แก้ไขข้อความ...'
-                          : 'พิมพ์ข้อความในสาขาวิชา... (Enter เพื่อส่ง)'
+                          : 'พิมพ์ข้อความ...'
                       }
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white resize-none transition max-h-32"
+                      className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white resize-none transition max-h-32"
                     />
                   </div>
 
@@ -1298,7 +1298,7 @@ const ChatBoard = () => {
                   <button
                     type="submit"
                     disabled={(!inputText.trim() && !selectedFile) || uploadingFile}
-                    className={`p-2.5 rounded-xl font-bold flex items-center justify-center transition shrink-0 shadow-sm ${
+                    className={`p-2 sm:p-2.5 rounded-xl font-bold flex items-center justify-center transition shrink-0 shadow-sm ${
                       (inputText.trim() || selectedFile) && !uploadingFile
                         ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-indigo-200 hover:shadow-md'
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -1306,9 +1306,9 @@ const ChatBoard = () => {
                     title="ส่งข้อความ"
                   >
                     {uploadingFile ? (
-                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                     ) : (
-                      <Send className="w-5 h-5" />
+                      <Send className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </button>
                 </form>

@@ -51,16 +51,16 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ป้องกัน Privilege Escalation: การสมัครสมาชิกทั่วไปไม่อนุญาตให้กำหนดสิทธิ์เป็น admin หรือ advisor เองผ่าน Request
+    const safeRole = role === 'alumni' ? 'alumni' : 'student';
+
     // Create new user
     const user = await prisma.user.create({
       data: {
         username,
         email,
         password: hashedPassword,
-        role: role || 'student',
-        firstName,
-        lastName,
-        phone
+        role: safeRole
       }
     });
 

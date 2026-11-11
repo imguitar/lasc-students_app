@@ -188,6 +188,7 @@ model Project {
   advisor_profile_id    String?       @db.VarChar(13)
   year                  Int
   document_url          String?       @db.VarChar(500)
+  image_url             String?       @db.VarChar(500)
   status                ProjectStatus @default(draft)
   type                  ProjectType   @default(individual)
   has_award             Boolean       @default(false)
@@ -676,3 +677,25 @@ model Notification {
   @@index([user_id, is_read], map: "notifications_user_unread_idx")
   @@map("notifications")
 }
+
+model UserAuditLog {
+  id              Int      @id @default(autoincrement())
+  action          String   @db.VarChar(50)
+  actor_id        Int?
+  actor_username  String   @db.VarChar(191)
+  actor_name      String?  @db.VarChar(255)
+  target_user_id  Int?
+  target_username String   @db.VarChar(191)
+  target_name     String?  @db.VarChar(255)
+  details         Json?
+  ip_address      String?  @db.VarChar(64)
+  created_at      DateTime @default(now())
+
+  @@index([action], map: "idx_user_audit_logs_action")
+  @@index([actor_id], map: "idx_user_audit_logs_actor_id")
+  @@index([target_user_id], map: "idx_user_audit_logs_target_user_id")
+  @@index([target_username], map: "idx_user_audit_logs_target_username")
+  @@index([created_at], map: "idx_user_audit_logs_created_at")
+  @@map("user_audit_logs")
+}
+

@@ -146,7 +146,8 @@ const Profile = () => {
     description: '',
     technologies: '',
     github_url: '',
-    demo_url: ''
+    demo_url: '',
+    image_url: ''
   });
 
   const [editProjectForm, setEditProjectForm] = useState({
@@ -158,8 +159,18 @@ const Profile = () => {
     description: '',
     technologies: '',
     github_url: '',
-    demo_url: ''
+    demo_url: '',
+    image_url: ''
   });
+
+  // Project Image upload states
+  const [addProjectImageFile, setAddProjectImageFile] = useState(null);
+  const [addProjectImagePreview, setAddProjectImagePreview] = useState(null);
+  const [editProjectImageFile, setEditProjectImageFile] = useState(null);
+  const [editProjectImagePreview, setEditProjectImagePreview] = useState(null);
+  const [isProjectImageUploading, setIsProjectImageUploading] = useState(false);
+  const addProjectFileInputRef = useRef(null);
+  const editProjectFileInputRef = useRef(null);
 
   const [thesisForm, setThesisForm] = useState({
     title_th: '',
@@ -596,6 +607,7 @@ const Profile = () => {
   // Add Semester Project
   const handleAddProject = async (e) => {
     e.preventDefault();
+    setIsProjectImageUploading(true);
     try {
       const techArray = typeof projectForm.technologies === 'string'
         ? projectForm.technologies.split(',').map(t => t.trim()).filter(Boolean)
@@ -610,11 +622,28 @@ const Profile = () => {
 
       const res = await studentService.createProject(studentIdentifier, payload);
       if (res.success) {
+        const newProjectId = res.data?.id;
+        // Upload image if student selected an image file
+        if (newProjectId && addProjectImageFile) {
+          try {
+            const uploadRes = await uploadService.uploadProjectFile(newProjectId, addProjectImageFile);
+            if (uploadRes.success && uploadRes.data?.file_path) {
+              await studentService.updateProject(studentIdentifier, newProjectId, {
+                image_url: uploadRes.data.file_path
+              });
+            }
+          } catch (uploadErr) {
+            console.error('Image upload error for project:', uploadErr);
+          }
+        }
+
         toast({
           title: "บันทึกผลงานสำเร็จ",
           description: "เพิ่มผลงานโครงการระหว่างภาคเรียนเข้าสู่พอร์ตโฟลิโอแล้ว"
         });
         setIsAddProjectOpen(false);
+        setAddProjectImageFile(null);
+        setAddProjectImagePreview(null);
         setProjectForm({
           title: '',
           course_name: '',
@@ -624,7 +653,8 @@ const Profile = () => {
           description: '',
           technologies: '',
           github_url: '',
-          demo_url: ''
+          demo_url: '',
+          image_url: ''
         });
         fetchFullStudentData();
       }
@@ -634,6 +664,8 @@ const Profile = () => {
         title: "ไม่สามารถบันทึกผลงานได้",
         description: error.response?.data?.message || error.message
       });
+    } finally {
+      setIsProjectImageUploading(false);
     }
   };
 
@@ -679,8 +711,16 @@ const Profile = () => {
       description: project.description || '',
       technologies: techStr,
       github_url: project.github_url || '',
-      demo_url: project.demo_url || ''
+      demo_url: project.demo_url || '',
+      image_url: project.image_url || ''
     });
+
+    const firstImageFile = project.files?.find(f => f.file_type?.startsWith('image/'));
+    const initialCover = project.image_url 
+      ? getFileUrl(project.image_url) 
+      : (firstImageFile ? getFileUrl(firstImageFile.file_path) : null);
+    setEditProjectImageFile(null);
+    setEditProjectImagePreview(initialCover);
     setIsEditProjectOpen(true);
   };
 
@@ -688,6 +728,7 @@ const Profile = () => {
   const handleUpdateProject = async (e) => {
     e.preventDefault();
     if (!editingProject) return;
+    setIsProjectImageUploading(true);
     try {
       const techArray = typeof editProjectForm.technologies === 'string'
         ? editProjectForm.technologies.split(',').map(t => t.trim()).filter(Boolean)
@@ -697,17 +738,34 @@ const Profile = () => {
         ...editProjectForm,
         technologies: techArray,
         academic_year: parseInt(editProjectForm.academic_year),
-        semester: parseInt(editProjectForm.semester)
+        semester: parseInt(editProjectForm.semester),
+        image_url: !editProjectImagePreview ? null : (editProjectForm.image_url || undefined)
       };
 
       const res = await studentService.updateProject(studentIdentifier, editingProject.id, payload);
       if (res.success) {
+        // Upload replacement image if student selected one
+        if (editProjectImageFile) {
+          try {
+            const uploadRes = await uploadService.uploadProjectFile(editingProject.id, editProjectImageFile);
+            if (uploadRes.success && uploadRes.data?.file_path) {
+              await studentService.updateProject(studentIdentifier, editingProject.id, {
+                image_url: uploadRes.data.file_path
+              });
+            }
+          } catch (uploadErr) {
+            console.error('Image upload error on update:', uploadErr);
+          }
+        }
+
         toast({
           title: "แก้ไขผลงานสำเร็จ",
           description: "ปรับปรุงข้อมูลผลงานโครงการเรียบร้อยแล้ว"
         });
         setIsEditProjectOpen(false);
         setEditingProject(null);
+        setEditProjectImageFile(null);
+        setEditProjectImagePreview(null);
         fetchFullStudentData();
       }
     } catch (error) {
@@ -716,6 +774,8 @@ const Profile = () => {
         title: "ไม่สามารถแก้ไขผลงานได้",
         description: error.response?.data?.message || error.message
       });
+    } finally {
+      setIsProjectImageUploading(false);
     }
   };
 
@@ -1605,6 +1665,23 @@ const Profile = () => {
               {studentProjectsList.map((p) => (
                 <div key={p.id} className="bg-white border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4">
                   <div className="space-y-3">
+                    {/* Optional banner image */}
+                    {(() => {
+                      const firstImg = p.files?.find(f => f.file_type?.startsWith('image/'));
+                      const bannerImg = p.image_url || (firstImg ? firstImg.file_path : null);
+                      if (!bannerImg) return null;
+                      return (
+                        <div className="w-full h-36 rounded-xl overflow-hidden bg-purple-50 border border-purple-100/50 mb-3">
+                          <img
+                            src={getFileUrl(bannerImg)}
+                            alt={p.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        </div>
+                      );
+                    })()}
+
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-0.5 rounded-lg">
                         ภาคเรียนที่ {p.semester}/{p.academic_year}
@@ -2542,6 +2619,75 @@ const Profile = () => {
               </div>
             </div>
 
+            {/* Image Upload for Project (Placed at bottom) */}
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs text-gray-700 font-semibold flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                รูปภาพผลงาน / ภาพหน้าปกโครงการ (Cover Image)
+              </Label>
+              {addProjectImagePreview ? (
+                <div className="relative rounded-xl overflow-hidden border border-purple-200 bg-purple-50/50 group h-40">
+                  <img
+                    src={addProjectImagePreview}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => addProjectFileInputRef.current?.click()}
+                      className="bg-white/95 hover:bg-white text-gray-800 text-xs rounded-lg h-8 shadow"
+                    >
+                      เปลี่ยนรูปภาพ
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setAddProjectImageFile(null);
+                        setAddProjectImagePreview(null);
+                      }}
+                      className="rounded-lg h-8 text-xs shadow"
+                    >
+                      ลบรูปภาพ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => addProjectFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/30 hover:bg-purple-50/60 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors text-center"
+                >
+                  <UploadCloud className="w-8 h-8 text-purple-500 mb-1" />
+                  <p className="text-xs font-semibold text-purple-950">คลิกเพื่ออัปโหลดรูปภาพผลงาน</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 10 MB (แนะนำอัตราส่วน 16:9)</p>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={addProjectFileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('image/')) {
+                    toast({ variant: 'destructive', title: 'ประเภทไฟล์ไม่ถูกต้อง', description: 'กรุณาเลือกไฟล์รูปภาพ' });
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ variant: 'destructive', title: 'ไฟล์ใหญ่เกินไป', description: 'ขนาดรูปภาพต้องไม่เกิน 10 MB' });
+                    return;
+                  }
+                  setAddProjectImageFile(file);
+                  setAddProjectImagePreview(URL.createObjectURL(file));
+                }}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+              />
+            </div>
+
             <DialogFooter className="pt-3">
               <Button type="button" variant="ghost" onClick={() => setIsAddProjectOpen(false)} className="text-xs rounded-xl h-9">
                 ยกเลิก
@@ -2664,6 +2810,76 @@ const Profile = () => {
                   className="rounded-xl border-purple-100 text-xs h-9"
                 />
               </div>
+            </div>
+
+            {/* Image Upload for Edit Project (Placed at bottom) */}
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs text-gray-700 font-semibold flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                รูปภาพผลงาน / ภาพหน้าปกโครงการ (Cover Image)
+              </Label>
+              {editProjectImagePreview ? (
+                <div className="relative rounded-xl overflow-hidden border border-purple-200 bg-purple-50/50 group h-40">
+                  <img
+                    src={editProjectImagePreview}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => editProjectFileInputRef.current?.click()}
+                      className="bg-white/95 hover:bg-white text-gray-800 text-xs rounded-lg h-8 shadow"
+                    >
+                      เปลี่ยนรูปภาพ
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setEditProjectImageFile(null);
+                        setEditProjectImagePreview(null);
+                        setEditProjectForm(prev => ({ ...prev, image_url: '' }));
+                      }}
+                      className="rounded-lg h-8 text-xs shadow"
+                    >
+                      ลบรูปภาพ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => editProjectFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/30 hover:bg-purple-50/60 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors text-center"
+                >
+                  <UploadCloud className="w-8 h-8 text-purple-500 mb-1" />
+                  <p className="text-xs font-semibold text-purple-950">คลิกเพื่ออัปโหลดรูปภาพผลงาน</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 10 MB (แนะนำอัตราส่วน 16:9)</p>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={editProjectFileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('image/')) {
+                    toast({ variant: 'destructive', title: 'ประเภทไฟล์ไม่ถูกต้อง', description: 'กรุณาเลือกไฟล์รูปภาพ' });
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ variant: 'destructive', title: 'ไฟล์ใหญ่เกินไป', description: 'ขนาดรูปภาพต้องไม่เกิน 10 MB' });
+                    return;
+                  }
+                  setEditProjectImageFile(file);
+                  setEditProjectImagePreview(URL.createObjectURL(file));
+                }}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+              />
             </div>
 
             <DialogFooter className="pt-3">

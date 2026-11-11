@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 import NotificationDropdown from './NotificationDropdown';
 
-const NotificationBell = () => {
+const NotificationBell = ({ dark = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
   const { unreadCount } = useNotification();
@@ -50,9 +50,9 @@ const NotificationBell = () => {
       <button
         onClick={toggleDropdown}
         className={`relative p-2 rounded-xl transition-all duration-200 cursor-pointer ${
-          isOpen
-            ? 'bg-purple-100 text-purple-700 shadow-sm'
-            : 'text-purple-950 hover:text-purple-700 hover:bg-purple-100/50'
+          dark
+            ? (isOpen ? 'bg-white/20 text-white shadow-sm' : 'text-white/90 hover:text-white hover:bg-white/15')
+            : (isOpen ? 'bg-purple-100 text-purple-700 shadow-sm' : 'text-purple-950 hover:text-purple-700 hover:bg-purple-100/50')
         }`}
         title="การแจ้งเตือน"
         aria-label="การแจ้งเตือน"

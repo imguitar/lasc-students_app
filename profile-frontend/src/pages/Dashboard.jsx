@@ -15,7 +15,6 @@ import {
 } from '../components/ui/dialog';
 import { Link } from 'react-router-dom';
 import MonthlyNewsSection from '../components/MonthlyNewsSection';
-import DashboardFooter from '../components/DashboardFooter';
 
 
 
@@ -1242,9 +1241,6 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
-
-      {/* ข้อมูลติดต่อคณะและลิงก์ด่วน (Dashboard Footer) */}
-      <DashboardFooter />
 
       {/* Requirement 6: Read-Only Project Details Dialog for Dashboard */}
       <Dialog open={isProjectDetailModalOpen} onOpenChange={setIsProjectDetailModalOpen}>

@@ -69,7 +69,7 @@ exports.getAllAlumni = async (req, res) => {
         },
         addresses: true
       },
-      orderBy: { profile_id: 'desc' }
+      orderBy: { profile_id: 'asc' }
     });
 
     const profiles = allProfiles.filter(p => {

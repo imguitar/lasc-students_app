@@ -139,7 +139,9 @@ const Students = () => {
       if (search) params.search = search;
       const response = await studentService.getAll(params);
       if (response.success) {
-        let fetchedStudents = response.data;
+        let fetchedStudents = [...(response.data || [])].sort((a, b) =>
+          String(a.student_id || '').localeCompare(String(b.student_id || ''), undefined, { numeric: true })
+        );
 
         // If user is student, sort user's own profile to the very top
         if (user && user.role === 'student') {
@@ -150,7 +152,8 @@ const Students = () => {
           fetchedStudents = [...fetchedStudents].sort((a, b) => {
             const aMine = checkIsMyProfile(a) ? 1 : 0;
             const bMine = checkIsMyProfile(b) ? 1 : 0;
-            return bMine - aMine; // 1 comes before 0
+            if (bMine !== aMine) return bMine - aMine; // 1 comes before 0
+            return String(a.student_id || '').localeCompare(String(b.student_id || ''), undefined, { numeric: true });
           });
         }
 
@@ -1318,7 +1321,7 @@ const Students = () => {
                         <th className="py-3 px-6 hidden md:table-cell">คณะ / สาขาวิชา</th>
                         <th className="py-3 px-3 sm:px-6 text-center hidden sm:table-cell">ชั้นปี</th>
                         <th className="py-3 px-6 hidden lg:table-cell">ช่องทางติดต่อ</th>
-                        <th className="py-3 px-3 sm:px-6 hidden sm:table-cell">สถานะ</th>
+                        <th className="py-3 px-3 sm:px-6 hidden sm:table-cell whitespace-nowrap">สถานะ</th>
                         <th className="py-3 px-3 sm:px-6 text-center">จัดการ</th>
                       </tr>
                     </thead>
@@ -1385,8 +1388,8 @@ const Students = () => {
                                 <div className="text-xs text-gray-400 font-medium">📞 {student.phone}</div>
                               )}
                             </td>
-                            <td className="py-4 px-3 sm:px-6 hidden sm:table-cell">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${student.status === 'Active'
+                            <td className="py-4 px-3 sm:px-6 hidden sm:table-cell whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${student.status === 'Active'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                   : student.status === 'Graduated'
                                     ? 'bg-amber-50 text-amber-700 border-amber-100'

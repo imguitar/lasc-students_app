@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS `projects` (
   `advisor_profile_id` VARCHAR(13) DEFAULT NULL,
   `year` INT NOT NULL,
   `document_url` VARCHAR(500) DEFAULT NULL,
+  `image_url` VARCHAR(500) DEFAULT NULL,
   `status` ENUM('draft','approved','in_progress','waiting_defense','passed_defense','completed') NOT NULL DEFAULT 'draft',
   `type` ENUM('individual','group') NOT NULL DEFAULT 'individual',
   `has_award` TINYINT(1) NOT NULL DEFAULT 0,
@@ -527,4 +528,29 @@ CREATE TABLE IF NOT EXISTS `event_email_notifications` (
     FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
     ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ระบบบันทึกประวัติการจัดการผู้ใช้งาน (Admin User Management Audit Logs)
+CREATE TABLE IF NOT EXISTS `user_audit_logs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `action` VARCHAR(50) NOT NULL,
+  `actor_id` INT DEFAULT NULL,
+  `actor_username` VARCHAR(191) NOT NULL,
+  `actor_name` VARCHAR(255) DEFAULT NULL,
+  `target_user_id` INT DEFAULT NULL,
+  `target_username` VARCHAR(191) NOT NULL,
+  `target_name` VARCHAR(255) DEFAULT NULL,
+  `details` JSON DEFAULT NULL,
+  `ip_address` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_user_audit_logs_action` (`action`),
+  KEY `idx_user_audit_logs_actor_id` (`actor_id`),
+  KEY `idx_user_audit_logs_target_user_id` (`target_user_id`),
+  KEY `idx_user_audit_logs_target_username` (`target_username`),
+  KEY `idx_user_audit_logs_created_at` (`created_at`),
+  CONSTRAINT `fk_user_audit_logs_actor`
+    FOREIGN KEY (`actor_id`) REFERENCES `user` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 

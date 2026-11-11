@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { projectService, advisorService, studentService, facultyService, departmentService } from '../services';
+import { projectService, advisorService, studentService, facultyService, departmentService, uploadService } from '../services';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -8,12 +8,19 @@ import { Label } from '../components/ui/label';
 import { useToast } from '../components/ui/use-toast';
 import { 
   FolderKanban, Search, Plus, Download, Edit2, Trash2, AlertCircle, FileText, CheckCircle2, ChevronDown, User, Users, UserRound, Award, Tag, BookOpen, ExternalLink, Calendar, CheckCircle, XCircle, Clock, Send, Eye, ShieldCheck, ArrowRight, RotateCcw,
-  Mail, Check, FileEdit, Activity
+  Mail, Check, FileEdit, Activity, UploadCloud, Image as ImageIcon
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from '../components/ui/dialog';
 import { Card } from '../components/ui/card';
+
+export const getFileUrl = (filePath) => {
+  if (!filePath) return '';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
+  const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+  return `${backendBase}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+};
 
 export const PROJECT_LIFECYCLE_STEPS = [
   { key: 'draft', label: 'แบบร่าง', en: 'Draft', icon: FileEdit },
@@ -133,6 +140,7 @@ const Projects = () => {
     year: '',
     project_type: 'Group', // Default Group
     document_url: '',
+    image_url: '',
     tags: '',
     status: 'draft',
     faculty: '',
@@ -140,6 +148,11 @@ const Projects = () => {
   });
 
   const [formErrors, setFormErrors] = useState({});
+
+  // Cover Image upload states
+  const [projectImageFile, setProjectImageFile] = useState(null);
+  const [projectImagePreview, setProjectImagePreview] = useState(null);
+  const projectFileInputRef = useRef(null);
 
   // Multiple Advisors states (Main & Co-advisors)
   const [selectedCoAdvisors, setSelectedCoAdvisors] = useState([]);
@@ -396,6 +409,8 @@ const Projects = () => {
 
     setSelectedMembers(defaultMembers);
     setSelectedCoAdvisors([]);
+    setProjectImageFile(null);
+    setProjectImagePreview(null);
 
     setForm({
       project_id: 'PRJ' + (new Date().getFullYear() + 543) + String(Math.floor(1000 + Math.random() * 9000)),
@@ -406,6 +421,7 @@ const Projects = () => {
       year: (new Date().getFullYear() + 543).toString(),
       project_type: 'Group',
       document_url: '',
+      image_url: '',
       tags: '',
       status: 'Draft',
       faculty: defaultFacultyId,
@@ -635,6 +651,9 @@ const Projects = () => {
 
     const advisorValue = project.main_advisor?.advisor_id || project.advisor_profile_id || project.advisor_id || project.advisor?.advisor_id || (project.advisor?.id ? project.advisor.id.toString() : '');
 
+    setProjectImageFile(null);
+    setProjectImagePreview(project.image_url ? getFileUrl(project.image_url) : null);
+
     setForm({
       project_id: project.project_id,
       title_th: project.title_th || '',
@@ -644,6 +663,7 @@ const Projects = () => {
       year: project.year ? project.year.toString() : (new Date().getFullYear() + 543).toString(),
       project_type: project.project_type || (project.type ? (project.type.toLowerCase() === 'group' ? 'Group' : 'Individual') : 'Group'),
       document_url: project.document_url || '',
+      image_url: project.image_url || '',
       tags: Array.isArray(project.tags)
         ? project.tags.join(', ')
         : (typeof project.tags === 'string'
@@ -661,8 +681,29 @@ const Projects = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
+    let imageUrl = form.image_url || null;
+    if (projectImageFile) {
+      try {
+        const uploadRes = await uploadService.uploadSeniorProjectImage(projectImageFile);
+        if (uploadRes.success && uploadRes.data?.file_path) {
+          imageUrl = uploadRes.data.file_path;
+        }
+      } catch (uploadErr) {
+        console.error('Project image upload error:', uploadErr);
+        toast({
+          variant: "destructive",
+          title: "ไม่สามารถอัปโหลดรูปภาพได้",
+          description: uploadErr.response?.data?.message || uploadErr.message
+        });
+        return;
+      }
+    } else if (!projectImagePreview) {
+      imageUrl = null;
+    }
+
     const formattedData = {
       ...form,
+      image_url: imageUrl,
       year: parseInt(form.year),
       members: selectedMembers.map(m => m.id),
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -683,6 +724,8 @@ const Projects = () => {
           description: response.message || "บันทึกข้อมูลโครงงานสำเร็จเรียบร้อยแล้ว"
         });
         setIsAddEditOpen(false);
+        setProjectImageFile(null);
+        setProjectImagePreview(null);
         fetchProjects();
       }
     } catch (error) {
@@ -918,6 +961,16 @@ const Projects = () => {
                   onClick={() => handleOpenDetails(project)}
                   className="bg-white border-2 border-amber-200/80 hover:border-amber-400 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
                 >
+                  {project.image_url && (
+                    <div className="w-full h-36 overflow-hidden bg-purple-50 relative border-b border-amber-100">
+                      <img
+                        src={getFileUrl(project.image_url)}
+                        alt={project.title_th}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
                   <div className="p-5 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-lg border border-purple-100">
@@ -1115,9 +1168,22 @@ const Projects = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {projects.map((project) => (
                 <Card key={project.id} className="border border-purple-100/40 shadow-sm rounded-2xl bg-white hover:shadow-md hover:border-purple-200 transition-all duration-300 overflow-hidden flex flex-col relative group">
+                  {project.image_url && (
+                    <div 
+                      onClick={() => handleOpenDetails(project)}
+                      className="w-full h-44 overflow-hidden bg-purple-50 relative border-b border-purple-100/50 cursor-pointer"
+                    >
+                      <img
+                        src={getFileUrl(project.image_url)}
+                        alt={project.title_th}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
                   <div 
                     onClick={() => handleOpenDetails(project)}
-                    className="p-5 flex-1 space-y-3 pt-8 cursor-pointer relative"
+                    className={`p-5 flex-1 space-y-3 cursor-pointer relative ${project.image_url ? 'pt-4' : 'pt-8'}`}
                   >
                     {isMyProject(project) && (
                       <div className="absolute top-3 left-3 bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm z-10">
@@ -1718,20 +1784,88 @@ const Projects = () => {
               />
             </div>
 
-            {/* Removed Has Award Section */}
+            {/* Project Cover Image Upload (Placed at the bottom) */}
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-gray-700 text-xs font-semibold flex items-center gap-1.5">
+                <ImageIcon size={14} className="text-purple-600" />
+                รูปภาพโครงงาน / ภาพหน้าปก (Cover Image)
+              </Label>
+              {projectImagePreview ? (
+                <div className="relative rounded-xl overflow-hidden border border-purple-200 bg-purple-50/50 group h-44">
+                  <img
+                    src={projectImagePreview}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => projectFileInputRef.current?.click()}
+                      className="bg-white/95 hover:bg-white text-gray-800 text-xs rounded-lg h-8 shadow"
+                    >
+                      เปลี่ยนรูปภาพ
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setProjectImageFile(null);
+                        setProjectImagePreview(null);
+                        setForm(prev => ({ ...prev, image_url: '' }));
+                      }}
+                      className="rounded-lg h-8 text-xs shadow"
+                    >
+                      ลบรูปภาพ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => projectFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/30 hover:bg-purple-50/60 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer transition-colors text-center"
+                >
+                  <UploadCloud className="w-8 h-8 text-purple-500 mb-1" />
+                  <p className="text-xs font-semibold text-purple-950">คลิกเพื่ออัปโหลดรูปภาพโครงงาน</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 10 MB (แนะนำอัตราส่วน 16:9)</p>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={projectFileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('image/')) {
+                    toast({ variant: 'destructive', title: 'ประเภทไฟล์ไม่ถูกต้อง', description: 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WebP)' });
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ variant: 'destructive', title: 'ไฟล์ใหญ่เกินไป', description: 'ขนาดรูปภาพต้องไม่เกิน 10 MB' });
+                    return;
+                  }
+                  setProjectImageFile(file);
+                  setProjectImagePreview(URL.createObjectURL(file));
+                }}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+              />
+            </div>
 
-            <DialogFooter className="pt-4 border-t border-purple-50 gap-2">
+            <DialogFooter className="pt-4 border-t border-purple-50 flex flex-row items-center justify-end gap-2 space-x-0">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setIsAddEditOpen(false)}
-                className="text-gray-500 hover:bg-gray-100 rounded-xl"
+                className="text-gray-500 hover:bg-gray-100 rounded-xl flex-1 sm:flex-initial"
               >
                 ยกเลิก
               </Button>
               <Button
                 type="submit"
-                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md"
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md flex-1 sm:flex-initial"
               >
                 {currentProject ? 'อัปเดตข้อมูล' : 'บันทึกข้อมูล'}
               </Button>
@@ -1774,6 +1908,18 @@ const Projects = () => {
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl border border-purple-100 p-8 bg-white">
           {selectedProjectForDetails && (
             <div className="space-y-6">
+              {/* Cover Image in Details */}
+              {selectedProjectForDetails.image_url && (
+                <div className="w-full h-64 rounded-2xl overflow-hidden bg-purple-50 border border-purple-100/60 shadow-xs">
+                  <img
+                    src={getFileUrl(selectedProjectForDetails.image_url)}
+                    alt={selectedProjectForDetails.title_th}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+              )}
+
               <DialogHeader>
                 <div className="flex items-center justify-between gap-4 pr-8">
                   {(() => {

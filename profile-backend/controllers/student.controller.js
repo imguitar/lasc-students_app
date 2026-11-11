@@ -138,7 +138,7 @@ exports.getAllStudents = async (req, res) => {
           ...where,
           profile_id: { in: chunk }
         },
-        orderBy: { profile_id: 'desc' }
+        orderBy: { profile_id: 'asc' }
       });
       profiles = profiles.concat(profilesChunk);
     }
@@ -253,6 +253,10 @@ exports.getAllStudents = async (req, res) => {
         userId: user.id
       };
     }).filter(Boolean);
+
+    students.sort((a, b) =>
+      String(a.student_id || '').localeCompare(String(b.student_id || ''), undefined, { numeric: true })
+    );
 
     res.json({
       success: true,
@@ -1602,9 +1606,10 @@ exports.updateStudent = async (req, res) => {
     if (data.status || data.role || data.email) {
       const user = await prisma.user.findUnique({ where: { username: profile.profile_id } });
       if (user) {
+        const isAdmin = req.user && req.user.role === 'admin';
         const updateUserData = {
-          isActive: data.status ? data.status === 'Active' : user.isActive,
-          role: data.role || (data.status === 'Graduated' ? 'alumni' : user.role)
+          isActive: isAdmin && data.status ? data.status === 'Active' : user.isActive,
+          role: isAdmin ? (data.role || (data.status === 'Graduated' ? 'alumni' : user.role)) : user.role
         };
         if (data.email) {
           updateUserData.email = data.email.includes('@student.sskru.ac.th')

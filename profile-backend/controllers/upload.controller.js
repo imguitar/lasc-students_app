@@ -408,3 +408,41 @@ exports.uploadNewsAttachment = (req, res) => {
     });
   });
 };
+
+// Senior Project image upload
+const seniorProjectImageUpload = multer({
+  storage: projectStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('อนุญาตเฉพาะไฟล์รูปภาพ JPG, PNG, WebP, GIF เท่านั้น'));
+    }
+  }
+}).single('image');
+
+// @desc    Upload senior project cover image
+// @route   POST /api/upload/senior-project-image
+// @access  Private
+exports.uploadSeniorProjectImage = (req, res) => {
+  seniorProjectImageUpload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'กรุณาเลือกไฟล์รูปภาพ' });
+    }
+    const relativePath = `/uploads/projects/${req.file.filename}`;
+    return res.status(200).json({
+      success: true,
+      message: 'อัปโหลดรูปภาพโครงงานสำเร็จ',
+      data: {
+        file_path: relativePath,
+        file_name: req.file.filename,
+        original_name: sanitizeOriginalName(req.file.originalname),
+        file_size: req.file.size
+      }
+    });
+  });
+};

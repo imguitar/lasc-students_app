@@ -16,4 +16,7 @@ router.delete('/project-file/:fileId', auth, uploadController.deleteProjectFile)
 router.post('/news-image', auth, uploadController.uploadNewsImage);
 router.post('/news-attachment', auth, uploadController.uploadNewsAttachment);
 
+// Senior Project Cover Image upload
+router.post('/senior-project-image', auth, uploadController.uploadSeniorProjectImage);
+
 module.exports = router;

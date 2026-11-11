@@ -437,6 +437,16 @@ export const uploadService = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
+  },
+
+  // Senior Project Cover Image
+  uploadSeniorProjectImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/upload/senior-project-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
   }
 };
 
@@ -484,4 +494,6 @@ export const promotionService = {
 };
 
 export { notificationService } from './notification.service';
+export { userManagementService } from './userManagement.service';
+
 

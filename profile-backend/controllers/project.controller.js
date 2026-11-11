@@ -267,6 +267,7 @@ exports.createProject = async (req, res) => {
       description: data.description || '',
       year: data.year ? parseInt(data.year) : new Date().getFullYear() + 543,
       document_url: data.document_url || '',
+      image_url: data.image_url || null,
       status: normalizeStatus(data.status) || 'draft',
       type: data.type || 'individual',
       has_award: data.has_award === true || data.has_award === 'true',
@@ -358,6 +359,7 @@ exports.updateProject = async (req, res) => {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.year !== undefined) updateData.year = parseInt(data.year);
     if (data.document_url !== undefined) updateData.document_url = data.document_url;
+    if (data.image_url !== undefined) updateData.image_url = data.image_url || null;
     if (data.status !== undefined) {
       const normalizedStatus = normalizeStatus(data.status);
       if (!normalizedStatus) {

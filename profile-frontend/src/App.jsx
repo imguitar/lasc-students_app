@@ -17,6 +17,7 @@ import Portfolio from './pages/Portfolio';
 import NewsEvents from './pages/NewsEvents';
 import ChatBoard from './pages/ChatBoard';
 import StudentPromotion from './pages/StudentPromotion';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   return (
@@ -34,6 +35,14 @@ function App() {
             }
           >
             <Route index element={<Dashboard />} />
+            <Route
+              path="user-management"
+              element={
+                <PrivateRoute allowedRoles={['admin']}>
+                  <UserManagement />
+                </PrivateRoute>
+              }
+            />
             <Route path="students" element={<Students />} />
             <Route path="student-promotion" element={<StudentPromotion />} />
             <Route path="alumni" element={<Alumni />} />

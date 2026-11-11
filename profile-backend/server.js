@@ -70,6 +70,7 @@ const newsEventRoutes = require('./routes/newsEvent.routes');
 const chatBoardRoutes = require('./routes/chatBoard.routes');
 const promotionRoutes = require('./routes/promotion.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const userManagementRoutes = require('./routes/userManagement.routes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -88,6 +89,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/news-events', newsEventRoutes);
 app.use('/api/chat-board', chatBoardRoutes);
 app.use('/api/admin/student-promotion', promotionRoutes);
+app.use('/api/admin/users', userManagementRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Serve uploaded files as static assets

@@ -1848,20 +1848,20 @@ const NewsEvents = () => {
               </label>
             )}
 
-            <DialogFooter className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
+            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-row items-center justify-end gap-2 space-x-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsAddEditOpen(false)}
                 disabled={formSubmitting}
-                className="text-xs rounded-xl"
+                className="text-xs rounded-xl flex-1 sm:flex-initial"
               >
                 ยกเลิก
               </Button>
               <Button
                 type="submit"
                 disabled={formSubmitting}
-                className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl"
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl flex-1 sm:flex-initial"
               >
                 {formSubmitting ? 'กำลังบันทึก...' : formId ? 'บันทึกการแก้ไข' : 'สร้างรายการ'}
               </Button>
@@ -1892,12 +1892,12 @@ const NewsEvents = () => {
             </div>
           )}
 
-          <DialogFooter className="pt-3 flex items-center justify-end gap-2">
+          <DialogFooter className="pt-3 flex flex-row items-center justify-end gap-2 space-x-0">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsDeleteOpen(false)}
-              className="text-xs rounded-xl"
+              className="text-xs rounded-xl flex-1 sm:flex-initial"
             >
               ยกเลิก
             </Button>
@@ -1905,7 +1905,7 @@ const NewsEvents = () => {
               variant="destructive"
               size="sm"
               onClick={handleDeleteConfirm}
-              className="text-xs rounded-xl bg-red-600 hover:bg-red-700 text-white"
+              className="text-xs rounded-xl bg-red-600 hover:bg-red-700 text-white flex-1 sm:flex-initial"
             >
               ยืนยันการลบ
             </Button>
@@ -2280,7 +2280,7 @@ const NewsEvents = () => {
               )}
 
               {/* Dialog Footer Actions */}
-              <DialogFooter className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+              <DialogFooter className="pt-3 border-t border-gray-100 flex flex-row items-center justify-between gap-2 space-x-0">
                 <Button
                   type="button"
                   variant="outline"

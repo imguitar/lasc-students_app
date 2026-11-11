@@ -87,6 +87,11 @@ const Portfolio = () => {
   const [newFiles, setNewFiles] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
+  // Dedicated Cover Image state
+  const [coverImageFile, setCoverImageFile] = useState(null);
+  const [coverImagePreview, setCoverImagePreview] = useState(null);
+  const coverFileInputRef = useRef(null);
+
   useEffect(() => {
     fetchProjects();
   }, [filters]);
@@ -197,6 +202,8 @@ const Portfolio = () => {
     setEditStudentId(user?.student_id || user?.username || null);
     setExistingFiles([]);
     setNewFiles([]);
+    setCoverImageFile(null);
+    setCoverImagePreview(null);
     setForm({
       title: '', description: '', category: 'ผลงานระหว่างเทอม',
       academic_year: (new Date().getFullYear() + 543).toString(), semester: '1', course_name: '',
@@ -213,6 +220,12 @@ const Portfolio = () => {
     setEditStudentId(project.student?.student_id || project.profile_id);
     setExistingFiles(project.files || []);
     setNewFiles([]);
+    setCoverImageFile(null);
+    const firstImg = project.files?.find(f => f.file_type?.startsWith('image/'));
+    const initialCover = project.image_url 
+      ? getFileUrl(project.image_url) 
+      : (firstImg ? getFileUrl(firstImg.file_path) : null);
+    setCoverImagePreview(initialCover);
     setForm({
       title: project.title || '',
       description: project.description || '',
@@ -249,7 +262,8 @@ const Portfolio = () => {
       technologies: form.technologies ? form.technologies.split(',').map(t => t.trim()).filter(Boolean) : [],
       skills_used: form.skills_used ? form.skills_used.split(',').map(t => t.trim()).filter(Boolean) : [],
       year: parseInt(form.year) || undefined,
-      is_published: Boolean(form.is_published)
+      is_published: Boolean(form.is_published),
+      image_url: !coverImagePreview ? null : (form.image_url || undefined)
     };
 
     try {
@@ -263,6 +277,26 @@ const Portfolio = () => {
       } else {
         response = await studentService.createProject(studentId, data);
         projectId = response.data?.id;
+      }
+
+      // Upload cover image if selected
+      if (projectId && coverImageFile) {
+        try {
+          const uploadRes = await uploadService.uploadProjectFile(projectId, coverImageFile);
+          if (uploadRes.success && uploadRes.data?.file_path) {
+            await studentService.updateProject(studentId, projectId, {
+              image_url: uploadRes.data.file_path
+            });
+          }
+        } catch (coverErr) {
+          console.error('Cover image upload error:', coverErr);
+        }
+      } else if (projectId && !coverImagePreview && currentProject?.image_url) {
+        try {
+          await studentService.updateProject(studentId, projectId, { image_url: null });
+        } catch (clearErr) {
+          console.error('Clear image_url error:', clearErr);
+        }
       }
 
       // Upload pending files if any
@@ -282,6 +316,8 @@ const Portfolio = () => {
           description: response.message || "บันทึกข้อมูลผลงานเรียบร้อยแล้ว"
         });
         setIsAddEditOpen(false);
+        setCoverImageFile(null);
+        setCoverImagePreview(null);
         fetchProjects();
       }
     } catch (error) {
@@ -378,7 +414,7 @@ const Portfolio = () => {
               <img 
                 src={bannerImage} 
                 alt={project.title} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                className="w-full h-full object-cover"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
@@ -871,7 +907,11 @@ const Portfolio = () => {
                     {newFiles.map((file, idx) => (
                       <div key={idx} className="flex items-center justify-between bg-purple-100/50 px-3 py-1.5 rounded-lg text-xs">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Paperclip size={13} className="text-purple-600 shrink-0" />
+                          {file.type?.startsWith('image/') ? (
+                            <ImageIcon size={13} className="text-purple-600 shrink-0" />
+                          ) : (
+                            <Paperclip size={13} className="text-purple-600 shrink-0" />
+                          )}
                           <span className="font-medium text-purple-950 truncate">{file.name}</span>
                           <span className="text-[10px] text-purple-600 shrink-0">({formatFileSize(file.size)})</span>
                         </div>
@@ -913,19 +953,89 @@ const Portfolio = () => {
               </label>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-purple-50 gap-2">
+            {/* ===================== FEATURE 3: รูปภาพผลงาน / ภาพหน้าปก (Cover Image) ===================== */}
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-gray-700 text-xs font-semibold flex items-center gap-1.5">
+                <ImageIcon size={14} className="text-purple-600" />
+                รูปภาพผลงาน / ภาพหน้าปกโครงงาน (Cover Image)
+              </Label>
+              {coverImagePreview ? (
+                <div className="relative rounded-xl overflow-hidden border border-purple-200 bg-purple-50/50 group h-44">
+                  <img
+                    src={coverImagePreview}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => coverFileInputRef.current?.click()}
+                      className="bg-white/95 hover:bg-white text-gray-800 text-xs rounded-lg h-8 shadow"
+                    >
+                      เปลี่ยนรูปภาพ
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setCoverImageFile(null);
+                        setCoverImagePreview(null);
+                        setForm(prev => ({ ...prev, image_url: '' }));
+                      }}
+                      className="rounded-lg h-8 text-xs shadow"
+                    >
+                      ลบรูปภาพ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => coverFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/30 hover:bg-purple-50/60 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer transition-colors text-center"
+                >
+                  <UploadCloud className="w-8 h-8 text-purple-500 mb-1" />
+                  <p className="text-xs font-semibold text-purple-950">คลิกเพื่ออัปโหลดรูปภาพผลงาน</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 10 MB (แนะนำอัตราส่วน 16:9)</p>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={coverFileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('image/')) {
+                    toast({ variant: 'destructive', title: 'ประเภทไฟล์ไม่ถูกต้อง', description: 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WebP)' });
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ variant: 'destructive', title: 'ไฟล์ใหญ่เกินไป', description: 'ขนาดรูปภาพต้องไม่เกิน 10 MB' });
+                    return;
+                  }
+                  setCoverImageFile(file);
+                  setCoverImagePreview(URL.createObjectURL(file));
+                }}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+              />
+            </div>
+
+            <DialogFooter className="pt-4 border-t border-purple-50 flex flex-row items-center justify-end gap-2 space-x-0">
               <Button 
                 type="button" 
                 variant="ghost" 
                 onClick={() => setIsAddEditOpen(false)} 
-                className="text-gray-500 hover:bg-gray-100 rounded-xl"
+                className="text-gray-500 hover:bg-gray-100 rounded-xl flex-1 sm:flex-initial"
                 disabled={uploadingFiles}
               >
                 ยกเลิก
               </Button>
               <Button 
                 type="submit" 
-                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md px-5"
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md px-5 flex-1 sm:flex-initial"
                 disabled={uploadingFiles}
               >
                 {uploadingFiles ? 'กำลังบันทึกและอัปโหลดไฟล์...' : (currentProject ? 'อัปเดตผลงาน' : 'บันทึกผลงาน')}

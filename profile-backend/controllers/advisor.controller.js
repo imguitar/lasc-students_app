@@ -32,7 +32,7 @@ exports.getAllAdvisors = async (req, res) => {
       const chunk = userUsernames.slice(i, i + CHUNK_SIZE);
       const profilesChunk = await prisma.profile.findMany({
         where: { profile_id: { in: chunk } },
-        orderBy: { profile_id: 'desc' }
+        orderBy: { profile_id: 'asc' }
       });
       profiles = profiles.concat(profilesChunk);
     }
