@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Alert, Typography, Stack, Paper, Box, Chip } from '@mui/material';
 import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import StudentPageHeader from '../../../components/student/StudentPageHeader';
+import { Info } from 'lucide-react';
 import api from '../../../api/axios';
 import './DashboardPage.css'; // Reusing layout
 import './PaymentProofPage.css'; // New styles
@@ -52,7 +54,6 @@ const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.85) 
 
 const PaymentProofPage = () => {
   const navigate = useNavigate();
-  const [studentName, setStudentName] = useState('');
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -80,7 +81,6 @@ const PaymentProofPage = () => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
       const user = JSON.parse(userStr);
-      setStudentName(user.full_name || user.name);
       
       const studentId = user.student_code || user.studentId || user.username;
       if (studentId) {
@@ -146,19 +146,7 @@ const PaymentProofPage = () => {
       <main className="dashboard-main">
         <div className="w-full max-w-7xl mx-auto">
         <div className="unified-card">
-          <header className="unified-card-head">
-            <div className="unified-card-title-wrap">
-              <span className="unified-card-icon"><Receipt className="w-5 h-5" aria-hidden="true" /></span>
-              <div className="min-w-0">
-                <h1 className="unified-card-title">หลักฐานการชำระค่าธรรมเนียมออกฝึก</h1>
-                <p className="unified-card-sub">อัพโหลดใบเสร็จหรือสลิปการโอนเงินเพื่อยืนยัน</p>
-              </div>
-            </div>
-            <div className="unified-card-user">
-              <span className="unified-card-dot" aria-hidden="true" />
-              <span className="truncate">{studentName}</span>
-            </div>
-          </header>
+          <StudentPageHeader icon={Receipt} title="หลักฐานการชำระค่าธรรมเนียมออกฝึก" subtitle="อัพโหลดใบเสร็จหรือสลิปการโอนเงินเพื่อยืนยัน" />
           <div className="unified-card-body">
         <div className="content-wrapper">
           {/* Approved State */}
@@ -314,6 +302,8 @@ const PaymentProofPage = () => {
                 </Alert>
               )}
 
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+              <div className="lg:col-span-3 min-w-0">
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>อัพโหลดใบเสร็จ</Typography>
               <Typography className="instruction-text" sx={{ color: '#475569', mb: 2 }}>
                 กรุณาแนบไฟล์รูปภาพ (JPG, PNG) ของหลักฐานการชำระเงิน (ขนาดไม่เกิน 20MB)
@@ -360,6 +350,23 @@ const PaymentProofPage = () => {
                   {uploading ? 'กำลังอัพโหลด...' : 'ยืนยันการส่งหลักฐาน'}
                 </Button>
               </form>
+              </div>
+
+              {/* คำแนะนำการแนบหลักฐาน (คอลัมน์ขวา / ใต้ฟอร์มบนมือถือ) */}
+              <aside className="lg:col-span-2 min-w-0 rounded-2xl bg-violet-50/60 border border-violet-100 p-5 self-start">
+                <div className="flex items-center gap-2 text-violet-800">
+                  <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  <h3 className="m-0 text-sm font-bold">คำแนะนำการแนบหลักฐาน</h3>
+                </div>
+                <ul className="m-0 mt-3 pl-5 text-xs sm:text-sm text-slate-600 leading-relaxed flex flex-col gap-1.5 list-disc">
+                  <li>ไฟล์รูปภาพ JPG หรือ PNG ขนาดไม่เกิน 20MB</li>
+                  <li>เห็นจำนวนเงิน วันที่และเวลาที่โอนชัดเจน</li>
+                  <li>ภาพไม่เบลอและไม่ตัดขอบเอกสาร</li>
+                  <li>หลังส่งหลักฐาน เจ้าหน้าที่จะตรวจสอบและแจ้งผลที่หน้านี้</li>
+                  <li>หากถูกปฏิเสธ สามารถแนบหลักฐานใหม่ได้ทันที</li>
+                </ul>
+              </aside>
+              </div>
 
               {uploadError && (
                 <Stack spacing={1} sx={{ mt: 2 }}>

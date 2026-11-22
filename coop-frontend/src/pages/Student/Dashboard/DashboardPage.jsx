@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import StudentPageHeader from '../../../components/student/StudentPageHeader';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../../components/common/AsyncStates';
 import api from '../../../api/axios';
 import { openDocumentInNewTab, downloadDocument, downloadFileSmart } from '../../../utils/documentViewer';
 import { getUploadUrl } from '../../../utils/fileUrl';
@@ -52,61 +55,59 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const [studentName, setStudentName] = useState('');
   const [studentAvatar, setStudentAvatar] = useState(null);
-  const [studentCode, setStudentCode] = useState('');
   const [internshipRequests, setInternshipRequests] = useState([]);
   const [relocations, setRelocations] = useState([]);
   // chart refs removed
 
-  useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const userStr = localStorage.getItem('user');
-            if (userStr) {
-              const user = JSON.parse(userStr);
+  // ดึงคำร้อง/รอบย้าย: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, โหลดไม่สำเร็จมีปุ่มลองใหม่
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
+    }
+    const user = JSON.parse(userStr);
+    if (user.role === 'admin') { navigate('/admin-dashboard'); return null; }
+    if (user.role === 'advisor') { navigate('/advisor-dashboard'); return null; }
+    if (user.role !== 'student') {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
+    }
 
-              if (user.role === 'admin') {
-                 navigate('/admin-dashboard'); 
-                 return;
-              }
-              if (user.role === 'advisor') {
-                 navigate('/advisor-dashboard'); 
-                 return;
-              }
-              if (user.role !== 'student') {
-                 navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/')); 
-                 return;
-              }
+    const studentId = user.student_code || user.studentId || user.username;
+    const [requestsRes, relocRes] = await Promise.allSettled([
+      api.get(`/requests?studentId=${studentId}`, { signal }),
+      // รอบย้ายเสร็จสิ้น → แสดงหนังสือส่งตัวฉบับใหม่ (ล้มเหลวได้โดยไม่ทำให้ทั้งหน้าล้ม)
+      api.get('/relocations', { signal }),
+    ]);
+    signal.throwIfAborted();
+    if (requestsRes.status === 'rejected') throw requestsRes.reason;
 
-              setStudentName(user.full_name || user.name);
-              setStudentAvatar(user.avatar);
-              setStudentCode(user.student_code || user.studentId || user.username || '');
-        
-              const studentId = user.student_code || user.studentId || user.username;
-              const requestsRes = await api.get(`/requests?studentId=${studentId}`);
-              // รอบย้ายเสร็จสิ้น → แสดงหนังสือส่งตัวฉบับใหม่ในการ์ดคำร้อง
-              api.get('/relocations').then((r) => setRelocations(r.data?.data || [])).catch(() => {});
-
-              const myRequests = (requestsRes.data.data || []).map(req => {
-                const effectiveStatus = getEffectiveInternshipStatus(req);
-                const dispatchLetter = req.dispatchLetter || req.details?.dispatchLetter;
-                return {
-                  ...req,
-                  status: effectiveStatus || req.status,
-                  dispatchLetter,
-                  companyName: req.active_company_name || req.company || req.companyName,
-                  has_completed_relocation: req.has_completed_relocation,
-                };
-              });
-              setInternshipRequests(myRequests);
-            } else {
-              navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-            }
-        } catch (error) {
-            console.error(error);
-        }
+    const myRequests = (requestsRes.value.data.data || []).map((req) => {
+      const effectiveStatus = getEffectiveInternshipStatus(req);
+      const dispatchLetter = req.dispatchLetter || req.details?.dispatchLetter;
+      return {
+        ...req,
+        status: effectiveStatus || req.status,
+        dispatchLetter,
+        companyName: req.active_company_name || req.company || req.companyName,
+        has_completed_relocation: req.has_completed_relocation,
+      };
+    });
+    return {
+      user,
+      myRequests,
+      relocations: relocRes.status === 'fulfilled' ? relocRes.value.data?.data || [] : [],
     };
-    fetchData();
-  }, [navigate]);
+  }, 'student-dashboard', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setStudentName(d.user.full_name || d.user.name);
+      setStudentAvatar(d.user.avatar);
+      setInternshipRequests(d.myRequests);
+      setRelocations(d.relocations);
+    },
+  });
 
   const currentRequest = useMemo(() => {
     if (!internshipRequests.length) return null;
@@ -280,20 +281,14 @@ const DashboardPage = () => {
       <main className="dashboard-main">
         <div className="w-full max-w-7xl mx-auto">
         <div className="unified-card">
-          <header className="unified-card-head">
-            <div className="unified-card-title-wrap">
-              <span className="unified-card-icon"><LayoutDashboard className="w-5 h-5" aria-hidden="true" /></span>
-              <div className="min-w-0">
-                <h1 className="unified-card-title">แดชบอร์ดนักศึกษา</h1>
-                <p className="unified-card-sub">ติดตามสถานะคำร้องและกำหนดการฝึกประสบการณ์วิชาชีพของคุณ</p>
-              </div>
-            </div>
-            <div className="unified-card-user">
-              <span className="unified-card-dot" aria-hidden="true" />
-              <span className="truncate">{studentName || 'นักศึกษา'}{studentCode ? ` (${studentCode})` : ''}</span>
-            </div>
-          </header>
+          <StudentPageHeader icon={LayoutDashboard} title="แดชบอร์ดนักศึกษา" subtitle="ติดตามสถานะคำร้องและกำหนดการฝึกประสบการณ์วิชาชีพของคุณ" />
           <div className="unified-card-body">
+        {loading ? (
+          <LoadingBlock rows={5} variant="list" label="กำลังโหลดแดชบอร์ด..." />
+        ) : loadError ? (
+          <ErrorRetry message="โหลดข้อมูลแดชบอร์ดไม่สำเร็จ" onRetry={reload} />
+        ) : (
+        <>
         {/* Timeline & Important Schedule Card */}
         <div
           className="rounded-[24px] bg-white border border-violet-100 shadow-[0_8px_30px_rgba(124,58,237,0.04)] p-6 mb-6"
@@ -851,7 +846,8 @@ const DashboardPage = () => {
             )}
           </div>
         </div>
-
+        </>
+        )}
           </div>
         </div>
         </div>

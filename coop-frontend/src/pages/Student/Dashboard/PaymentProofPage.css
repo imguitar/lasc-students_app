@@ -1,10 +1,15 @@
 .payment-proof-card {
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    max-width: 600px;
-    margin: 2rem auto;
+    width: 100%;
+    background: #ffffff;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    max-width: none;
+    margin: 0;
+}
+@media (min-width: 768px) {
+    .payment-proof-card { padding: 2rem; }
 }
 
 .instruction-text {
@@ -88,7 +93,7 @@
 }
 
 .submit-btn {
-    margin-top: 1.5rem;
+    margin-top: 1.25rem !important;
     width: 100%;
     padding: 0.75rem;
     background: #3b82f6;
