@@ -269,7 +269,7 @@ const RelocationRequestPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-purple-50/40">
+    <div className="min-h-dvh bg-gradient-to-b from-slate-50 via-slate-50 to-purple-50/40">
       {/* Header bar */}
       <div className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200/70">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">

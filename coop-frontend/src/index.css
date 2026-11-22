@@ -41,6 +41,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: #f8f9fc;
   color: #0f172a;
 }
@@ -782,25 +783,10 @@ body.has-subnav {
 }
 
 /* ===== จอ < 1024px: ซ่อนแถบติดต่อและ Subnav แล้วใช้ Mobile Tab Bar ด้านล่างแทน Sidebar ===== */
-.m-tabbar { display: none; }
+/* สไตล์ของ .m-tabbar อยู่ใน Tailwind ของ MobileTabBar.jsx (fixed bottom-0 + safe-area) */
 @media (max-width: 1023px) {
   .utility-bar,
   .site-subnav { display: none !important; }
-  .m-tabbar {
-    display: flex;
-    align-items: stretch;
-    position: fixed;
-    left: 0;
-    right: 0;
-    /* ตั้งโดย main.jsx: ระยะที่ visual viewport (จอที่เห็นจริง) สั้นกว่า layout viewport เช่นแถบ URL ของ Safari */
-    bottom: var(--tabbar-offset, 0px);
-    z-index: 1070;
-    background: var(--vio-grad-v);
-    border-top: 3px solid transparent;
-    border-image: var(--gold-grad) 1;
-    box-shadow: 0 -8px 24px rgba(46, 16, 101, 0.28);
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-  }
   body.m-drawer-open .m-tabbar { display: none; }
 }
 
@@ -959,13 +945,6 @@ footer.footer p, footer.footer { color: var(--lav) !important; }
 .m-drawer-logout { background: var(--glass-bg); border: 1px solid rgba(255, 255, 255, 0.25); }
 .m-drawer-logout:hover { background: rgba(251, 146, 60, 0.16); border-color: rgba(251, 146, 60, 0.55); }
 .m-drawer-login { background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%); border: 1px solid rgba(234, 179, 8, 0.5); }
-
-.m-tab { color: var(--lav); transition: color 0.15s ease; }
-.m-tab .m-tab-icon { transition: background-color 0.15s ease; }
-.m-tab .m-tab-label { font-weight: 500; }
-.m-tab.is-active { color: #ffffff; }
-.m-tab.is-active .m-tab-icon { background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 -2px 0 #fbbf24; }
-.m-tab.is-active .m-tab-label { font-weight: 700; }
 
 /* ============ Content: ปุ่มหลัก / แท็บตัวกรองที่เลือก ============ */
 :is(button, a, label).bg-violet-600,
@@ -1788,11 +1767,6 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
   html {
     background-color: #2e1065;
   }
-  .m-tabbar {
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    backface-visibility: hidden;
-  }
   .mobile-top-navbar,
   .site-navbar {
     transform: translateZ(0);
@@ -2365,4 +2339,10 @@ input:-webkit-autofill:active {
 @media (min-width: 1024px) {
   .hm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hm-span-full { grid-column: 1 / -1; }
+}
+
+/* กันหน้าเด้ง/ยืดเกินขอบบน iOS Safari และ Chrome Android (rubber-band) ซึ่งทำให้แถบ fixed ขยับ */
+html,
+body {
+  overscroll-behavior-y: none;
 }

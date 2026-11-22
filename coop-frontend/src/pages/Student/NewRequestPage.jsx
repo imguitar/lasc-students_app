@@ -806,7 +806,7 @@ const NewRequestPage = () => {
   return (
     <>
 
-      <main className="dashboard-main bg-slate-50/50 min-h-screen">
+      <main className="dashboard-main bg-slate-50/50 min-h-dvh">
         <div className="w-full max-w-7xl mx-auto px-3.5 py-3 md:px-8 md:py-6">
         <div className="unified-card w-full">
           <header className="unified-card-head">

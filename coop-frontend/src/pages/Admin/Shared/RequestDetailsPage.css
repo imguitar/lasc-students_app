@@ -6,6 +6,7 @@
   background: linear-gradient(180deg, #fdfbff 0%, #ffffff 60%);
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: 100dvh;
   color: #1e293b;
 }
 
