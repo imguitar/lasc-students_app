@@ -1,5 +1,5 @@
 import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../../components/ModalActions';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -31,21 +31,6 @@ import { UserCircle } from 'lucide-react';
 import api from '../../../api/axios';
 import './DashboardPage.css';
 
-const DEPARTMENT_OPTIONS = [
-  'สาขาวิชาวิทยาการคอมพิวเตอร์',
-  'สาขาวิชาเทคโนโลยีคอมพิวเตอร์และดิจิทัล',
-  'สาขาวิชาสาธารณสุขชุมชน',
-  'สาขาวิชาวิทยาศาสตร์การกีฬา',
-  'สาขาวิชาเทคโนโลยีการเกษตร',
-  'สาขาวิชาเทคโนโลยีและนวัตกรรมอาหาร',
-  'สาขาวิชาอาชีวอนามัยและความปลอดภัย',
-  'สาขาวิชาวิศวกรรมซอฟต์แวร์และปัญญาประดิษฐ์',
-  'สาขาวิชาวิศวกรรมโลจิสติกส์',
-  'สาขาวิชาวิศวกรรมการจัดการอุตสาหกรรมและสิ่งแวดล้อม',
-  'สาขาวิชาการออกแบบผลิตภัณฑ์และนวัตกรรมวัสดุ',
-  'สาขาวิชาเทคโนโลยีโยธาและสถาปัตยกรรม'
-];
-
 const readStoredStudent = () => {
   try {
     const raw = localStorage.getItem('user');
@@ -55,24 +40,71 @@ const readStoredStudent = () => {
   }
 };
 
+// อีเมลมหาวิทยาลัยรูปแบบเก่า (@student.sskru.ac.th) แสดงเป็นรูปแบบ stu{รหัส}@sskru.ac.th
+const resolveEmail = (email, code) =>
+  email && !email.includes('@student.sskru.ac.th') ? email : (code ? `stu${code}@sskru.ac.th` : email || '');
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ข้อมูลที่แก้ไขได้เอง (ตรงกับคอลัมน์ user.email/phone และ profile.prefix/firstname/lastname/address)
+const buildForm = (d) => ({
+  prefix: d?.prefix || '',
+  firstname: d?.firstname || '',
+  lastname: d?.lastname || '',
+  email: d?.email || '',
+  phone: d?.phone || '',
+  address: d?.address || '',
+});
+
+// สไตล์ TextField ของหน้านี้ (Clean Violet): ขอบมน, ตัวหนังสือไม่โดนตัด, ช่อง read-only อ่านง่าย
+const FIELD_SX = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '12px',
+    backgroundColor: '#fff',
+    fontSize: '0.9rem',
+    '& fieldset': { borderColor: '#e2e8f0' },
+    '&:hover fieldset': { borderColor: '#c4b5fd' },
+    '&.Mui-focused fieldset': { borderColor: '#7c3aed', borderWidth: 1.5 },
+    '&.Mui-disabled': { backgroundColor: '#f8fafc' },
+  },
+  '& .MuiInputBase-input': { textOverflow: 'ellipsis' },
+  '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#334155' },
+  '& .MuiInputLabel-root': { fontWeight: 700, color: '#64748b' },
+  '& .MuiInputLabel-root.Mui-focused': { color: '#7c3aed' },
+  '& .MuiInputLabel-root.Mui-disabled': { color: '#64748b' },
+};
+
+const ProfileField = ({ readOnly, editing, className = '', ...props }) => (
+  <TextField
+    fullWidth
+    size="small"
+    variant="outlined"
+    InputLabelProps={{ shrink: true }}
+    disabled={readOnly || !editing}
+    sx={FIELD_SX}
+    className={className}
+    title={readOnly ? 'ข้อมูลนี้มาจากระบบทะเบียนกลาง ไม่สามารถแก้ไขได้เอง' : undefined}
+    {...props}
+  />
+);
+
+const SectionTitle = ({ children, hint }) => (
+  <div className="sm:col-span-2 pt-2 first:pt-0">
+    <h4 className="m-0 text-sm font-bold text-violet-900">{children}</h4>
+    {hint && <p className="m-0 mt-0.5 text-xs text-slate-500">{hint}</p>}
+    <div className="h-px bg-violet-100 mt-2" />
+  </div>
+);
+
 const ProfilePage = () => {
   const initialUser = readStoredStudent();
   const [user, setUser] = useState(initialUser);
   const [editing, setEditing] = useState(false);
-  const [requestStatus, setRequestStatus] = useState('');
-  const [form, setForm] = useState(() => {
-    const sid = initialUser?.student_code || initialUser?.studentId || initialUser?.username || '';
-    return {
-      name: initialUser?.full_name || initialUser?.name || '',
-      email: (initialUser?.email && !initialUser.email.includes('@student.sskru.ac.th'))
-        ? initialUser.email
-        : (sid ? `stu${sid}@sskru.ac.th` : ''),
-      username: initialUser?.username || '',
-      phone: initialUser?.phone || '',
-      studentId: sid,
-      major: initialUser?.major || initialUser?.department || ''
-    };
-  });
+  const [saving, setSaving] = useState(false);
+  const [data, setData] = useState(null);
+  const [loadState, setLoadState] = useState('loading'); // loading | ready | error
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState(() => buildForm(null));
   const [avatarPreview, setAvatarPreview] = useState(() => initialUser?.avatar || null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
@@ -86,59 +118,50 @@ const ProfilePage = () => {
     error: ''
   });
 
+  const loadProfile = useCallback(async (userId) => {
+    setLoadState('loading');
+    try {
+      const res = await api.get(`/users/${userId}/student-profile`);
+      const d = res.data?.data;
+      if (!d) throw new Error('empty');
+      setData(d);
+      setForm(buildForm({ ...d, email: resolveEmail(d.email, d.student_code) }));
+      setLoadState('ready');
+    } catch (err) {
+      console.error('Failed to load student profile:', err);
+      setLoadState('error');
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     asyncStorage.getItem('user').then((raw) => {
       if (!mounted) return;
-      if (raw) {
-        try {
-          const u = JSON.parse(raw);
-          setUser(u);
-          const sid = u.student_code || u.studentId || u.username || '';
-          setForm({
-            name: u.full_name || u.name || '',
-            email: (u.email && !u.email.includes('@student.sskru.ac.th'))
-              ? u.email
-              : (sid ? `stu${sid}@sskru.ac.th` : ''),
-            username: u.username || '',
-            phone: u.phone || '',
-            studentId: u.studentId || u.student_code || '',
-            major: u.major || u.department || ''
-          });
-          setAvatarPreview(u.avatar || null);
-
-          const studentId = u.student_code || u.studentId || u.username;
-          if (studentId) {
-            api.get(`/requests?studentId=${studentId}`)
-              .then(res => {
-                const list = res.data.data || [];
-                if (list.length > 0) {
-                  const latest = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                  setRequestStatus(latest.status || '');
-                } else {
-                  setRequestStatus('ยังไม่ยื่นคำร้อง');
-                }
-              })
-              .catch(() => {});
-          }
-        } catch (e) {
-          setUser(null);
-        }
-      } else {
+      if (!raw) {
         navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+        return;
+      }
+      try {
+        const u = JSON.parse(raw);
+        setUser(u);
+        setAvatarPreview(u.avatar || null);
+        if (u.id) loadProfile(u.id);
+        else setLoadState('error');
+      } catch {
+        setUser(null);
+        setLoadState('error');
       }
     });
-    return () => (mounted = false);
-  }, [navigate]);
+    return () => { mounted = false; };
+  }, [navigate, loadProfile]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'phone') {
-      const numericValue = value.replace(/\D/g, '').slice(0, 10);
-      setForm(prev => ({ ...prev, [name]: numericValue }));
-    } else {
-      setForm(prev => ({ ...prev, [name]: value }));
-    }
+    setFormError('');
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === 'phone' ? value.replace(/\D/g, '').slice(0, 10) : value,
+    }));
   };
 
   const handleFileChange = (e) => {
@@ -152,68 +175,91 @@ const ProfilePage = () => {
     }
   };
 
+  const handleCancel = () => {
+    setEditing(false);
+    setFormError('');
+    setForm(buildForm(data ? { ...data, email: resolveEmail(data.email, data.student_code) } : null));
+    setAvatarPreview(user?.avatar || null);
+  };
+
+  const validateForm = () => {
+    if (!form.firstname.trim()) return 'กรุณากรอกชื่อจริง';
+    if (!form.lastname.trim()) return 'กรุณากรอกนามสกุล';
+    if (!EMAIL_RE.test(form.email.trim())) return 'รูปแบบอีเมลไม่ถูกต้อง';
+    if (form.phone && !/^\d{9,10}$/.test(form.phone)) return 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก';
+    return '';
+  };
+
   const handleSave = async () => {
+    const problem = validateForm();
+    if (problem) {
+      setFormError(problem);
+      return;
+    }
+    setSaving(true);
+    setFormError('');
     try {
-      let updatedUser = {
-        ...user,
-        email: form.email,
+      // ส่งเฉพาะฟิลด์ที่แก้ได้เองและมีค่าจริง (ไม่ส่ง id/username/password/role/is_active/student_code และไม่ส่งค่าว่างไปทับของเดิม)
+      const candidate = {
+        prefix: form.prefix.trim(),
+        firstname: form.firstname.trim(),
+        lastname: form.lastname.trim(),
+        email: form.email.trim(),
         phone: form.phone,
-        name: form.name,
-        full_name: form.name,
-        major: form.major,
+        address: form.address.trim(),
+      };
+      const payload = Object.fromEntries(
+        Object.entries(candidate).filter(([, v]) => typeof v === 'string' && v !== '')
+      );
+      const res = await api.put(`/users/${user.id}`, payload);
+      const saved = res.data?.data || {};
+      const fullName = `${candidate.firstname} ${candidate.lastname}`.trim();
+      const updatedUser = {
+        ...user,
+        ...saved,
+        email: candidate.email,
+        phone: candidate.phone,
+        name: fullName,
+        full_name: fullName,
+        firstname: candidate.firstname,
+        lastname: candidate.lastname,
         avatar: avatarPreview,
       };
-
-      if (user.id) {
-        try {
-          const res = await api.put(`/users/${user.id}`, {
-            name: form.name,
-            email: form.email,
-            phone: form.phone,
-            studentId: form.studentId,
-            department: form.major
-          });
-          if (res.data && res.data.data) {
-            updatedUser = { ...updatedUser, ...res.data.data };
-          }
-        } catch (apiErr) {
-          console.error("Failed to update user profile on server:", apiErr);
-        }
-      }
-
       await asyncStorage.setItem('user', JSON.stringify(updatedUser));
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setData((prev) => ({ ...prev, ...candidate }));
 
-      const studentId = updatedUser.student_code || updatedUser.studentId || updatedUser.username;
-      if (studentId) {
+      // ซิงก์เบอร์/อีเมลลงคำร้องที่ยื่นไว้ (ไม่ให้ความล้มเหลวตรงนี้ทำให้การบันทึกโปรไฟล์ล้มเหลว)
+      const code = data?.student_code || updatedUser.student_code || updatedUser.username;
+      if (code) {
         try {
-          const reqRes = await api.get(`/requests?studentId=${studentId}`);
-          const requests = reqRes.data.data || [];
-          for (const reqItem of requests) {
+          const reqRes = await api.get(`/requests?studentId=${code}`);
+          for (const reqItem of reqRes.data.data || []) {
             let details = reqItem.details || {};
             if (typeof details === 'string') {
-              try { details = JSON.parse(details); } catch (e) { }
+              try { details = JSON.parse(details); } catch { details = {}; }
             }
-            details.studentPhone = form.phone;
-            if (!details.student_info) details.student_info = {};
-            details.student_info.phone = form.phone;
-            details.student_info.email = form.email;
-
-            await api.put(`/requests/${reqItem.id}`, {
-              details: JSON.stringify(details)
-            });
+            if (candidate.phone) details.studentPhone = candidate.phone;
+            details.student_info = {
+              ...(details.student_info || {}),
+              ...(candidate.phone ? { phone: candidate.phone } : {}),
+              email: candidate.email,
+            };
+            await api.put(`/requests/${reqItem.id}`, { details: JSON.stringify(details) });
           }
-        } catch (reqSyncErr) {
-          console.log("Notice: Request details sync status:", reqSyncErr.message);
+        } catch (syncErr) {
+          console.warn('Request details sync skipped:', syncErr.message);
         }
       }
 
-      setUser(updatedUser);
       setEditing(false);
       alert('บันทึกข้อมูลเสร็จสิ้น');
     } catch (error) {
-      console.error("Failed to save profile:", error);
-      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
+      console.error('Failed to save profile:', error);
+      setFormError(error.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -291,8 +337,15 @@ const ProfilePage = () => {
     );
   }
 
-  const inputClass = (editable) =>
-    `w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && editable ? 'bg-white' : 'bg-gray-50/70'}`;
+  const ready = loadState === 'ready' && data;
+  const displayName = ready
+    ? `${data.prefix || ''}${data.firstname} ${data.lastname}`.trim()
+    : (user.full_name || user.name || user.username);
+  const requestStatusText = loadState === 'loading'
+    ? 'กำลังโหลด...'
+    : loadState === 'error'
+      ? 'โหลดไม่สำเร็จ'
+      : (data?.has_request ? data.latest_request_status || '-' : 'ยังไม่ยื่นคำร้อง');
 
   return (
     <>
@@ -315,9 +368,9 @@ const ProfilePage = () => {
           </header>
           <div className="unified-card-body">
         <div className="content-wrapper">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             {/* Left: Profile Card */}
-            <div className="rounded-2xl border border-[#E9E5F5] p-8 text-center relative overflow-hidden bg-white">
+            <div className="rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 text-center relative overflow-hidden bg-white min-w-0">
               <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
 
               <div className="relative">
@@ -327,7 +380,7 @@ const ProfilePage = () => {
                       <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-4xl font-extrabold">
-                        {(user.full_name || user.name || user.username || 'U').charAt(0).toUpperCase()}
+                        {(data?.firstname || user.full_name || user.name || user.username || 'U').charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -348,8 +401,8 @@ const ProfilePage = () => {
                   />
                 </div>
 
-                <h3 className="m-0 mt-4 text-xl font-bold text-gray-800">
-                  {user.full_name || user.name || user.username}
+                <h3 className="m-0 mt-4 text-xl font-bold text-gray-800 break-words">
+                  {displayName}
                 </h3>
                 <span className="bg-purple-50 text-purple-700 border border-purple-200/60 font-semibold px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5 mt-2">
                   <AcademicCapIcon className="w-3.5 h-3.5" /> นักศึกษา
@@ -359,23 +412,23 @@ const ProfilePage = () => {
               <div className="mt-6 pt-5 border-t border-purple-50 flex flex-col gap-2.5 text-left">
                 <span className="inline-flex items-center gap-2 text-xs text-slate-600">
                   <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                  สถานะบัญชี: <span className="font-semibold text-emerald-600">กำลังใช้งาน</span>
+                  สถานะบัญชี: <span className="font-semibold text-emerald-600">{data && Number(data.is_active) === 0 ? 'ปิดใช้งาน' : 'กำลังใช้งาน'}</span>
                 </span>
-                <span className="inline-flex items-center gap-2 text-xs text-slate-600">
-                  <ClipboardDocumentListIcon className="w-4 h-4 text-purple-500 shrink-0" />
-                  สถานะคำร้อง: <span className="font-semibold text-purple-700">{requestStatus || 'กำลังโหลด...'}</span>
+                <span className="inline-flex items-start gap-2 text-xs text-slate-600">
+                  <ClipboardDocumentListIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
+                  <span>สถานะคำร้อง: <span className="font-semibold text-purple-700 break-words">{requestStatusText}</span></span>
                 </span>
-                {form.major && (
+                {ready && data.department && (
                   <span className="inline-flex items-start gap-2 text-xs text-slate-600">
                     <AcademicCapIcon className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
-                    {form.major}
+                    {data.department}
                   </span>
                 )}
               </div>
             </div>
 
             {/* Right: Account Details Card */}
-            <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white">
+            <div className="lg:col-span-2 rounded-2xl border border-[#E9E5F5] p-6 sm:p-8 bg-white min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m-0 text-lg font-bold text-gray-800">รายละเอียดบัญชี</h3>
@@ -393,7 +446,8 @@ const ProfilePage = () => {
                     <button
                       type="button"
                       onClick={() => setEditing(true)}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-medium shadow-md shadow-purple-500/20 transition flex items-center gap-2 cursor-pointer border-none"
+                      disabled={!ready}
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-medium shadow-md shadow-purple-500/20 transition flex items-center gap-2 cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <PencilSquareIcon className="w-4 h-4" /> แก้ไขข้อมูล
                     </button>
@@ -401,108 +455,143 @@ const ProfilePage = () => {
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditing(false);
-                          setForm({
-                            name: user.full_name || user.name || '',
-                            email: user.email || '',
-                            username: user.username || '',
-                            phone: user.phone || '',
-                            studentId: user.studentId || user.student_code || '',
-                            major: user.major || user.department || ''
-                          });
-                          setAvatarPreview(user.avatar || null);
-                        }}
-                        className="border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm font-medium transition cursor-pointer bg-white"
+                        onClick={handleCancel}
+                        disabled={saving}
+                        className="border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm font-medium transition cursor-pointer bg-white disabled:opacity-50"
                       >
                         ยกเลิก
                       </button>
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none"
+                        disabled={saving}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none disabled:opacity-60"
                       >
-                        บันทึกการเปลี่ยนแปลง
+                        {saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
                       </button>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">รหัสนักศึกษา</label>
-                  <input
-                    type="text"
-                    name="studentId"
-                    value={form.studentId}
-                    disabled
-                    className={inputClass(false)}
-                  />
+              {loadState === 'loading' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-6 animate-pulse" aria-busy="true">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="h-10 bg-slate-100 rounded-xl" />
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">ชื่อ-นามสกุล</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    className={inputClass(true)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">สาขาวิชา</label>
-                  <select
-                    name="major"
-                    value={form.major}
-                    onChange={handleChange}
-                    disabled={!editing}
-                    className={`${inputClass(true)} cursor-pointer disabled:cursor-default`}
-                  >
-                    <option value="">เลือกสาขา</option>
-                    {DEPARTMENT_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                    {form.major && !DEPARTMENT_OPTIONS.includes(form.major) && (
-                      <option value={form.major}>{form.major}</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">ชื่อผู้ใช้ (Username)</label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={form.username}
-                    disabled
-                    className={inputClass(false)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">อีเมล</label>
-                  <input
-                    type="email"
+              )}
+
+              {loadState === 'error' && (
+                <Alert
+                  severity="error"
+                  sx={{ mt: 3, borderRadius: 2 }}
+                  action={
+                    <Button color="inherit" size="small" onClick={() => user?.id && loadProfile(user.id)}>
+                      ลองใหม่
+                    </Button>
+                  }
+                >
+                  โหลดข้อมูลโปรไฟล์ไม่สำเร็จ
+                </Alert>
+              )}
+
+              {ready && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5 mt-6">
+                  {formError && (
+                    <Alert severity="error" className="sm:col-span-2" sx={{ borderRadius: 2, fontSize: '0.85rem' }}>
+                      {formError}
+                    </Alert>
+                  )}
+
+                  <SectionTitle hint="ข้อมูลที่ผูกกับระบบทะเบียนกลาง/SSO จึงแก้ไขเองไม่ได้ ยกเว้นอีเมลและเบอร์โทรศัพท์">
+                    ข้อมูลบัญชี
+                  </SectionTitle>
+                  <ProfileField readOnly editing={editing} label="รหัสนักศึกษา" value={data.student_code} />
+                  <ProfileField readOnly editing={editing} label="ชื่อผู้ใช้ (Username)" value={data.username} />
+                  <ProfileField
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="อีเมล"
                     name="email"
+                    type="email"
                     value={form.email}
                     onChange={handleChange}
-                    disabled={!editing}
-                    className={inputClass(true)}
+                    placeholder="name@example.com"
+                    inputProps={{ autoComplete: 'email' }}
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">เบอร์โทรศัพท์</label>
-                  <input
-                    type="text"
+                  <ProfileField
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="เบอร์โทรศัพท์"
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
-                    disabled={!editing}
-                    placeholder="09xxxxxxxx (สูงสุด 10 หลัก)"
-                    maxLength={10}
-                    inputMode="numeric"
-                    className={inputClass(true)}
+                    placeholder="09xxxxxxxx"
+                    inputProps={{ maxLength: 10, inputMode: 'numeric', autoComplete: 'tel' }}
+                  />
+
+                  <div className="sm:col-span-2 mt-2" />
+                  <SectionTitle hint="ชื่อและที่อยู่แก้ไขได้เมื่อกดปุ่ม แก้ไขข้อมูล ส่วนสาขา ชั้นปี เกรด และอาจารย์ที่ปรึกษาเป็นข้อมูลอ่านอย่างเดียว">
+                    ข้อมูลประวัตินักศึกษา
+                  </SectionTitle>
+                  <ProfileField
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="คำนำหน้า"
+                    name="prefix"
+                    value={form.prefix}
+                    onChange={handleChange}
+                    placeholder="นาย / นางสาว / นาง"
+                    inputProps={{ maxLength: 50 }}
+                  />
+                  <ProfileField
+                    editing={editing}
+                    label="ชื่อจริง"
+                    name="firstname"
+                    value={form.firstname}
+                    onChange={handleChange}
+                    required
+                    inputProps={{ maxLength: 50 }}
+                  />
+                  <ProfileField
+                    editing={editing}
+                    label="นามสกุล"
+                    name="lastname"
+                    value={form.lastname}
+                    onChange={handleChange}
+                    required
+                    inputProps={{ maxLength: 50 }}
+                  />
+                  <ProfileField readOnly editing={editing} className="sm:col-span-2" label="สาขาวิชา" value={data.department || '-'} />
+                  <ProfileField
+                    readOnly
+                    editing={editing}
+                    label="ชั้นปี"
+                    value={data.year_level ? `ปีที่ ${data.year_level}` : '-'}
+                  />
+                  <ProfileField readOnly editing={editing} label="เกรดเฉลี่ยสะสม (GPAX)" value={data.gpa || '-'} />
+                  <ProfileField
+                    readOnly
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="อาจารย์ที่ปรึกษา"
+                    value={data.advisor_name || 'ยังไม่ได้กำหนด'}
+                  />
+                  <ProfileField
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="ที่อยู่ปัจจุบัน"
+                    name="address"
+                    value={form.address}
+                    onChange={handleChange}
+                    multiline
+                    minRows={2}
+                    maxRows={5}
+                    placeholder="บ้านเลขที่ หมู่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
                   />
                 </div>
-              </div>
+              )}
 
               <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
                 <span className="inline-flex items-center gap-2 text-xs text-slate-500">
