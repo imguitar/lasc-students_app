@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useAsyncData from '../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField } from '@mui/material';
@@ -11,20 +13,20 @@ const AdvisorStudentListPage = () => {
     const [students, setStudents] = useState([]);
     const [advisorDept, setAdvisorDept] = useState('');
 
-    useEffect(() => {
+    // ดึงรายชื่อนักศึกษา: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, ล้มเหลวมีปุ่มลองใหม่, ไม่แสดง Empty State ระหว่างโหลด
+    const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
         const userStr = localStorage.getItem('user');
         if (!userStr) {
             navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-            return;
+            return null;
         }
-
         const user = JSON.parse(userStr);
         if (user.role !== 'advisor') {
             navigate('/dashboard');
-            return;
+            return null;
         }
 
-        // นักศึกษาที่มีสิทธิ์ฝึกงาน = ชั้นปี 4 — รหัสขึ้นต้นด้วยปีที่เข้าศึกษา (ปี พ.ศ. ปัจจุบัน - 3)
+        // นักศึกษาที่มีสิทธิ์ฝึกงาน = ชั้นปี 4 — รหัสขึ้นต้นด้วยปีเข้า (พ.ศ. 2 หลัก)
         // เช่น ปี 2569 → cohort 66 | รองรับบัญชีทดสอบ 'student*' ด้วย
         const internshipPrefix = String(new Date().getFullYear() + 543 - 2500 - 3).padStart(2, '0');
         const isEligible = (stu) => {
@@ -32,27 +34,24 @@ const AdvisorStudentListPage = () => {
             return code.startsWith(internshipPrefix) || code.startsWith('student');
         };
 
-        const fetchStudents = (deptId, deptName) => {
-            api.get('/users', { params: { role: 'student', department_id: deptId, department: deptName } })
-                .then(res => setStudents((res.data.data || []).filter(isEligible)))
-                .catch(err => console.error('Failed to load students:', err));
-        };
-
-        const deptName = user.department || user.major || '';
-        setAdvisorDept(deptName);
-
-        if (user.department_id) {
-            fetchStudents(user.department_id, deptName);
-        } else {
+        let deptName = user.department || user.major || '';
+        let deptId = user.department_id;
+        if (!deptId) {
             // user ใน localStorage อาจไม่มี department_id — ดึงข้อมูลสดจาก /auth/me
-            api.get('/auth/me').then(res => {
-                const me = res.data.user || {};
-                setAdvisorDept(me.department || me.major || deptName);
-                fetchStudents(me.department_id, me.department || me.major || deptName);
-            }).catch(err => console.error('Failed to load profile:', err));
+            const meRes = await api.get('/auth/me', { signal });
+            const me = meRes.data.user || {};
+            deptName = me.department || me.major || deptName;
+            deptId = me.department_id;
         }
-
-    }, [navigate]);
+        const res = await api.get('/users', { params: { role: 'student', department_id: deptId, department: deptName }, signal });
+        return { deptName, students: (res.data.data || []).filter(isEligible) };
+    }, 'advisor-students', {
+        onSuccess: (d) => {
+            if (!d) return;
+            setAdvisorDept(d.deptName);
+            setStudents(d.students);
+        },
+    });
 
     // แปลงสถานะคำร้องล่าสุด → badge ขั้นตอนการฝึกงาน (แทนสถานะบัญชี "ใช้งาน")
     const getStepBadge = (stu) => {
@@ -137,7 +136,7 @@ const AdvisorStudentListPage = () => {
 
                 <Paper className="content-section" elevation={0} sx={{ width: '100%', background: '#ffffff', color: '#0f172a', boxShadow: 'none', borderRadius: 2 }}>
                     <div className="section-header" style={{ background: 'transparent' }}>
-                        <h2>นักศึกษาที่มีสิทธิ์ฝึกงาน ({students.length})</h2>
+                        <h2>นักศึกษาที่มีสิทธิ์ฝึกงาน ({loading ? '...' : students.length})</h2>
                     </div>
 
                     <Box sx={{ px: 2, pb: 1.5 }}>
@@ -150,9 +149,16 @@ const AdvisorStudentListPage = () => {
                             InputProps={{
                                 startAdornment: <Search className="w-4 h-4 text-slate-400" style={{ marginRight: 8, flexShrink: 0 }} />,
                             }}
+                            disabled={loading}
                         />
                     </Box>
 
+                    {loading ? (
+                        <Box sx={{ px: 2, pb: 2 }}><LoadingBlock rows={5} variant="table" label="กำลังโหลดรายชื่อนักศึกษา..." /></Box>
+                    ) : loadError ? (
+                        <Box sx={{ px: 2, pb: 2 }}><ErrorRetry message="โหลดรายชื่อนักศึกษาไม่สำเร็จ" onRetry={reload} /></Box>
+                    ) : (
+                    <>
                     <TableContainer component={Box} className="table-responsive" sx={{ px: 2, pb: 2, overflowX: 'auto', display: { xs: 'none', md: 'block' } }}>
                         <Table size="small" className="data-table" stickyHeader>
                             <TableHead>
@@ -272,6 +278,8 @@ const AdvisorStudentListPage = () => {
                             })
                         )}
                     </Box>
+                    </>
+                    )}
                 </Paper>
             </main>
         </>

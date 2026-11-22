@@ -1,5 +1,7 @@
 import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useAsyncData from '../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import {
@@ -113,11 +115,39 @@ const AdvisorSupervisionPage = () => {
         );
     };
 
-    const loadSupervisionRows = async (dept, me) => {
-        try {
-            const res = await api.get('/requests');
-            const allRequests = res.data.data || [];
-            const activeStatuses = [
+    // โหลดรายการนิเทศ + ข้อมูลผู้ใช้สด + รายชื่ออาจารย์ในสาขา ในคำขอชุดเดียว
+    // (เดิมโหลดซ้ำ 2 รอบเมื่อสถานะประธานสาขาเปลี่ยน ผลรอบเก่าที่ตอบช้าอาจเขียนทับรอบใหม่ได้)
+    const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
+        const userStr = localStorage.getItem('user');
+        if (!userStr) {
+            navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+            return null;
+        }
+        const user = JSON.parse(userStr);
+        if (user.role !== 'advisor') {
+            navigate('/dashboard');
+            return null;
+        }
+
+        const dept = user.department || user.major || '';
+        const myName = user.name || user.full_name || 'อาจารย์ที่ปรึกษา';
+
+        const [reqRes, meRes, advRes] = await Promise.allSettled([
+            api.get('/requests', { signal }),
+            // ประธานสาขาเปลี่ยนได้จากระบบฐานข้อมูลนักศึกษา: ใช้ค่าล่าสุดจากเซิร์ฟเวอร์ทับเสมอ (ล้มเหลวได้)
+            api.get('/auth/me', { signal }),
+            // รายชื่ออาจารย์ในสาขาเดียวกัน สำหรับให้ประธานสาขามอบหมาย (ล้มเหลวได้)
+            api.get('/users?role=advisor', { signal }),
+        ]);
+        signal.throwIfAborted();
+        if (reqRes.status === 'rejected') throw reqRes.reason;
+
+        const fresh = meRes.status === 'fulfilled' ? meRes.value.data?.user : null;
+        const isHead = fresh ? Boolean(fresh.isDepartmentHead) : Boolean(user.isDepartmentHead);
+        const me = { id: user.id, name: myName, isDepartmentHead: isHead };
+
+        const allRequests = reqRes.value.data.data || [];
+        const activeStatuses = [
                 'อนุมัติแล้ว', 'อนุมัติแล้ว (รอออกฝึกงาน)',
                 'รออาจารย์อนุมัติเริ่มฝึกงาน', 'รอแอดมินอนุมัติเริ่มฝึกงาน',
                 'สถานประกอบการตอบรับแล้ว', 'ตอบรับแล้ว',
@@ -126,68 +156,33 @@ const AdvisorSupervisionPage = () => {
                 // enum ภาษาอังกฤษที่อาจเจอในฐานข้อมูล
                 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP', 'APPROVED', 'COMPLETED'
             ];
-            const deptKey = normalizeDept(dept);
-            const filtered = allRequests.filter((request) => {
-                const sameDept = deptKey ? normalizeDept(request.department) === deptKey : true;
-                if (!sameDept || !activeStatuses.includes(request.status)) return false;
-                // อาจารย์ทั่วไปเห็นเฉพาะนักศึกษาที่ตนได้รับมอบหมายเป็นผู้นิเทศ
-                // ประธานสาขาเห็นภาพรวมทั้งหมดเพื่อจัดการนัดหมาย
-                if (!me?.isDepartmentHead) return isAssignedToMe(request, me);
-                return true;
-            });
-            console.log('[Supervision] dept:', dept, '| total:', allRequests.length, '| matched:', filtered.length);
-            setSupervisionRows(filtered);
-        } catch (err) {
-            console.error('Failed to load requests:', err);
+        const deptKey = normalizeDept(dept);
+        const rows = allRequests.filter((request) => {
+            const sameDept = deptKey ? normalizeDept(request.department) === deptKey : true;
+            if (!sameDept || !activeStatuses.includes(request.status)) return false;
+            // อาจารย์ทั่วไปเห็นเฉพาะนักศึกษาที่ตนได้รับมอบหมาย, ประธานสาขาเห็นภาพรวมทั้งหมด
+            if (!me.isDepartmentHead) return isAssignedToMe(request, me);
+            return true;
+        });
+
+        let advisors = [];
+        if (advRes.status === 'fulfilled') {
+            const list = advRes.value.data?.data || [];
+            const matched = deptKey ? list.filter((x) => normalizeDept(x.department) === deptKey) : list;
+            advisors = matched.length > 0 ? matched : list;
         }
-    };
-
-    useEffect(() => {
-        const userStr = localStorage.getItem('user');
-        if (!userStr) {
-            navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-            return;
-        }
-
-        const user = JSON.parse(userStr);
-        if (user.role !== 'advisor') {
-            navigate('/dashboard');
-            return;
-        }
-
-        const dept = user.department || user.major || '';
-        const myName = user.name || user.full_name || 'อาจารย์ที่ปรึกษา';
-        const me = { id: user.id, name: myName, isDepartmentHead: Boolean(user.isDepartmentHead) };
-        setAdvisorName(myName);
-        setAdvisorDept(dept);
-        setIsDepartmentHead(me.isDepartmentHead);
-        setCurrentUserId(user.id);
-        loadSupervisionRows(dept, me);
-
-        // ประธานสาขาเปลี่ยนได้จากระบบฐานข้อมูลนักศึกษา ค่าใน localStorage จึงอาจเก่า
-        // ดึงค่าล่าสุดจากเซิร์ฟเวอร์ทับเสมอ แล้วโหลดรายการใหม่ตามสิทธิ์จริง
-        api.get('/auth/me')
-            .then((res) => {
-                const fresh = res.data?.user;
-                if (!fresh) return;
-                const freshHead = Boolean(fresh.isDepartmentHead);
-                setIsDepartmentHead(freshHead);
-                if (freshHead !== me.isDepartmentHead) {
-                    loadSupervisionRows(dept, { ...me, isDepartmentHead: freshHead });
-                }
-            })
-            .catch(() => {});
-
-        // รายชื่ออาจารย์ในสาขาเดียวกัน สำหรับให้ประธานสาขาเลือกผู้นิเทศ
-        api.get('/users?role=advisor')
-            .then((res) => {
-                const list = res.data?.data || [];
-                const deptKey = normalizeDept(dept);
-                const matched = deptKey ? list.filter((a) => normalizeDept(a.department) === deptKey) : list;
-                setDepartmentAdvisors(matched.length > 0 ? matched : list);
-            })
-            .catch(() => {});
-    }, [navigate]);
+        return { dept, me, rows, advisors };
+    }, 'advisor-supervision', {
+        onSuccess: (d) => {
+            if (!d) return;
+            setAdvisorName(d.me.name);
+            setAdvisorDept(d.dept);
+            setIsDepartmentHead(d.me.isDepartmentHead);
+            setCurrentUserId(d.me.id);
+            setSupervisionRows(d.rows);
+            setDepartmentAdvisors(d.advisors);
+        },
+    });
 
     const persistRequests = (updater) => {
         setSupervisionRows((prev) => {
@@ -472,10 +467,10 @@ const AdvisorSupervisionPage = () => {
                     }}
                 >
                     {[
-                        { title: 'นักศึกษาที่ดูแลทั้งหมด', value: summary.totalStudents, icon: <Users className="w-5 h-5" />, color: '#3b82f6' },
-                        { title: 'รอนัดนิเทศ', value: summary.pendingSchedule, icon: <CalendarClock className="w-5 h-5" />, color: '#f59e0b' },
-                        { title: 'นิเทศสัปดาห์นี้', value: summary.thisWeek, icon: <CalendarDays className="w-5 h-5" />, color: '#0284c7' },
-                        { title: 'ยังไม่ประเมิน', value: summary.pendingEvaluation, icon: <ClipboardCheck className="w-5 h-5" />, color: '#10b981' },
+                        { title: 'นักศึกษาที่ดูแลทั้งหมด', value: loading ? '…' : summary.totalStudents, icon: <Users className="w-5 h-5" />, color: '#3b82f6' },
+                        { title: 'รอนัดนิเทศ', value: loading ? '…' : summary.pendingSchedule, icon: <CalendarClock className="w-5 h-5" />, color: '#f59e0b' },
+                        { title: 'นิเทศสัปดาห์นี้', value: loading ? '…' : summary.thisWeek, icon: <CalendarDays className="w-5 h-5" />, color: '#0284c7' },
+                        { title: 'ยังไม่ประเมิน', value: loading ? '…' : summary.pendingEvaluation, icon: <ClipboardCheck className="w-5 h-5" />, color: '#10b981' },
                     ].map((item) => (
                         <StatCard
                             key={item.title}
@@ -492,6 +487,12 @@ const AdvisorSupervisionPage = () => {
                         <h2>นักศึกษาที่ต้องนิเทศ</h2>
                     </div>
 
+                    {loading ? (
+                        <LoadingBlock rows={5} variant="table" label="กำลังโหลดรายการนิเทศ..." />
+                    ) : loadError ? (
+                        <ErrorRetry message="โหลดรายการนิเทศไม่สำเร็จ" onRetry={reload} />
+                    ) : (
+                    <>
                     <TableContainer component={Box} className="compact-table" sx={{ display: { xs: 'none', md: 'block' } }}>
                         <Table size="small">
                             <TableHead>
@@ -694,6 +695,8 @@ const AdvisorSupervisionPage = () => {
                             })
                         )}
                     </Box>
+                    </>
+                    )}
                 </Paper>
             </main>
 
