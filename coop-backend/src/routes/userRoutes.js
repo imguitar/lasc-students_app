@@ -468,9 +468,11 @@ router.put('/:id', authenticate, async (req, res) => {
       if (typeof v === 'string' && v.trim() === '') continue;
       body[k] = (typeof v === 'string' && k !== 'password') ? v.trim() : v;
     }
-    // นักศึกษา: สาขา/คณะ มาจากระบบทะเบียนกลาง ห้ามแก้เอง
-    if (!isAdmin && current.role === 'student') {
+    // ผู้ใช้ที่ไม่ใช่ admin (นักศึกษา/อาจารย์): สังกัด ชื่อ-นามสกุล คำนำหน้า และอีเมลผูกกับทะเบียนกลาง/SSO
+    // แก้เองผ่าน endpoint นี้ไม่ได้ (เหลือเฉพาะ phone/address/password ของตัวเอง) — เปลี่ยนได้โดย admin เท่านั้น
+    if (!isAdmin) {
       delete body.department; delete body.department_id; delete body.faculty_id;
+      delete body.prefix; delete body.firstname; delete body.lastname; delete body.name; delete body.email;
     }
     // ผู้ใช้ทั่วไปห้ามแตะฟิลด์ยืนยันตัวตน ต่อให้ส่งมา
     if (!isAdmin) { delete body.username; delete body.role; delete body.isActive; delete body.studentId; }
