@@ -40,10 +40,6 @@ const readStoredStudent = () => {
   }
 };
 
-// อีเมลมหาวิทยาลัยรูปแบบเก่า (@student.sskru.ac.th) แสดงเป็นรูปแบบ stu{รหัส}@sskru.ac.th
-const resolveEmail = (email, code) =>
-  email && !email.includes('@student.sskru.ac.th') ? email : (code ? `stu${code}@sskru.ac.th` : email || '');
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ข้อมูลที่แก้ไขได้เอง (ตรงกับคอลัมน์ user.email/phone และ profile.prefix/firstname/lastname/address)
@@ -125,7 +121,7 @@ const ProfilePage = () => {
       const d = res.data?.data;
       if (!d) throw new Error('empty');
       setData(d);
-      setForm(buildForm({ ...d, email: resolveEmail(d.email, d.student_code) }));
+      setForm(buildForm(d));
       setLoadState('ready');
     } catch (err) {
       console.error('Failed to load student profile:', err);
@@ -178,7 +174,7 @@ const ProfilePage = () => {
   const handleCancel = () => {
     setEditing(false);
     setFormError('');
-    setForm(buildForm(data ? { ...data, email: resolveEmail(data.email, data.student_code) } : null));
+    setForm(buildForm(data));
     setAvatarPreview(user?.avatar || null);
   };
 
@@ -211,6 +207,8 @@ const ProfilePage = () => {
       const payload = Object.fromEntries(
         Object.entries(candidate).filter(([, v]) => typeof v === 'string' && v !== '')
       );
+      // อีเมลส่งเฉพาะเมื่อผู้ใช้แก้จริง (กันเขียนทับอีเมลเดิมที่ใช้ล็อกอินโดยไม่ตั้งใจ)
+      if (candidate.email === (data?.email || '')) delete payload.email;
       const res = await api.put(`/users/${user.id}`, payload);
       const saved = res.data?.data || {};
       const fullName = `${candidate.firstname} ${candidate.lastname}`.trim();

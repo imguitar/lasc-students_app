@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
  * ห้ามใช้ transition-all กับ <nav> (fixed) และห้ามขยับตำแหน่งด้วย JS ตอน scroll (ทำให้ iOS Safari ดีด)
  */
 const ITEM_CLASS =
-  'flex flex-col items-center justify-center h-full w-full min-w-0 gap-0.5 px-1 no-underline border-none bg-transparent cursor-pointer transition-colors focus:outline-none';
+  'flex flex-col items-center justify-center h-full w-full min-w-0 gap-0.5 px-0.5 no-underline border-none bg-transparent cursor-pointer transition-colors focus:outline-none';
 
 const TabContent = ({ label, active, Icon: IconComponent }) => {
   const TabIcon = IconComponent;
@@ -25,8 +25,8 @@ const TabContent = ({ label, active, Icon: IconComponent }) => {
         <TabIcon className="w-4 h-4 stroke-[2]" aria-hidden="true" />
       </span>
       <span
-        className={`text-[10px] leading-tight truncate max-w-full ${
-          active ? 'font-bold text-amber-200' : 'font-medium text-purple-200/80'
+        className={`text-[10px] leading-tight tracking-tight truncate max-w-full ${
+          active ? 'font-semibold text-amber-200' : 'font-medium text-purple-200/80'
         }`}
       >
         {label}
