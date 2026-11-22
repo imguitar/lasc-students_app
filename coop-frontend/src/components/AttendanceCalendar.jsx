@@ -40,6 +40,7 @@ const AttendanceCalendar = ({
   readOnly = false,
   accentTheme,
   onDayClick,
+  splitLayout = false,
 }) => {
   // Accent palette: violet (advisor view / default theme) or rose
   const theme = accentTheme || (readOnly ? 'violet' : 'rose');
@@ -287,15 +288,11 @@ const AttendanceCalendar = ({
     return `${parseInt(d)} ${monthNamesThai[parseInt(m) - 1]} ${thaiYear}`;
   };
 
-  return (
-    <Box className="attendance-calendar-container" sx={{ width: '100%', pt: 1 }}>
-      {/* Toast alert */}
-      {toastMessage && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2, fontWeight: 700 }}>
-          {toastMessage}
-        </Alert>
-      )}
-
+  // ส่วนประกอบของปฏิทิน แยกเป็นบล็อกเพื่อจัดวางได้ 2 แบบ:
+  //  - ค่าเริ่มต้น (แอดมิน/อาจารย์): หัว + ปฏิทิน + รายละเอียด ตามเดิม
+  //  - splitLayout (นักศึกษา): การ์ดปฏิทินซ้าย (หัว/ปุ่ม/Legend/ตาราง) + การ์ดรายละเอียดวันที่เลือกขวา สูงเท่ากัน
+  const topBlock = (
+    <>
       {/* Calendar Header Bar & Actions */}
       <Paper
         elevation={0}
@@ -534,15 +531,10 @@ const AttendanceCalendar = ({
         </Box>
       </Box>
 
-      {/* Calendar + Detail — side-by-side บนจอ lg ขึ้นไป */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '7fr 5fr' },
-          gap: { lg: 2.5 },
-          alignItems: 'start',
-        }}
-      >
+    </>
+  );
+  const daysBlock = (
+    <>
       <Box sx={{ minWidth: 0 }}>
       {/* Days of Week Header */}
       <Box 
@@ -693,7 +685,10 @@ const AttendanceCalendar = ({
                   if (isBatchMode) {
                     if (item.isSelectable) toggleDateSelection(item);
                   } else if (onDayClick) {
-                    if (item.isSelectable || item.entry) onDayClick(item);
+                    if (item.isSelectable || item.entry) {
+                      onDayClick(item);
+                      if (splitLayout) setSelectedDay(item); // การ์ดรายละเอียดฝั่งขวาแสดงวันที่เลือก
+                    }
                   } else {
                     setSelectedDay(item);
                   }
@@ -861,20 +856,26 @@ const AttendanceCalendar = ({
       </Box>
       </Box>
 
+    </>
+  );
+  const detailBlock = (
+    <>
       {/* Selected Day Detail Box (Normal Mode) — วางเคียงปฏิทินบน lg, ไม่ fix ความสูงกัน scroll ซ้อน */}
-      {!isBatchMode && (
+      {(splitLayout || !isBatchMode) && (
         <Paper
           elevation={0}
           sx={{
-            mt: { xs: 2.5, lg: 0 },
+            mt: splitLayout ? 0 : { xs: 2.5, lg: 0 },
             p: { xs: 2, lg: 1.75 },
             borderRadius: 3,
             bgcolor: '#f8fafc',
             border: '1px solid #e2e8f0',
-            height: { xs: 'auto', sm: 220, lg: 'auto' },
+            height: splitLayout ? 'auto' : { xs: 'auto', sm: 220, lg: 'auto' },
+            minHeight: splitLayout ? 160 : undefined,
             display: 'flex',
             flexDirection: 'column',
-            overflowY: { xs: 'visible', sm: 'auto', lg: 'visible' },
+            overflowY: splitLayout ? 'visible' : { xs: 'visible', sm: 'auto', lg: 'visible' },
+            ...(splitLayout ? { '@media (min-width:768px)': { height: '100%', minHeight: 0, overflowY: 'auto' } } : {}),
             flexShrink: 0,
           }}
         >
@@ -1024,7 +1025,56 @@ const AttendanceCalendar = ({
           )}
         </Paper>
       )}
-      </Box>
+    </>
+  );
+
+  return (
+    <Box className="attendance-calendar-container" sx={{ width: '100%', pt: 1 }}>
+      {/* Toast alert */}
+      {toastMessage && (
+        <Alert severity="success" sx={{ mb: 2, borderRadius: 2, fontWeight: 700 }}>
+          {toastMessage}
+        </Alert>
+      )}
+
+      {splitLayout ? (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: 2,
+            '@media (min-width:768px)': { gridTemplateColumns: 'minmax(0, 8fr) minmax(0, 4fr)', gap: 2.5 },
+            alignItems: 'stretch',
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{ minWidth: 0, p: { xs: 1.5, sm: 2.5 }, borderRadius: 4, border: '1px solid #e2e8f0', bgcolor: '#fff' }}
+          >
+            {topBlock}
+            {daysBlock}
+          </Paper>
+          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            {detailBlock}
+          </Box>
+        </Box>
+      ) : (
+        <>
+          {topBlock}
+      {/* Calendar + Detail — side-by-side บนจอ lg ขึ้นไป */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: '7fr 5fr' },
+          gap: { lg: 2.5 },
+          alignItems: 'start',
+        }}
+      >
+          {daysBlock}
+          {detailBlock}
+        </Box>
+        </>
+      )}
 
       {/* Batch Mentor Signature Modal Dialog */}
       <Dialog
