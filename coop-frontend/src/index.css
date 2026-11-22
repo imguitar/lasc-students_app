@@ -1068,7 +1068,8 @@ div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) > di
 .MuiDialogActions-root :is(.MuiButton-text, .MuiButton-outlined):not(.MuiButton-colorError):not(.MuiButton-colorPrimary):hover { background: #e2e8f0; }
 
 div.fixed.inset-0:is(.items-center, .items-end) button.flex-1,
-div.fixed.inset-0:is(.items-center, .items-end) button[type="submit"] { min-height: 44px; }
+div.fixed.inset-0:is(.items-center, .items-end) button[type="submit"],
+div.fixed.inset-0:is(.items-center, .items-end) button.w-full { min-height: 44px; }
 div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600 {
   background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%) !important;
   box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
@@ -1085,30 +1086,41 @@ div.fixed.inset-0:is(.items-center, .items-end) button.bg-violet-600:focus-visib
   .MuiDialog-root :is(.MuiInputBase-input, .MuiSelect-select) { font-size: 14px !important; }
 }
 
-/* ---------- 6) มือถือ (< 768px): Bottom Sheet + ปุ่มเรียงเต็มความกว้าง ---------- */
+/* ---------- 6) มือถือ (< 768px): Modal กึ่งกลางจอ (Centered Modal) + ปุ่มเรียงเต็มความกว้าง ----------
+   ไม่ใช้ Bottom Sheet ชิดขอบล่างแล้ว: ชนแถบ Safari Address Bar และ MobileTabBar (z-index 1070)
+   ทั้ง Backdrop และกล่องอยู่ที่ z-index 1300 สูงกว่า MobileTabBar เสมอ */
+@keyframes mModalIn {
+  from { transform: translateY(12px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.MuiDialog-root { z-index: 1300 !important; }
 @media (max-width: 767px) {
-  .MuiDialog-container { align-items: flex-end !important; }
+  .MuiDialog-container { align-items: center !important; justify-content: center !important; }
   .MuiDialog-paper:not(.MuiDialog-paperFullScreen) {
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    margin: 16px !important;
+    width: calc(100% - 32px) !important;
+    max-width: calc(100% - 32px) !important;
     max-height: 85vh !important;
-    border-radius: 16px 16px 0 0 !important;
-    animation: mSheetUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    max-height: 85dvh !important;
+    border-radius: 16px !important;
+    animation: mModalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .MuiDialogActions-root { flex-direction: column-reverse; align-items: stretch !important; justify-content: stretch !important; }
   .MuiDialogActions-root > :not(style) { width: 100%; margin: 0 !important; }
 
   div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) {
-    align-items: flex-end !important;
-    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 16px !important;
   }
   div.fixed.inset-0:is(.items-center, .items-end):not([class*="bg-black/85"]) > div {
     width: 100% !important;
     max-width: 100% !important;
-    border-radius: 16px 16px 0 0;
-    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
-    animation: mSheetUp 0.28s ease;
+    max-height: 85vh !important;
+    max-height: 85dvh !important;
+    overflow-y: auto;
+    border-radius: 16px !important;
+    animation: mModalIn 0.28s ease;
   }
   div.fixed.inset-0:is(.items-center, .items-end) :is(div):has(> button.flex-1) { flex-direction: column-reverse; }
   div.fixed.inset-0:is(.items-center, .items-end) :is(div):has(> button.flex-1) > button { width: 100%; flex: none; }
@@ -2194,7 +2206,7 @@ input:-webkit-autofill:active {
 .unified-card-head {
   display: flex; flex-direction: column; gap: 14px;
   padding-bottom: 20px; margin-bottom: 24px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  border-bottom: 1px solid rgb(226 232 240 / 0.8); /* border-b border-slate-200/80 */
 }
 @media (min-width: 640px) { .unified-card-head { flex-direction: row; align-items: center; justify-content: space-between; } }
 .unified-card-title-wrap { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -2346,3 +2358,6 @@ html,
 body {
   overscroll-behavior-y: none;
 }
+
+/* หน้านักศึกษา: การ์ดเนื้อหากว้างเท่าหัวหน้าเสมอ (ไม่ให้ .content-wrapper เดิมเพิ่ม padding จนการ์ดแคบกว่าหน้าอื่น) */
+.unified-card .content-wrapper { padding: 0; }

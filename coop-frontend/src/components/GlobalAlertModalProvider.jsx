@@ -11,6 +11,23 @@ import {
   Zoom,
 } from '@mui/material';
 import { ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+
+// window.alert รับแค่ข้อความ จึงจัดประเภทจากถ้อยคำ: ข้อผิดพลาดตรวจก่อน (เช่น "ไม่สำเร็จ" มีคำว่า "สำเร็จ" อยู่ด้วย)
+const ERROR_RE = /ผิดพลาด|ไม่สำเร็จ|ล้มเหลว|ไม่สามารถ|ไม่พบ|ไม่ถูกต้อง|ไม่ตรงกัน|ถูกปฏิเสธ|error|fail/i;
+const SUCCESS_RE = /สำเร็จ|เสร็จสิ้น|เรียบร้อย|บันทึก(ข้อมูล)?แล้ว|ส่งแล้ว|อัปเดต(ข้อมูล)?แล้ว/;
+
+const ALERT_VARIANTS = {
+  success: { Icon: CheckCircle2, color: '#059669', bg: '#ecfdf5', ring: '#a7f3d0' },
+  error: { Icon: AlertCircle, color: '#e11d48', bg: '#fff1f2', ring: '#fecdd3' },
+  info: { Icon: Info, color: '#7c3aed', bg: '#f5f3ff', ring: '#ddd6fe' },
+};
+
+const getAlertVariant = (text) => {
+  if (ERROR_RE.test(text)) return 'error';
+  if (SUCCESS_RE.test(text)) return 'success';
+  return 'info';
+};
 
 function GlobalAlertModalProvider({ children }) {
   const [open, setOpen] = useState(false);
@@ -32,8 +49,7 @@ function GlobalAlertModalProvider({ children }) {
   const showNextAlert = useCallback(() => {
     if (alertQueueRef.current.length === 0) {
       isShowingRef.current = false;
-      setOpen(false);
-      setMessage('');
+      setOpen(false); // คงข้อความเดิมไว้ให้แอนิเมชันปิดไม่กระพริบ
       return;
     }
 
@@ -132,6 +148,8 @@ function GlobalAlertModalProvider({ children }) {
     };
   }, [showNextAlert, showNextConfirm]);
 
+  const alertStyle = ALERT_VARIANTS[getAlertVariant(message)];
+
   const handleClose = () => {
     showNextAlert();
   };
@@ -157,17 +175,61 @@ function GlobalAlertModalProvider({ children }) {
       <Dialog
         open={open}
         onClose={handleClose}
+        maxWidth="xs"
+        fullWidth
         aria-labelledby="global-alert-title"
         aria-describedby="global-alert-description"
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            m: 2,
+            width: 'calc(100% - 32px)',
+            maxWidth: 448,
+            minWidth: { xs: 0, sm: 420 },
+            boxShadow: '0 25px 50px -12px rgba(46, 16, 101, 0.35)',
+            border: '1px solid #ede9fe',
+          },
+        }}
       >
-        <DialogTitle id="global-alert-title">แจ้งเตือน</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="global-alert-description">
+        <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box
+            sx={{
+              width: 48, height: 48, flexShrink: 0, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: alertStyle.bg, border: `1px solid ${alertStyle.ring}`,
+            }}
+          >
+            <alertStyle.Icon size={28} strokeWidth={2.2} color={alertStyle.color} aria-hidden="true" />
+          </Box>
+          <Typography id="global-alert-title" component="h2" sx={{ fontSize: '1.125rem', fontWeight: 700, color: '#1e1b4b', lineHeight: 1.4 }}>
+            แจ้งเตือน
+          </Typography>
+        </Box>
+        <DialogContent sx={{ px: 3, pt: 0, pb: 3 }}>
+          <DialogContentText
+            id="global-alert-description"
+            sx={{
+              color: '#475569', fontSize: { xs: '0.875rem', sm: '1rem' }, lineHeight: 1.7,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}
+          >
             {message}
           </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} autoFocus>
+        <DialogActions sx={{ px: 3, pb: 3, pt: 0, justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
+          <Button
+            onClick={handleClose}
+            autoFocus
+            variant="contained"
+            disableElevation
+            sx={{
+              height: 44, px: 4, borderRadius: '12px', fontWeight: 600, fontSize: '0.95rem', textTransform: 'none',
+              width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 120 },
+              bgcolor: '#7C3AED', color: '#fff',
+              boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.3)',
+              '&:hover': { bgcolor: '#6D28D9' },
+            }}
+          >
             ตกลง
           </Button>
         </DialogActions>
