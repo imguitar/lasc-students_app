@@ -24,6 +24,8 @@ import {
 } from '@mui/material';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { User, Building2, UserCheck, Briefcase, Search, ArrowLeft, Upload, FileCheck, Info, Menu, X, MapPin, Users, CalendarDays, CheckCircle2, GraduationCap, ArrowRight, Send, Check, ChevronDown, Clock } from 'lucide-react';
+import StudentPageHeader from '../../components/student/StudentPageHeader';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import api from '../../api/axios';
 
 // ขั้นตอนของฟอร์มคำร้อง (Wizard) — แต่ละขั้นแสดงเฉพาะหมวดของตัวเอง
@@ -33,6 +35,36 @@ const WIZARD_STEPS = [
   { key: 'training', label: 'รายละเอียดการฝึก' },
   { key: 'confirm', label: 'ตรวจสอบและยืนยัน' },
 ];
+
+const TERM_LABELS = { term1: 'ภาคการศึกษาที่ 1', term2: 'ภาคการศึกษาที่ 2', summer: 'ภาคฤดูร้อน' };
+
+// ที่อยู่แยกส่วน -> ข้อความบรรทัดเดียวสำหรับหน้าสรุป
+const formatAddress = (a) => [
+  a.house && `เลขที่ ${a.house}`, a.moo && `หมู่ ${a.moo}`, a.soi && `ซอย ${a.soi}`, a.road && `ถนน${a.road}`,
+  a.tambon && `ต.${a.tambon}`, a.amphur && `อ.${a.amphur}`, a.province && `จ.${a.province}`, a.postal,
+].filter(Boolean).join(' ') || '-';
+
+const SummaryGroup = ({ icon, title, children }) => {
+  const GroupIcon = icon;
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-slate-100">
+        <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+          <GroupIcon className="w-4 h-4" aria-hidden="true" />
+        </div>
+        <h3 className="m-0 text-sm sm:text-base font-bold text-slate-800">{title}</h3>
+      </div>
+      <dl className="wiz-summary-grid">{children}</dl>
+    </section>
+  );
+};
+
+const SummaryItem = ({ label, value, wide = false, pre = false }) => (
+  <div className={wide ? 'sm:col-span-2' : ''}>
+    <dt>{label}</dt>
+    <dd className={pre ? 'whitespace-pre-wrap' : ''}>{value ? value : '-'}</dd>
+  </div>
+);
 
 // ประเภทการฝึก — นักศึกษาต้องเลือกก่อนกรอกฟอร์ม (เก็บใน requests.details.internshipType)
 const INTERNSHIP_TYPES = [
@@ -156,6 +188,16 @@ const NewRequestPage = () => {
   const [wizardStep, setWizardStep] = useState(1);
   const [maxStep, setMaxStep] = useState(1);
   const formRef = useRef(null);
+  // สถานะโหลดข้อมูลตั้งต้น (คำร้องเดิมตอนแก้ไข / ตรวจสิทธิ์ยื่นซ้ำตอนยื่นใหม่) และการส่งคำร้อง
+  const [initLoading, setInitLoading] = useState(true);
+  const [initError, setInitError] = useState(false);
+  const [initNonce, setInitNonce] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const retryInit = () => {
+    setInitError(false);
+    setInitLoading(true);
+    setInitNonce((n) => n + 1);
+  };
   const goToStep = (n) => {
     setWizardStep(n);
     setMaxStep((m) => Math.max(m, n));
@@ -169,6 +211,24 @@ const NewRequestPage = () => {
   const goNext = () => {
     if (formRef.current && !formRef.current.reportValidity()) return;
     goToStep(Math.min(WIZARD_STEPS.length, wizardStep + 1));
+  };
+  // ปุ่มยืนยันในขั้นสุดท้าย: ตรวจฟอร์ม -> ถามยืนยันอีกครั้ง -> ส่งจริง
+  // (ห้ามใช้ปุ่ม type="submit" สลับกับปุ่ม "ถัดไป": React ใช้ปุ่มเดิมซ้ำ เมื่อ type เปลี่ยนกลางคลิกฟอร์มจะถูกส่งทันที)
+  const confirmAndSubmit = async () => {
+    if (submitting || initLoading) return;
+    if (formRef.current && !formRef.current.reportValidity()) return;
+    const ok = await window.showMuiConfirm(
+      id
+        ? 'คุณต้องการบันทึกการแก้ไขคำร้องนี้ใช่หรือไม่?'
+        : 'เมื่อยื่นคำร้องแล้ว ระบบจะส่งให้อาจารย์ที่ปรึกษาพิจารณา และบัญชีหนึ่งยื่นคำร้องได้เพียง 1 รายการ กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยัน',
+      {
+        title: id ? 'ยืนยันการบันทึกการแก้ไข' : 'ยืนยันการยื่นคำร้อง',
+        confirmText: id ? 'บันทึกการแก้ไข' : 'ยืนยันการยื่นคำร้อง',
+        cancelText: 'กลับไปตรวจสอบ',
+        tone: 'primary',
+      }
+    );
+    if (ok) handleSubmit({ preventDefault: () => {} });
   };
   const [hasExistingRequest, setHasExistingRequest] = useState(false);
   const [existingActiveRequest, setExistingActiveRequest] = useState(null);
@@ -193,10 +253,12 @@ const NewRequestPage = () => {
       return;
     }
     const user = JSON.parse(userStr);
+    const controller = new AbortController();
+    const { signal } = controller;
 
     if (id) {
       // Edit mode: fetch existing request data
-      api.get(`/requests/${id}`).then(res => {
+      api.get(`/requests/${id}`, { signal }).then(res => {
         const reqData = res.data.data;
         if (reqData) {
           const status = reqData.status || '';
@@ -264,9 +326,12 @@ const NewRequestPage = () => {
           }
         }
       }).catch(err => {
+        if (signal.aborted || err.code === 'ERR_CANCELED') return;
         console.error('Failed to load existing request:', err);
         alert('ไม่สามารถโหลดข้อมูลคำร้องเดิมได้');
         navigate('/dashboard/my-requests');
+      }).finally(() => {
+        if (!signal.aborted) setInitLoading(false);
       });
     } else {
       // New mode: Prefill student-related fields if available from the logged-in user
@@ -286,23 +351,30 @@ const NewRequestPage = () => {
       }));
 
       // รอบปฏิทินฝึกงานที่แอดมินประกาศ — แสดงช่วงวันให้นักศึกษาเห็นตอนเลือกเทอม
-      api.get('/internship-rounds/active')
+      api.get('/internship-rounds/active', { signal })
         .then(res => setInternshipRounds(res.data?.data || []))
         .catch(() => {});
 
       // Check for existing active request via API only in NEW mode
       const studentId = targetStudentId;
-      api.get(`/requests?studentId=${studentId}`).then(res => {
+      api.get(`/requests?studentId=${studentId}`, { signal }).then(res => {
         const REJECTED_STATUSES = ['ไม่อนุมัติ (อาจารย์)', 'ไม่อนุมัติ (Admin)', 'ปฏิเสธ'];
         const activeRequest = (res.data.data || []).find(req => !REJECTED_STATUSES.includes(req.status));
         if (activeRequest) {
           setExistingActiveRequest(activeRequest);
           setHasExistingRequest(true);
         }
-      }).catch(err => console.error('Failed to check existing requests:', err));
+      }).catch(err => {
+        if (signal.aborted || err.code === 'ERR_CANCELED') return;
+        console.error('Failed to check existing requests:', err);
+        setInitError(true); // ตรวจสิทธิ์ยื่นซ้ำไม่ได้ ห้ามปล่อยให้ยื่นต่อ
+      }).finally(() => {
+        if (!signal.aborted) setInitLoading(false);
+      });
     }
 
-  }, [navigate, id]);
+    return () => controller.abort();
+  }, [navigate, id, initNonce]);
 
 
 
@@ -526,6 +598,7 @@ const NewRequestPage = () => {
       return;
     }
     if (hasExistingRequest && !id) return;
+    if (submitting) return;
 
     const studentPhoneDigits = String(formData.studentPhone || '').replace(/\D/g, '');
     if (formData.studentPhone && (studentPhoneDigits.length < 9 || studentPhoneDigits.length > 15)) {
@@ -538,6 +611,7 @@ const NewRequestPage = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
       const user = JSON.parse(localStorage.getItem('user'));
       let photoData = null;
@@ -633,6 +707,8 @@ const NewRequestPage = () => {
     } catch (error) {
       console.error('Error submitting request:', error);
       alert('เกิดข้อผิดพลาดในการยื่นคำร้อง: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -807,21 +883,13 @@ const NewRequestPage = () => {
     <>
 
       <main className="dashboard-main bg-slate-50/50 min-h-dvh">
-        <div className="w-full max-w-7xl mx-auto px-3.5 py-3 md:px-8 md:py-6">
+        <div className="w-full max-w-7xl mx-auto">
         <div className="unified-card w-full">
-          <header className="unified-card-head">
-            <div className="unified-card-title-wrap">
-              <span className="unified-card-icon"><FileCheck className="w-5 h-5" aria-hidden="true" /></span>
-              <div className="min-w-0">
-            <h1 className="unified-card-title">
-              {id ? (isReadOnly ? 'รายละเอียดคำร้องฝึกงาน (โหมดอ่านอย่างเดียว)' : 'แก้ไขคำร้องฝึกงานวิชาชีพ') : 'ยื่นคำร้องฝึกงานวิชาชีพ'}
-            </h1>
-            <p className="unified-card-sub">
-              {id ? (isReadOnly ? 'คำร้องนี้ได้รับการอนุมัติแล้ว อยู่ในโหมดอ่านอย่างเดียว' : 'แก้ไขข้อมูลและบันทึกการเปลี่ยนแปลงคำร้อง') : 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง'}
-            </p>
-              </div>
-            </div>
-          </header>
+          <StudentPageHeader
+            icon={FileCheck}
+            title={id ? (isReadOnly ? 'รายละเอียดคำร้องฝึกงาน (โหมดอ่านอย่างเดียว)' : 'แก้ไขคำร้องฝึกงานวิชาชีพ') : 'ยื่นคำร้องฝึกงานวิชาชีพ'}
+            subtitle={id ? (isReadOnly ? 'คำร้องนี้ได้รับการอนุมัติแล้ว อยู่ในโหมดอ่านอย่างเดียว' : 'แก้ไขข้อมูลและบันทึกการเปลี่ยนแปลงคำร้อง') : 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง'}
+          />
 
           {/* Read Only Mode Banner */}
           {isReadOnly && (
@@ -960,7 +1028,13 @@ const NewRequestPage = () => {
             </div>
           )}
           
-          {step === 'select' && !hasExistingRequest ? (
+          {/* การ์ดสีขาวมาตรฐานครอบ Stepper / การ์ดเลือกประเภท / ฟอร์ม */}
+          <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 md:p-8">
+          {initLoading ? (
+            <LoadingBlock rows={4} variant="list" label="กำลังโหลดข้อมูลคำร้อง..." />
+          ) : initError ? (
+            <ErrorRetry message="ตรวจสอบสิทธิ์การยื่นคำร้องไม่สำเร็จ" onRetry={retryInit} />
+          ) : step === 'select' && !hasExistingRequest ? (
             <section className="type-select" aria-labelledby="type-select-title">
               {/* แถบขั้นตอน */}
               <div className="type-steps" aria-label="ขั้นตอนการยื่นคำร้อง">
@@ -1079,7 +1153,7 @@ const NewRequestPage = () => {
               </div>
             </div>
           )}
-          <form ref={formRef} onSubmit={handleSubmit} className="w-full flex flex-col gap-8 request-form">
+          <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="w-full flex flex-col gap-8 request-form">
             <nav className="wiz-steps" aria-label="ขั้นตอนการกรอกคำร้อง">
               {WIZARD_STEPS.map((st, idx) => {
                 const n = idx + 1;
@@ -1730,17 +1804,49 @@ const NewRequestPage = () => {
               )}
 
               {wizardStep === 4 && (
-                <div className="wiz-summary">
-                  <h2 className="text-base font-bold text-slate-800 m-0">ตรวจสอบข้อมูลก่อนส่งคำร้อง</h2>
-                  <p className="text-xs text-slate-500 mt-1 mb-4">หากต้องการแก้ไขข้อมูลส่วนใด ให้กดย้อนกลับไปยังขั้นตอนนั้น</p>
-                  <dl className="wiz-summary-grid">
-                    <div><dt>ชื่อ-นามสกุล</dt><dd>{formData.studentName || '-'}</dd></div>
-                    <div><dt>รหัสนักศึกษา</dt><dd>{formData.studentId || '-'}</dd></div>
-                    <div><dt>สถานประกอบการ</dt><dd>{formData.companyName || '-'}</dd></div>
-                    <div><dt>ตำแหน่งที่ได้รับมอบหมาย</dt><dd>{formData.position || '-'}</dd></div>
-                    <div><dt>ผู้ประสานงาน</dt><dd>{formData.supervisor || '-'}</dd></div>
-                    <div><dt>เบอร์โทรผู้ประสานงาน</dt><dd>{formData.supervisorPhone || '-'}</dd></div>
-                  </dl>
+                <div className="wiz-summary gap-6">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800 m-0">ตรวจสอบข้อมูลก่อนยื่นคำร้อง</h2>
+                    <p className="text-xs text-slate-500 mt-1 mb-0">ตรวจสอบข้อมูลทั้งหมดให้ถูกต้อง หากต้องการแก้ไขให้กดย้อนกลับ ข้อมูลที่กรอกไว้จะไม่หาย</p>
+                  </div>
+
+                  <SummaryGroup icon={GraduationCap} title="ประเภทการฝึก">
+                    <SummaryItem label="ประเภทการฝึกประสบการณ์วิชาชีพ" value={(INTERNSHIP_TYPES.find((t) => t.value === (internshipType || 'internship')) || {}).title} />
+                  </SummaryGroup>
+
+                  <SummaryGroup icon={User} title="ข้อมูลนักศึกษา">
+                    <SummaryItem label="ชื่อ-นามสกุล" value={`${formData.studentTitle || ''}${formData.studentName || ''}`.trim()} />
+                    <SummaryItem label="รหัสนักศึกษา" value={formData.studentId} />
+                    <SummaryItem label="ปีการศึกษา / ชั้นปี" value={formData.studentYear} />
+                    <SummaryItem label="เกรดเฉลี่ยสะสม" value={formData.lastSemesterGrade} />
+                    <SummaryItem label="สาขา" value={formData.studentMajor} />
+                    <SummaryItem label="เบอร์โทรศัพท์" value={formData.studentPhone} />
+                    <SummaryItem label="อีเมล" value={formData.studentEmail} />
+                    <SummaryItem label="รูปถ่าย" value={studentPhoto ? studentPhoto.name : ''} />
+                    <SummaryItem wide label="ที่อยู่ปัจจุบัน" value={formatAddress({
+                      house: formData.homeHouse, moo: formData.homeMoo, soi: formData.homeSoi, road: formData.homeRoad,
+                      tambon: formData.homeTambon, amphur: formData.homeAmphur, province: formData.homeProvince, postal: formData.homePostal,
+                    })} />
+                  </SummaryGroup>
+
+                  <SummaryGroup icon={Building2} title="ข้อมูลสถานประกอบการและผู้ประสานงาน">
+                    <SummaryItem label="สถานประกอบการ" value={formData.companyName} />
+                    <SummaryItem label="ตำแหน่งที่ฝึก" value={formData.position} />
+                    <SummaryItem label="ภาคการศึกษาที่ฝึก" value={TERM_LABELS[formData.internshipTerm]} />
+                    <SummaryItem wide label="ที่อยู่สถานประกอบการ" value={[formData.address, formatAddress({
+                      house: formData.companyHouse, moo: formData.companyMoo, soi: formData.companySoi, road: formData.companyRoad,
+                      tambon: formData.companyTambon, amphur: formData.companyAmphur, province: formData.companyProvince, postal: formData.companyPostal,
+                    })].filter((v) => v && v !== '-').join(' ')} />
+                    <SummaryItem label="ผู้ประสานงาน" value={formData.supervisor} />
+                    <SummaryItem label="ตำแหน่งผู้ประสานงาน" value={formData.supervisorPosition} />
+                    <SummaryItem label="อีเมลผู้ประสานงาน" value={formData.supervisorEmail} />
+                    <SummaryItem label="เบอร์โทรผู้ประสานงาน" value={formData.supervisorPhone} />
+                  </SummaryGroup>
+
+                  <SummaryGroup icon={Briefcase} title="รายละเอียดงานและทักษะ">
+                    <SummaryItem wide pre label="รายละเอียดงาน" value={formData.jobDescription} />
+                    <SummaryItem wide pre label="ทักษะที่คาดว่าจะได้รับ" value={formData.skills} />
+                  </SummaryGroup>
                 </div>
               )}
 
@@ -1761,20 +1867,21 @@ const NewRequestPage = () => {
               {isReadOnly ? (
                 <div className="wiz-readonly">โหมดอ่านอย่างเดียว (อนุมัติแล้ว)</div>
               ) : wizardStep < WIZARD_STEPS.length ? (
-                <button type="button" onClick={goNext} className="wiz-btn wiz-btn-primary">
+                <button key="wiz-next" type="button" onClick={goNext} disabled={submitting} className="wiz-btn wiz-btn-primary">
                   ถัดไป
                   <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </button>
               ) : (
-                <button type="submit" className="wiz-btn wiz-btn-success">
-                  <Send className="w-4 h-4" aria-hidden="true" />
-                  {id ? 'บันทึกการแก้ไขคำร้อง' : 'ยืนยันและส่งคำร้อง'}
+                <button key="wiz-confirm" type="button" onClick={confirmAndSubmit} disabled={submitting} className="wiz-btn wiz-btn-success">
+                  <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                  {submitting ? 'กำลังดำเนินการ...' : (id ? 'บันทึกการแก้ไขคำร้อง' : 'ยืนยันการยื่นคำร้อง')}
                 </button>
               )}
             </div>
           </form>
           </>
           )}
+          </div>
         </div>
         </div>
       </main>
