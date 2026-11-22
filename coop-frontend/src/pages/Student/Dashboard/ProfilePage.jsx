@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
 import { UserCircle } from 'lucide-react';
+import { ProfileField, ProfileSectionTitle as SectionTitle } from '../../../components/profile/ProfileFields';
 import api from '../../../api/axios';
 import './DashboardPage.css';
 
@@ -40,57 +41,12 @@ const readStoredStudent = () => {
   }
 };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// ข้อมูลที่แก้ไขได้เอง (ตรงกับคอลัมน์ user.email/phone และ profile.prefix/firstname/lastname/address)
+// นักศึกษาแก้ได้เฉพาะเบอร์โทรศัพท์และที่อยู่ปัจจุบัน (user.phone/profile.phone และ profile.address)
+// ชื่อ-นามสกุล คำนำหน้า และอีเมลผูกกับระบบทะเบียนกลาง/SSO จึงเป็น Read-Only
 const buildForm = (d) => ({
-  prefix: d?.prefix || '',
-  firstname: d?.firstname || '',
-  lastname: d?.lastname || '',
-  email: d?.email || '',
   phone: d?.phone || '',
   address: d?.address || '',
 });
-
-// สไตล์ TextField ของหน้านี้ (Clean Violet): ขอบมน, ตัวหนังสือไม่โดนตัด, ช่อง read-only อ่านง่าย
-const FIELD_SX = {
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: '#fff',
-    fontSize: '0.9rem',
-    '& fieldset': { borderColor: '#e2e8f0' },
-    '&:hover fieldset': { borderColor: '#c4b5fd' },
-    '&.Mui-focused fieldset': { borderColor: '#7c3aed', borderWidth: 1.5 },
-    '&.Mui-disabled': { backgroundColor: '#f8fafc' },
-  },
-  '& .MuiInputBase-input': { textOverflow: 'ellipsis' },
-  '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#334155' },
-  '& .MuiInputLabel-root': { fontWeight: 700, color: '#64748b' },
-  '& .MuiInputLabel-root.Mui-focused': { color: '#7c3aed' },
-  '& .MuiInputLabel-root.Mui-disabled': { color: '#64748b' },
-};
-
-const ProfileField = ({ readOnly, editing, className = '', ...props }) => (
-  <TextField
-    fullWidth
-    size="small"
-    variant="outlined"
-    InputLabelProps={{ shrink: true }}
-    disabled={readOnly || !editing}
-    sx={FIELD_SX}
-    className={className}
-    title={readOnly ? 'ข้อมูลนี้มาจากระบบทะเบียนกลาง ไม่สามารถแก้ไขได้เอง' : undefined}
-    {...props}
-  />
-);
-
-const SectionTitle = ({ children, hint }) => (
-  <div className="sm:col-span-2 pt-2 first:pt-0">
-    <h4 className="m-0 text-sm font-bold text-violet-900">{children}</h4>
-    {hint && <p className="m-0 mt-0.5 text-xs text-slate-500">{hint}</p>}
-    <div className="h-px bg-violet-100 mt-2" />
-  </div>
-);
 
 const ProfilePage = () => {
   const initialUser = readStoredStudent();
@@ -179,10 +135,7 @@ const ProfilePage = () => {
   };
 
   const validateForm = () => {
-    if (!form.firstname.trim()) return 'กรุณากรอกชื่อจริง';
-    if (!form.lastname.trim()) return 'กรุณากรอกนามสกุล';
-    if (!EMAIL_RE.test(form.email.trim())) return 'รูปแบบอีเมลไม่ถูกต้อง';
-    if (form.phone && !/^\d{9,10}$/.test(form.phone)) return 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก';
+    if (form.phone && !/^[0-9]{9,10}$/.test(form.phone)) return 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก';
     return '';
   };
 
@@ -195,40 +148,32 @@ const ProfilePage = () => {
     setSaving(true);
     setFormError('');
     try {
-      // ส่งเฉพาะฟิลด์ที่แก้ได้เองและมีค่าจริง (ไม่ส่ง id/username/password/role/is_active/student_code และไม่ส่งค่าว่างไปทับของเดิม)
+      // ส่งเฉพาะ phone/address ที่มีค่าจริง (ไม่ส่ง id/username/password/role/is_active/student_code/ชื่อ/อีเมล และไม่ส่งค่าว่างไปทับของเดิม)
       const candidate = {
-        prefix: form.prefix.trim(),
-        firstname: form.firstname.trim(),
-        lastname: form.lastname.trim(),
-        email: form.email.trim(),
         phone: form.phone,
         address: form.address.trim(),
       };
       const payload = Object.fromEntries(
         Object.entries(candidate).filter(([, v]) => typeof v === 'string' && v !== '')
       );
-      // อีเมลส่งเฉพาะเมื่อผู้ใช้แก้จริง (กันเขียนทับอีเมลเดิมที่ใช้ล็อกอินโดยไม่ตั้งใจ)
-      if (candidate.email === (data?.email || '')) delete payload.email;
+      if (Object.keys(payload).length === 0) {
+        setEditing(false);
+        return;
+      }
       const res = await api.put(`/users/${user.id}`, payload);
       const saved = res.data?.data || {};
-      const fullName = `${candidate.firstname} ${candidate.lastname}`.trim();
       const updatedUser = {
         ...user,
         ...saved,
-        email: candidate.email,
-        phone: candidate.phone,
-        name: fullName,
-        full_name: fullName,
-        firstname: candidate.firstname,
-        lastname: candidate.lastname,
+        phone: payload.phone ?? user.phone,
         avatar: avatarPreview,
       };
       await asyncStorage.setItem('user', JSON.stringify(updatedUser));
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
-      setData((prev) => ({ ...prev, ...candidate }));
+      setData((prev) => ({ ...prev, ...payload }));
 
-      // ซิงก์เบอร์/อีเมลลงคำร้องที่ยื่นไว้ (ไม่ให้ความล้มเหลวตรงนี้ทำให้การบันทึกโปรไฟล์ล้มเหลว)
+      // ซิงก์เบอร์โทรลงคำร้องที่ยื่นไว้ (ไม่ให้ความล้มเหลวตรงนี้ทำให้การบันทึกโปรไฟล์ล้มเหลว)
       const code = data?.student_code || updatedUser.student_code || updatedUser.username;
       if (code) {
         try {
@@ -238,12 +183,9 @@ const ProfilePage = () => {
             if (typeof details === 'string') {
               try { details = JSON.parse(details); } catch { details = {}; }
             }
-            if (candidate.phone) details.studentPhone = candidate.phone;
-            details.student_info = {
-              ...(details.student_info || {}),
-              ...(candidate.phone ? { phone: candidate.phone } : {}),
-              email: candidate.email,
-            };
+            if (!payload.phone) continue;
+            details.studentPhone = payload.phone;
+            details.student_info = { ...(details.student_info || {}), phone: payload.phone };
             await api.put(`/requests/${reqItem.id}`, { details: JSON.stringify(details) });
           }
         } catch (syncErr) {
@@ -495,86 +437,34 @@ const ProfilePage = () => {
               )}
 
               {ready && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5 mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3.5 mt-5">
                   {formError && (
                     <Alert severity="error" className="sm:col-span-2" sx={{ borderRadius: 2, fontSize: '0.85rem' }}>
                       {formError}
                     </Alert>
                   )}
 
-                  <SectionTitle hint="ข้อมูลที่ผูกกับระบบทะเบียนกลาง/SSO จึงแก้ไขเองไม่ได้ ยกเว้นอีเมลและเบอร์โทรศัพท์">
-                    ข้อมูลบัญชี
+                  <SectionTitle hint="(ข้อมูลจากระบบทะเบียน แก้ไขไม่ได้) หากข้อมูลไม่ถูกต้องกรุณาติดต่อเจ้าหน้าที่หรือผู้ดูแลระบบ">
+                    ข้อมูลจากระบบทะเบียน
                   </SectionTitle>
-                  <ProfileField readOnly editing={editing} label="รหัสนักศึกษา" value={data.student_code} />
-                  <ProfileField readOnly editing={editing} label="ชื่อผู้ใช้ (Username)" value={data.username} />
+                  <ProfileField locked label="รหัสนักศึกษา" value={data.student_code} />
+                  <ProfileField locked label="ชั้นปี" value={data.year_level ? `ปีที่ ${data.year_level}` : '-'} />
+                  <ProfileField locked label="ชื่อ-นามสกุล" value={displayName || '-'} />
+                  <ProfileField locked label="อีเมลสถาบัน" value={data.email || '-'} />
+                  <ProfileField locked className="sm:col-span-2" label="สาขาวิชา" value={data.department || '-'} />
+
+                  <div className="sm:col-span-2 mt-1" />
+                  <SectionTitle hint="แก้ไขได้เฉพาะ 2 ช่องนี้ กดปุ่ม แก้ไขข้อมูล เพื่อเริ่มพิมพ์">
+                    ข้อมูลติดต่อ
+                  </SectionTitle>
                   <ProfileField
                     editing={editing}
-                    className="sm:col-span-2"
-                    label="อีเมล"
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="name@example.com"
-                    inputProps={{ autoComplete: 'email' }}
-                  />
-                  <ProfileField
-                    editing={editing}
-                    className="sm:col-span-2"
                     label="เบอร์โทรศัพท์"
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
                     placeholder="09xxxxxxxx"
                     inputProps={{ maxLength: 10, inputMode: 'numeric', autoComplete: 'tel' }}
-                  />
-
-                  <div className="sm:col-span-2 mt-2" />
-                  <SectionTitle hint="ชื่อและที่อยู่แก้ไขได้เมื่อกดปุ่ม แก้ไขข้อมูล ส่วนสาขา ชั้นปี เกรด และอาจารย์ที่ปรึกษาเป็นข้อมูลอ่านอย่างเดียว">
-                    ข้อมูลประวัตินักศึกษา
-                  </SectionTitle>
-                  <ProfileField
-                    editing={editing}
-                    className="sm:col-span-2"
-                    label="คำนำหน้า"
-                    name="prefix"
-                    value={form.prefix}
-                    onChange={handleChange}
-                    placeholder="นาย / นางสาว / นาง"
-                    inputProps={{ maxLength: 50 }}
-                  />
-                  <ProfileField
-                    editing={editing}
-                    label="ชื่อจริง"
-                    name="firstname"
-                    value={form.firstname}
-                    onChange={handleChange}
-                    required
-                    inputProps={{ maxLength: 50 }}
-                  />
-                  <ProfileField
-                    editing={editing}
-                    label="นามสกุล"
-                    name="lastname"
-                    value={form.lastname}
-                    onChange={handleChange}
-                    required
-                    inputProps={{ maxLength: 50 }}
-                  />
-                  <ProfileField readOnly editing={editing} className="sm:col-span-2" label="สาขาวิชา" value={data.department || '-'} />
-                  <ProfileField
-                    readOnly
-                    editing={editing}
-                    label="ชั้นปี"
-                    value={data.year_level ? `ปีที่ ${data.year_level}` : '-'}
-                  />
-                  <ProfileField readOnly editing={editing} label="เกรดเฉลี่ยสะสม (GPAX)" value={data.gpa || '-'} />
-                  <ProfileField
-                    readOnly
-                    editing={editing}
-                    className="sm:col-span-2"
-                    label="อาจารย์ที่ปรึกษา"
-                    value={data.advisor_name || 'ยังไม่ได้กำหนด'}
                   />
                   <ProfileField
                     editing={editing}
@@ -585,7 +475,7 @@ const ProfilePage = () => {
                     onChange={handleChange}
                     multiline
                     minRows={2}
-                    maxRows={5}
+                    maxRows={4}
                     placeholder="บ้านเลขที่ หมู่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
                   />
                 </div>
