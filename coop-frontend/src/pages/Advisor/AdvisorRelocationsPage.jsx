@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import useAsyncData from '../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import {
@@ -26,23 +28,24 @@ const AdvisorRelocationsPage = () => {
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const [viewTab, setViewTab] = useState('active');
 
-    const load = (dept) => {
-        api.get('/relocations').then((res) => {
-            const all = res.data?.data || [];
-            const key = normalizeDept(dept);
-            setRows(key ? all.filter((r) => normalizeDept(r.department) === key) : all);
-        }).catch(() => {});
-    };
-
-    useEffect(() => {
+    // ดึงคำร้องย้ายที่ฝึกงานของสาขา: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, ล้มเหลวมีปุ่มลองใหม่
+    const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
         const userStr = localStorage.getItem('user');
-        if (!userStr) { navigate('/login'); return; }
+        if (!userStr) { navigate('/login'); return null; }
         const user = JSON.parse(userStr);
-        if (user.role !== 'advisor') { navigate('/dashboard'); return; }
+        if (user.role !== 'advisor') { navigate('/dashboard'); return null; }
         const dept = user.department || user.major || '';
-        setAdvisorDept(dept);
-        load(dept);
-    }, [navigate]);
+        const res = await api.get('/relocations', { signal });
+        const all = res.data?.data || [];
+        const key = normalizeDept(dept);
+        return { dept, rows: key ? all.filter((r) => normalizeDept(r.department) === key) : all };
+    }, 'advisor-relocations', {
+        onSuccess: (d) => {
+            if (!d) return;
+            setAdvisorDept(d.dept);
+            setRows(d.rows);
+        },
+    });
 
     // Deep link จากเมนู action หน้า dashboard (?focus=<relocId>) — เปิด dialog พิจารณาของรายการนั้นอัตโนมัติ
     const [searchParams, setSearchParams] = useSearchParams();
@@ -74,7 +77,7 @@ const AdvisorRelocationsPage = () => {
             await api.patch(`/relocations/${item.id}/advisor-review`, { approve, comment, signature_data_url: signature });
             setToast({ open: true, message: approve ? 'อนุญาตแล้ว ส่งเรื่องเข้าสำนักงานคณบดี' : 'ตีกลับคำร้องแล้ว', severity: 'success' });
             setReviewDialog({ open: false, item: null, approve: true, comment: '', signature: '' });
-            load(advisorDept);
+            reload();
         } catch (e) {
             setToast({ open: true, message: e.response?.data?.message || 'ดำเนินการไม่สำเร็จ', severity: 'error' });
         } finally {
@@ -130,8 +133,8 @@ const AdvisorRelocationsPage = () => {
                         }}
                     >
                         {[
-                            { key: 'active', icon: <Inbox size={14} />, label: 'คำร้องรอดำเนินการ', count: activeRows.length },
-                            { key: 'history', icon: <History size={14} />, label: 'ประวัติเสร็จสิ้น', count: historyRows.length },
+                            { key: 'active', icon: <Inbox size={14} />, label: 'คำร้องรอดำเนินการ', count: loading ? '…' : activeRows.length },
+                            { key: 'history', icon: <History size={14} />, label: 'ประวัติเสร็จสิ้น', count: loading ? '…' : historyRows.length },
                         ].map((tab) => (
                             <Tab
                                 key={tab.key}
@@ -159,6 +162,12 @@ const AdvisorRelocationsPage = () => {
                         ))}
                     </Tabs>
 
+                    {loading ? (
+                        <LoadingBlock rows={4} variant="table" label="กำลังโหลดคำร้อง..." />
+                    ) : loadError ? (
+                        <ErrorRetry message="โหลดคำร้องขอเปลี่ยนสถานที่ฝึกงานไม่สำเร็จ" onRetry={reload} />
+                    ) : (
+                    <>
                     {/* Desktop (>= lg): ตาราง / จออื่น: การ์ด — ตารางมี 6 คอลัมน์ จึงต้องมีพื้นที่ >= 1024px ไม่ให้ล้น */}
                     <div className="hidden lg:block">
                     <TableContainer component={Box} className="compact-table">
@@ -300,6 +309,8 @@ const AdvisorRelocationsPage = () => {
                             </div>
                         )}
                     </div>
+                    </>
+                    )}
                 </Paper>
             </main>
 

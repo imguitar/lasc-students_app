@@ -26,6 +26,9 @@ import {
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import asyncStorage from '../../../utils/asyncStorage';
+import { ShieldCheck } from 'lucide-react';
+import PageHeader from '../../../components/PageHeader';
+import { ProfileField, ProfileSectionTitle } from '../../../components/profile/ProfileFields';
 import api from '../../../api/axios';
 
 const readStoredAdmin = () => {
@@ -45,6 +48,8 @@ const AdminProfilePage = () => {
   // Initial State is read synchronously from localStorage to prevent any blank flash on route transition
   const [user, setUser] = useState(() => readStoredAdmin());
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [avatarPreview, setAvatarPreview] = useState(() => {
     const stored = readStoredAdmin();
     return stored?.avatar || null;
@@ -129,39 +134,29 @@ const AdminProfilePage = () => {
   };
 
   const handleSave = async () => {
+    if (form.phone && !/^[0-9]{9,10}$/.test(form.phone)) {
+      setFormError('เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
     try {
-      let updated = {
-        ...user,
-        name: form.name,
-        full_name: form.name,
-        email: form.email,
-        phone: form.phone,
-        position: form.position,
-        avatar: avatarPreview,
-        role: 'admin'
-      };
-
-      if (user?.id) {
-        const res = await api.put(`/users/${user.id}`, {
-          name: form.name,
-          email: form.email,
-          phone: form.phone,
-          position: form.position,
-          avatar: avatarPreview
-        });
-        if (res.data && res.data.data) {
-          updated = { ...updated, ...res.data.data };
-        }
+      // ส่งเฉพาะเบอร์โทรที่มีค่าจริง (ชื่อ/ตำแหน่ง/อีเมล/สังกัดเป็นข้อมูลระบบ แก้ไขไม่ได้ และไม่ส่งค่าว่างไปทับของเดิม)
+      let updated = { ...user, avatar: avatarPreview };
+      if (user?.id && form.phone) {
+        const res = await api.put(`/users/${user.id}`, { phone: form.phone });
+        updated = { ...updated, ...(res.data?.data || {}), phone: form.phone };
       }
-
       await asyncStorage.setItem('user', JSON.stringify(updated));
       localStorage.setItem('user', JSON.stringify(updated));
       setUser(updated);
       setEditing(false);
       alert('บันทึกข้อมูลเสร็จสิ้น');
     } catch (err) {
-      console.error('Failed to save admin profile:', err);
-      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
+      console.error('Failed to save profile:', err);
+      setFormError(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลโปรไฟล์');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -254,15 +249,16 @@ const AdminProfilePage = () => {
 
   return (
     <main className="admin-main">
-      <header className="admin-header">
-        <div>
-          <h1>ข้อมูลผู้ดูแลระบบ</h1>
-          <p>จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย</p>
-        </div>
-      </header>
+      <div className="unified-card w-full max-w-7xl mx-auto">
+        <PageHeader
+          icon={ShieldCheck}
+          title="ข้อมูลผู้ดูแลระบบ"
+          subtitle="จัดการข้อมูลส่วนตัว บัญชีผู้ใช้งาน และการตั้งค่าความปลอดภัย"
+          pill={`${user.full_name || user.name || user.username} (${user.position || 'ผู้ดูแลระบบ'})`}
+        />
 
       <div className="content-wrapper">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           {/* Left: Profile Card */}
           <div className="rounded-3xl border border-purple-100 shadow-sm p-8 text-center relative overflow-hidden bg-white">
             <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-500/15 via-indigo-400/15 to-purple-500/15" />
@@ -363,43 +359,48 @@ const AdminProfilePage = () => {
                     <button
                       type="button"
                       onClick={handleSave}
+                        disabled={saving}
                       className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-bold shadow-md shadow-purple-500/20 transition cursor-pointer border-none"
                     >
-                      บันทึกการเปลี่ยนแปลง
+                      {saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
                     </button>
                   </>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-              {[
-                { label: 'ชื่อ-นามสกุล', name: 'name', editable: true },
-                { label: 'ตำแหน่ง', name: 'position', editable: true },
-                { label: 'ชื่อผู้ใช้ (Username)', name: 'username', editable: false },
-                { label: 'อีเมล', name: 'email', editable: true, type: 'email' },
-                { label: 'เบอร์โทรศัพท์ติดต่อ', name: 'phone', editable: true, placeholder: '09xxxxxxxx (สูงสุด 10 หลัก)' },
-                { label: 'หน่วยงาน / คณะ', name: 'faculty', editable: false, fixed: 'คณะศิลปศาสตร์และวิทยาศาสตร์' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">{f.label}</label>
-                  <input
-                    type={f.type || 'text'}
-                    name={f.name}
-                    value={f.fixed !== undefined ? f.fixed : form[f.name]}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3.5 mt-5">
+                  {editing && formError && (
+                    <Alert severity="error" className="sm:col-span-2" sx={{ borderRadius: 2, fontSize: '0.85rem' }}>
+                      {formError}
+                    </Alert>
+                  )}
+
+                  <ProfileSectionTitle hint="(ข้อมูลจากระบบทะเบียน/SSO แก้ไขไม่ได้) หากข้อมูลไม่ถูกต้องกรุณาติดต่อผู้ดูแลระบบ">
+                    ข้อมูลจากระบบ
+                  </ProfileSectionTitle>
+                  <ProfileField locked label="ชื่อ-นามสกุล" value={form.name || '-'} />
+                  <ProfileField locked label="ตำแหน่ง" value={form.position || '-'} />
+                  <ProfileField locked className="sm:col-span-2" label="หน่วยงาน / คณะ / สาขาวิชา" value="คณะศิลปศาสตร์และวิทยาศาสตร์" />
+                  <ProfileField locked className="sm:col-span-2" label="อีเมล" type="email" value={form.email || '-'} />
+
+                  <div className="sm:col-span-2 mt-1" />
+                  <ProfileSectionTitle hint="แก้ไขได้เฉพาะช่องนี้ กดปุ่ม แก้ไขข้อมูล เพื่อเริ่มพิมพ์">
+                    ข้อมูลติดต่อ
+                  </ProfileSectionTitle>
+                  <ProfileField
+                    editing={editing}
+                    className="sm:col-span-2"
+                    label="เบอร์โทรศัพท์ติดต่อ"
+                    name="phone"
+                    value={form.phone}
                     onChange={handleChange}
-                    disabled={!editing || !f.editable}
-                    placeholder={f.placeholder}
-                    maxLength={f.name === 'phone' ? 10 : undefined}
-                    inputMode={f.name === 'phone' ? 'numeric' : undefined}
-                    className={`w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 transition focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 focus:outline-none ${editing && f.editable ? 'bg-white' : 'bg-gray-50/70'}`}
+                    placeholder="09xxxxxxxx"
+                    inputProps={{ maxLength: 10, inputMode: 'numeric', autoComplete: 'tel' }}
                   />
                 </div>
-              ))}
-            </div>
 
-            {/* Security & Activity */}
-            <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
+                <div className="mt-7 pt-5 border-t border-purple-50 flex flex-wrap items-center gap-x-6 gap-y-2.5">
               <span className="inline-flex items-center gap-2 text-xs text-slate-500">
                 <ClockIcon className="w-4 h-4 text-purple-400" />
                 เข้าใช้งานล่าสุด: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
@@ -411,6 +412,8 @@ const AdminProfilePage = () => {
             </div>
           </div>
         </div>
+      </div>
+
       </div>
 
       {/* Password Change Modal */}

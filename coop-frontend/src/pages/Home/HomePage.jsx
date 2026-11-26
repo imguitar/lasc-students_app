@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import {
   ArrowRight, ChevronLeft, ChevronRight, Menu, Home as HomeLucide, LayoutDashboard, Newspaper,
-  Search, HelpCircle, ClipboardList, FilePlus2, Bell,
+  Search, HelpCircle, ClipboardList, FilePlus2, Bell, User,
 } from 'lucide-react';
 import MobileNavDrawer from '../../components/MobileNavDrawer';
 import { redirectToProfileLogin } from '../../utils/sso';
@@ -291,6 +291,7 @@ const HomePage = () => {
         else navigate('/news');
       },
     },
+    ...(user ? [{ key: 'profile', label: 'โปรไฟล์', Icon: User, to: `${navAction.to}/profile`, active: false }] : []),
   ];
 
   // เมนูใน Drawer (จอ < 1024px) — รวมปุ่ม "แดชบอร์ด" และลิงก์หลักที่ถูกซ่อนจาก Navbar
@@ -390,7 +391,7 @@ const HomePage = () => {
 
       <SubNav />
 
-      <MobileTabBar items={tabItems} onOpenMenu={() => setIsDrawerOpen(true)} menuActive={isDrawerOpen} />
+      <MobileTabBar items={tabItems} />
 
       {/* Hero Banner Carousel — สไลด์ประชาสัมพันธ์จากระบบ (fallback = อาคารจุฬาภรณวลัยลักษณ์) */}
       <div className="relative mx-auto max-w-7xl px-0 sm:px-6 lg:px-8 mt-0 sm:mt-8">

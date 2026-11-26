@@ -29,7 +29,7 @@ const DashboardLayout = () => {
   }, [navigate]);
 
   return (
-    <div className={`${role === 'student' ? 'dashboard-container' : 'admin-dashboard-container'} bg-[#f8f9fc] min-h-screen`}>
+    <div className={`${role === 'student' ? 'dashboard-container' : 'admin-dashboard-container'} bg-[#f8f9fc] min-h-dvh`}>
       {/* Top Mobile & Desktop Navbar — Persistent across every role */}
       <div className="mobile-top-navbar flex w-full items-center justify-between px-3 sm:px-6 bg-white/90 border-b border-slate-100 backdrop-blur-md sticky top-0 z-40">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink">

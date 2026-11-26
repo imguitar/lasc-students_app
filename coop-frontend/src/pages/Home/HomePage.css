@@ -1,5 +1,6 @@
 .home-container {
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(135deg, #fff1f2 0%, #ffedd5 40%, #fef3c7 100%);
 }
 
@@ -135,6 +136,7 @@
 
 .home-container {
   min-height: 100vh;
+  min-height: 100dvh;
   min-height: 100dvh;
   background: #ffffff;
 }

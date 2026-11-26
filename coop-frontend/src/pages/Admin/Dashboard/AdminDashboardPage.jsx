@@ -39,6 +39,8 @@ import { STAT_ICON } from '../../../utils/statIcons';
 import './AdminDashboardPage.css';
 import { ClockIcon, TrashIcon, DocumentTextIcon, CalendarIcon, CreditCardIcon, ExclamationTriangleIcon, EyeIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import StatusBadge from '../../../components/StatusBadge';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../../components/common/AsyncStates';
 import StatCard from '../../../components/StatCard';
 import { RELOCATION_STATUS_LABEL } from '../../../components/RelocationStepper';
 
@@ -290,32 +292,39 @@ const AdminDashboardPage = () => {
     return status;
   };
 
-  useEffect(() => {
+  // ดึงคำร้อง + คำร้องย้ายที่ฝึกงาน: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, ล้มเหลวมีปุ่มลองใหม่
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
     const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      const normalizedRole = String(user.role || '').toLowerCase();
-      if (normalizedRole !== 'admin') {
-         navigate('/dashboard'); 
-         return;
-      }
-      setAdminName(user.name);
-      
-      // Load requests from API
-      api.get('/requests').then(res => {
-        const requests = res.data.data || [];
-        // Hide 'ฝึกงานเสร็จแล้ว' from Dashboard
-        setAllRequests(requests.filter(req => req.status !== 'ฝึกงานเสร็จแล้ว'));
-      }).catch(err => console.error('Failed to load requests:', err));
-
-      // คำร้องขอเปลี่ยนสถานที่ฝึกงาน — รวมเข้าสถิติ/กราฟแดชบอร์ด
-      api.get('/relocations').then(res => {
-        setRelocations(res.data.data || []);
-      }).catch(err => console.error('Failed to load relocations:', err));
-    } else {
+    if (!userStr) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
     }
-  }, [navigate]);
+    const user = JSON.parse(userStr);
+    if (String(user.role || '').toLowerCase() !== 'admin') {
+      navigate('/dashboard');
+      return null;
+    }
+    const [reqRes, relocRes] = await Promise.allSettled([
+      api.get('/requests', { signal }),
+      // คำร้องขอเปลี่ยนสถานที่ฝึกงาน — รวมเข้าสถิติ/การ์ดล่าสุด (ล้มเหลวได้โดยไม่ทำให้ทั้งหน้าล้ม)
+      api.get('/relocations', { signal }),
+    ]);
+    signal.throwIfAborted();
+    if (reqRes.status === 'rejected') throw reqRes.reason;
+    return {
+      adminName: user.name,
+      // ซ่อน 'ฝึกงานเสร็จแล้ว' จาก Dashboard
+      requests: (reqRes.value.data.data || []).filter((req) => req.status !== 'ฝึกงานเสร็จแล้ว'),
+      relocations: relocRes.status === 'fulfilled' ? relocRes.value.data.data || [] : [],
+    };
+  }, 'admin-dashboard', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setAdminName(d.adminName);
+      setAllRequests(d.requests);
+      setRelocations(d.relocations);
+    },
+  });
 
   const filteredRequests = allRequests.filter(req => {
     if (filter === 'all') return true;
@@ -1323,6 +1332,12 @@ const AdminDashboardPage = () => {
           </div>
         </header>
 
+        {loading ? (
+          <LoadingBlock rows={6} variant="list" label="กำลังโหลดภาพรวมระบบ..." />
+        ) : loadError ? (
+          <ErrorRetry message="โหลดภาพรวมระบบไม่สำเร็จ" onRetry={reload} />
+        ) : (
+        <>
         <Box
           sx={{
             display: 'grid',
@@ -1606,6 +1621,8 @@ const AdminDashboardPage = () => {
             )}
           </Box>
         </Paper>
+        </>
+        )}
 
       </main>
 

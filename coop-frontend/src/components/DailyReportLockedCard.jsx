@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, CalendarClock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function DailyReportLockedCard({
   requestStatus = 'ยังไม่มีคำร้อง',
@@ -9,27 +9,9 @@ export default function DailyReportLockedCard({
   const navigate = useNavigate();
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-4">
-      {/* การ์ดใบเดียวรวมศูนย์ (Single Unified Card) */}
-      <div
-        className="bg-[#FAFAFD] border border-[#E9E5F5] rounded-2xl md:rounded-3xl p-6 md:p-8"
-        style={{ boxShadow: '0 4px 24px -2px rgba(76, 29, 149, 0.06)' }}
-      >
-        {/* ส่วนหัวภายในการ์ด (Card Header) */}
-        <div className="flex items-center gap-3.5 pb-5 mb-6 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-xl bg-purple-100/70 text-purple-800 flex items-center justify-center shrink-0">
-            <CalendarDays className="w-5 h-5 text-purple-800" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg md:text-xl font-bold text-slate-800 leading-snug m-0">
-              บันทึกรายงานประจำวัน
-            </h1>
-            <p className="text-xs md:text-sm text-slate-500 m-0 mt-0.5">
-              เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน
-            </p>
-          </div>
-        </div>
-
+    <div className="w-full max-w-7xl mx-auto">
+      {/* การ์ดสีขาวมาตรฐาน (หัวหน้าอยู่ด้านนอกการ์ดแล้ว) */}
+      <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
         {/* โซนแจ้งสถานะและข้อความชี้แจง (Status & Explanation State) */}
         <div className="flex flex-col items-center text-center max-w-md mx-auto py-4">
           <div className="w-16 h-16 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center mb-4 ring-8 ring-purple-50/50">

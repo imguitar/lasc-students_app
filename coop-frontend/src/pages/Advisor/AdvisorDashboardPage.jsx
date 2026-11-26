@@ -1,5 +1,7 @@
 import { ModalActions, ModalCancelButton, ModalConfirmButton } from '../../components/ModalActions';
 import { useEffect, useRef, useState } from 'react';
+import useAsyncData from '../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
@@ -106,30 +108,40 @@ const AdvisorDashboardPage = () => {
   const getDisplayStatus = (status) =>
     status === 'รออาจารย์ที่ปรึกษาอนุมัติ' ? 'รออนุมัติ' : status;
 
-  useEffect(() => {
+  // ดึงคำร้อง + คำร้องย้ายที่ฝึกงาน: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, ล้มเหลวมีปุ่มลองใหม่
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
     const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      const normalizedRole = String(user.role || '').toLowerCase();
-      if (normalizedRole !== 'advisor') {
-         navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/')); 
-         return;
-      }
-      setAdvisorName(user.name);
-      setAdvisorDepartment(user.department || user.major || '');
-      
-      api.get('/requests').then(res => {
-        setAllRequests(res.data.data || []);
-      }).catch(err => console.error('Failed to load requests:', err));
-
-      // ดึงคำร้องขอเปลี่ยนสถานที่ฝึกงานที่ถึงขั้นอาจารย์ — ใช้แสดง badge บนแถวคำร้องหลัก
-      api.get('/relocations').then(res => {
-        setPendingRelocations(res.data.data || []);
-      }).catch(() => setPendingRelocations([]));
-    } else {
+    if (!userStr) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
     }
-  }, [navigate]);
+    const user = JSON.parse(userStr);
+    const normalizedRole = String(user.role || '').toLowerCase();
+    if (normalizedRole !== 'advisor') {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
+    }
+    const [reqRes, relocRes] = await Promise.allSettled([
+      api.get('/requests', { signal }),
+      // คำร้องขอเปลี่ยนสถานที่ฝึกงานที่ถึงขั้นอาจารย์ (ล้มเหลวได้โดยไม่ทำให้ทั้งหน้าล้ม)
+      api.get('/relocations', { signal }),
+    ]);
+    signal.throwIfAborted();
+    if (reqRes.status === 'rejected') throw reqRes.reason;
+    return {
+      user,
+      requests: reqRes.value.data.data || [],
+      relocations: relocRes.status === 'fulfilled' ? relocRes.value.data.data || [] : [],
+    };
+  }, 'advisor-dashboard', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setAdvisorName(d.user.name);
+      setAdvisorDepartment(d.user.department || d.user.major || '');
+      setAllRequests(d.requests);
+      setPendingRelocations(d.relocations);
+    },
+  });
 
   const departmentFilteredRequests = allRequests.filter((req) => {
     const dept = req.department || req.details?.student_info?.major || '';
@@ -365,7 +377,7 @@ const AdvisorDashboardPage = () => {
             <StatCard
               key={stat.title}
               title={stat.title}
-              value={stat.value}
+              value={loading ? '…' : stat.value}
               icon={stat.icon}
               color={stat.color}
             />
@@ -399,6 +411,7 @@ const AdvisorDashboardPage = () => {
               size="small"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
+              disabled={loading}
               sx={{ minWidth: { xs: '100%', sm: '220px' }, backgroundColor: 'white' }}
             >
               <MenuItem value="all">ทั้งหมด</MenuItem>
@@ -458,6 +471,12 @@ const AdvisorDashboardPage = () => {
             </Paper>
           )}
 
+          {loading ? (
+            <LoadingBlock rows={5} variant="table" label="กำลังโหลดคำร้อง..." />
+          ) : loadError ? (
+            <ErrorRetry message="โหลดรายการคำร้องไม่สำเร็จ" onRetry={reload} />
+          ) : (
+          <>
           <div className="hidden md:block">
           <TableContainer component={Box} className="compact-table">
             <Table size="small">
@@ -645,6 +664,8 @@ const AdvisorDashboardPage = () => {
               );
             })}
           </div>
+          </>
+          )}
         </Paper>
       </main>
 

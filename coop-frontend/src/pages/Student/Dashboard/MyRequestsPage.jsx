@@ -2,6 +2,9 @@ import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import StudentPageHeader from '../../../components/student/StudentPageHeader';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../../components/common/AsyncStates';
 import api from '../../../api/axios';
 import { openDocumentInNewTab, downloadFileSmart } from '../../../utils/documentViewer';
 import { getUploadUrl } from '../../../utils/fileUrl';
@@ -52,7 +55,6 @@ const handleDownloadFile = (dataUrl, fileName = 'หนังสือส่ง�
 
 const MyRequestsPage = () => {
   const navigate = useNavigate();
-  const [studentName, setStudentName] = useState(''); 
   const [myRequests, setMyRequests] = useState([]);
   const [checkins, setCheckins] = useState([]);
   const [internshipRounds, setInternshipRounds] = useState([]);
@@ -111,56 +113,56 @@ const MyRequestsPage = () => {
     openDocumentInNewTab(dataUrl);
   };
 
-  useEffect(() => {
-    const fetchRequests = async () => {
-        try {
-            const userStr = localStorage.getItem('user');
-            if (!userStr) {
-                navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-                return;
-            }
-            const user = JSON.parse(userStr);
-            // admin ไม่มีคำร้องของตัวเอง — กันพิมพ์ URL เข้าหน้านี้ตรง ๆ
-            if (String(user.role || '').toLowerCase() === 'admin') {
-                navigate('/admin-dashboard', { replace: true });
-                return;
-            }
-            setStudentName(user.full_name || user.name || '');
+  // ดึงคำร้อง + ข้อมูลประกอบ: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, โหลดไม่สำเร็จมีปุ่มลองใหม่
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
+      return null;
+    }
+    const user = JSON.parse(userStr);
+    // admin ไม่มีคำร้องของตัวเอง — กันพิมพ์ URL เข้าหน้านี้ตรงๆ
+    if (String(user.role || '').toLowerCase() === 'admin') {
+      navigate('/admin-dashboard', { replace: true });
+      return null;
+    }
 
-            const studentId = user.student_code || user.studentId || user.username;
-            const res = await api.get(`/requests?studentId=${studentId}`);
-            const myReqs = (res.data.data || []).map(req => {
-              const effectiveStatus = getEffectiveInternshipStatus(req);
-              const dispatchLetter = req.dispatchLetter || req.details?.dispatchLetter;
-              return {
-                ...req,
-                status: effectiveStatus || req.status,
-                dispatchLetter,
-                companyName: req.companyName || req.company || 'Unknown Company',
-                position: req.position || 'Unknown Position'
-              };
-            });
-            setMyRequests(myReqs);
+    const studentId = user.student_code || user.studentId || user.username;
+    const res = await api.get(`/requests?studentId=${studentId}`, { signal });
+    const reqs = (res.data.data || []).map((req) => {
+      const effectiveStatus = getEffectiveInternshipStatus(req);
+      const dispatchLetter = req.dispatchLetter || req.details?.dispatchLetter;
+      return {
+        ...req,
+        status: effectiveStatus || req.status,
+        dispatchLetter,
+        companyName: req.companyName || req.company || 'Unknown Company',
+        position: req.position || 'Unknown Position',
+      };
+    });
 
-            api.get('/checkins', { params: { studentId } })
-              .then((res) => setCheckins(res.data.data || []))
-              .catch(() => setCheckins([]));
-
-            api.get('/internship-rounds/active')
-              .then((res) => setInternshipRounds(res.data?.data || []))
-              .catch(() => {});
-
-            api.get('/relocations')
-              .then((res) => setRelocations(res.data?.data || []))
-              .catch(() => {});
-        } catch (error) {
-            console.error('Error fetching requests:', error);
-            setMyRequests([]);
-        }
+    // ข้อมูลประกอบ: ล้มเหลวได้โดยไม่ทำให้ทั้งหน้าล้ม (แต่ถ้าถูกยกเลิกให้หยุดทันที)
+    const [ck, rounds, relocs] = await Promise.allSettled([
+      api.get('/checkins', { params: { studentId }, signal }),
+      api.get('/internship-rounds/active', { signal }),
+      api.get('/relocations', { signal }),
+    ]);
+    signal.throwIfAborted();
+    return {
+      reqs,
+      checkins: ck.status === 'fulfilled' ? ck.value.data.data || [] : [],
+      rounds: rounds.status === 'fulfilled' ? rounds.value.data?.data || [] : [],
+      relocs: relocs.status === 'fulfilled' ? relocs.value.data?.data || [] : [],
     };
-    
-    fetchRequests();
-  }, [navigate]);
+  }, 'my-requests', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setMyRequests(d.reqs);
+      setCheckins(d.checkins);
+      setInternshipRounds(d.rounds);
+      setRelocations(d.relocs);
+    },
+  });
 
   const filteredRequests = myRequests;
 
@@ -263,19 +265,7 @@ const MyRequestsPage = () => {
       <main className="dashboard-main">
         <div className="w-full max-w-7xl mx-auto">
         <div className="unified-card">
-        <header className="unified-card-head">
-          <div className="unified-card-title-wrap">
-            <span className="unified-card-icon"><FileText className="w-5 h-5" aria-hidden="true" /></span>
-            <div className="min-w-0">
-              <h1 className="unified-card-title">คำร้องของฉัน</h1>
-              <p className="unified-card-sub">ประวัติและสถานะการยื่นคำร้องทั้งหมด</p>
-            </div>
-          </div>
-          <div className="unified-card-user">
-            <span className="unified-card-dot" aria-hidden="true" />
-            <span className="truncate">{studentName}</span>
-          </div>
-        </header>
+        <StudentPageHeader icon={FileText} title="คำร้องของฉัน" subtitle="ประวัติและสถานะการยื่นคำร้องทั้งหมด" />
 
         <div className="content-wrapper" style={{ display: 'flex', flexDirection: 'column' }}>
             {/* ============ Internship Progress & Status Hub (order-last → อยู่ใต้รายการคำร้อง) ============ */}
@@ -482,9 +472,17 @@ const MyRequestsPage = () => {
               </div>
             )}
 
-            {/* 1) คำร้องของฉัน — ส่วนแรกที่เห็น */}
-            <h3 className="text-base font-bold text-slate-900 m-0 mb-3">คำร้องของฉัน</h3>
+            {/* 1) คำร้องของฉัน — การ์ดสีขาวมาตรฐานครอบหัวข้อและรายการทั้งหมด */}
+            <section className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
+            <h3 className="text-base font-bold text-slate-900 m-0 mb-1">คำร้องของฉัน</h3>
+            <div className="h-1 w-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full mb-4" />
 
+            {loading ? (
+              <LoadingBlock rows={4} variant="table" label="กำลังโหลดคำร้อง..." />
+            ) : loadError ? (
+              <ErrorRetry message="โหลดรายการคำร้องไม่สำเร็จ" onRetry={reload} />
+            ) : (
+            <>
             {/* Mobile: Compact Card View */}
             <div className="flex flex-col gap-2.5 md:hidden">
               {filteredRequests.length > 0 ? (
@@ -599,6 +597,9 @@ const MyRequestsPage = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+            </>
+            )}
+            </section>
         </div>
         </div>
         </div>

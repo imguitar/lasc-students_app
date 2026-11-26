@@ -13,8 +13,10 @@ import {
   Clock,
   XCircle,
   FileText,
-  CalendarCheck,
 } from 'lucide-react';
+import StudentPageHeader from '../../../components/student/StudentPageHeader';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../../components/common/AsyncStates';
 import api from '../../../api/axios';
 import { getThaiHoliday, getHolidaySet } from '../../../utils/thaiHolidays';
 import { listWorkingDays, addDays } from '../../../utils/workingDays';
@@ -131,65 +133,65 @@ const StudentCheckInPage = () => {
     });
   };
 
-  useEffect(() => {
+  // โหลดสิทธิ์รายงาน (คำร้อง) + ประวัติเช็คชื่อ: ระหว่างโหลดไม่แสดงการ์ด "ยังไม่สามารถรายงานได้" หลอก
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-      return;
+      return null;
     }
-
     const parsed = JSON.parse(userStr);
-    if (parsed.role === 'admin') {
-      navigate('/admin-dashboard');
-      return;
-    }
-    if (parsed.role === 'advisor') {
-      navigate('/advisor-dashboard');
-      return;
-    }
+    if (parsed.role === 'admin') { navigate('/admin-dashboard'); return null; }
+    if (parsed.role === 'advisor') { navigate('/advisor-dashboard'); return null; }
     if (parsed.role !== 'student') {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-      return;
+      return null;
     }
 
-    setUser(parsed);
     const studentId = parsed.student_code || parsed.studentId || parsed.username || parsed.email;
+    const res = await api.get(`/requests?studentId=${studentId}`, { signal });
+    const ownRequests = res.data.data || [];
+    const latestRequest = [...ownRequests].sort((x, y) => {
+      const dateX = new Date(x.updated_at || x.submittedDate || 0).getTime();
+      const dateY = new Date(y.updated_at || y.submittedDate || 0).getTime();
+      if (dateX !== dateY) return dateY - dateX;
+      return (Number(y.id) || 0) - (Number(x.id) || 0);
+    })[0];
 
-    // Load requests from API
-    api.get(`/requests?studentId=${studentId}`).then(res => {
-      const ownRequests = res.data.data || [];
-      const latestRequest = [...ownRequests].sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.submittedDate || 0).getTime();
-        const dateB = new Date(b.updated_at || b.submittedDate || 0).getTime();
-        if (dateA !== dateB) return dateB - dateA;
-        return (Number(b.id) || 0) - (Number(a.id) || 0);
-      })[0];
+    const activeStatuses = ['ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP'];
+    const completedStatuses = ['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'];
+    const isInternshipStarted = ownRequests.some((request) => activeStatuses.includes(request.status));
+    const isInternshipCompleted = completedStatuses.includes(latestRequest?.status);
 
-      setCurrentRequestStatus(latestRequest?.status || 'ยังไม่มีคำร้อง');
-      const activeStatuses = ['ออกฝึกงาน', 'กำลังออกฝึกงาน', 'INTERNING', 'IN_PROGRESS', 'TRAINING', 'START_INTERNSHIP'];
-      const completedStatuses = ['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'];
-      const isInternshipStarted = ownRequests.some((request) => activeStatuses.includes(request.status));
-      const isInternshipCompleted = completedStatuses.includes(latestRequest?.status);
-      setCanCheckIn(isInternshipStarted);
+    const approvedRequest = ownRequests.find((r) => activeStatuses.includes(r.status) || completedStatuses.includes(r.status)) || latestRequest;
+    const startDate = approvedRequest?.internship_start_date
+      || (activeStatuses.includes(approvedRequest?.status) ? String(approvedRequest.updated_at || approvedRequest.submittedDate || '').split('T')[0] : null);
 
-      const approvedRequest = ownRequests.find(r => activeStatuses.includes(r.status) || completedStatuses.includes(r.status)) || latestRequest;
-      const sDate = approvedRequest?.internship_start_date
-        || (activeStatuses.includes(approvedRequest?.status) ? String(approvedRequest.updated_at || approvedRequest.submittedDate || '').split('T')[0] : null);
-      setInternshipStartDate(sDate);
-      setInternshipEndDate(approvedRequest?.internship_end_date || null);
-
-      if (!isInternshipStarted && !isInternshipCompleted) {
-        return;
-      }
-
-      // Load checkins from API
-      api.get(`/checkins?studentId=${studentId}`).then(checkinRes => {
-        const ownEntries = checkinRes.data.data || [];
-        ownEntries.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-        setEntries(ownEntries);
-      }).catch(err => console.error('Failed to load checkins:', err));
-    }).catch(err => console.error('Failed to load requests:', err));
-  }, [navigate]);
+    let ownEntries = [];
+    if (isInternshipStarted || isInternshipCompleted) {
+      const checkinRes = await api.get(`/checkins?studentId=${studentId}`, { signal });
+      ownEntries = checkinRes.data.data || [];
+      ownEntries.sort((x, y) => String(y.date || '').localeCompare(String(x.date || '')));
+    }
+    return {
+      parsed,
+      status: latestRequest?.status || 'ยังไม่มีคำร้อง',
+      canCheckIn: isInternshipStarted,
+      startDate,
+      endDate: approvedRequest?.internship_end_date || null,
+      entries: ownEntries,
+    };
+  }, 'student-checkin', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setUser(d.parsed);
+      setCurrentRequestStatus(d.status);
+      setCanCheckIn(d.canCheckIn);
+      setInternshipStartDate(d.startDate);
+      setInternshipEndDate(d.endDate);
+      setEntries(d.entries);
+    },
+  });
 
   const entriesByDate = useMemo(() => {
     const map = {};
@@ -366,7 +368,7 @@ const StudentCheckInPage = () => {
     setMessage('บันทึกลายเซ็นพี่เลี้ยงรับรองเรียบร้อยแล้ว');
   };
 
-  if (!user) return null;
+  if (!user && !loading && !loadError) return null; // กำลังพาไปหน้าอื่น
 
   return (
     <>
@@ -374,163 +376,107 @@ const StudentCheckInPage = () => {
       {/* Main content — natural document scroll (works on iOS/iPad) */}
       <Box
         component="main"
-        sx={{
-          flex: 1,
-          /* sidebar shows from 1024px up — match that breakpoint (MUI lg is 1200px, so use an explicit media query) */
-          ml: 0,
-          '@media (min-width:1024px)': { ml: '260px' },
-          p: { xs: 2, sm: 3 },
-          pb: { xs: '6rem', sm: '6rem' },
-          /* outer Box already has pt:'60px' for the fixed navbar — just add breathing room */
-          pt: { xs: 2, sm: 3 },
-          minWidth: 0,
-        }}
+        className="dashboard-main"
       >
-        {!canCheckIn ? (
+        <div className="w-full max-w-7xl mx-auto">
+          <StudentPageHeader icon={CalendarDays} title="บันทึกรายงานประจำวัน" subtitle="เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน" />
+        </div>
+        {loading ? (
+          <div className="w-full max-w-7xl mx-auto">
+            <LoadingBlock rows={5} variant="list" label="กำลังโหลดรายงานประจำวัน..." />
+          </div>
+        ) : loadError ? (
+          <div className="w-full max-w-7xl mx-auto">
+            <ErrorRetry message="โหลดข้อมูลรายงานประจำวันไม่สำเร็จ" onRetry={reload} />
+          </div>
+        ) : !canCheckIn ? (
           <DailyReportLockedCard
             requestStatus={currentRequestStatus}
             isCompleted={['ฝึกงานเสร็จแล้ว', 'ประเมินจากสถานประกอบการแล้ว', 'ประเมินจากอาจารย์แล้ว', 'เสร็จสิ้นสมบูรณ์'].includes(currentRequestStatus)}
           />
         ) : (
-          <div className="content-wrapper max-w-7xl mx-auto w-full overflow-x-hidden">
-            {/* ส่วนหัวหน้าเมื่อเปิดใช้งานรายงานประจำวัน */}
+          <div className="w-full max-w-7xl mx-auto flex flex-col gap-5 min-w-0">
+            {/* แถบแนะนำแนวนอนแบบกะทัดรัด */}
             <div
-              className="bg-[#FAFAFD] border border-[#E9E5F5] rounded-2xl p-5 md:p-6 mb-5 flex items-center gap-3.5"
-              style={{ boxShadow: '0 4px 24px -2px rgba(76, 29, 149, 0.06)' }}
+              role="note"
+              className="flex items-start gap-2.5 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-2.5"
             >
-              <div className="w-10 h-10 rounded-xl bg-purple-100/70 text-purple-800 flex items-center justify-center shrink-0">
-                <CalendarDays className="w-5 h-5 text-purple-800" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg md:text-xl font-bold text-slate-800 leading-snug m-0">
-                  บันทึกรายงานประจำวัน
-                </h1>
-                <p className="text-xs md:text-sm text-slate-500 m-0 mt-0.5">
-                  เช็คชื่อและบันทึกประสบการณ์การฝึกงานในแต่ละวัน
-                </p>
-              </div>
+              <InformationCircleIcon className="w-5 h-5 text-violet-600 shrink-0 mt-px" aria-hidden="true" />
+              <p className="m-0 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                <span className="font-bold text-violet-800">ข้อแนะนำการเช็คชื่อรายงานประจำวัน: </span>
+                คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา <strong>07:00 น.</strong>
+              </p>
             </div>
 
-            {/* Notice Banner */}
-            <div className="checkin-notice">
-              <InformationCircleIcon className="checkin-notice-icon" />
-              <div className="min-w-0">
-                <p className="checkin-notice-title">ข้อแนะนำการเช็คชื่อรายงานประจำวัน</p>
-                <p className="checkin-notice-text">คลิกที่ช่องวันที่ในปฏิทินเพื่อบันทึกรายงานของวันนั้น ระบบจะรีเซ็ตสิทธิ์วันใหม่ทุกวันเวลา <strong>07:00 น.</strong></p>
-              </div>
-            </div>
-
-            {/* สรุปสถิติการปฏิบัติงาน */}
-            <div className="checkin-stats">
+            {/* แถว KPI เดียว: สถิติทั้งหมดรวมที่เดียว */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { key: 'onTime', label: 'บันทึกตรงเวลา', value: attendance.onTime, Icon: CheckCircle2, tone: 'green' },
-                { key: 'backfill', label: 'ลงย้อนหลัง / ช้า', value: attendance.backfill, Icon: Clock, tone: 'amber' },
-                { key: 'leave', label: 'ลางาน', value: attendance.leave, Icon: CalendarDays, tone: 'violet' },
+                { key: 'total', label: 'ส่งรายงานแล้ว', value: stats.total, Icon: FileText, box: 'bg-violet-50 text-violet-600', num: 'text-violet-700' },
+                { key: 'onTime', label: 'มาตรงเวลา', value: attendance.onTime, Icon: CheckCircle2, box: 'bg-emerald-50 text-emerald-600', num: 'text-emerald-700' },
+                { key: 'backfill', label: 'ลงย้อนหลัง / สาย', value: attendance.backfill, Icon: Clock, box: 'bg-amber-50 text-amber-600', num: 'text-amber-700' },
+                { key: 'leave', label: 'ลา / วันหยุด', value: stats.leave, Icon: CalendarDays, box: 'bg-sky-50 text-sky-600', num: 'text-sky-700' },
                 {
-                  key: 'missing', label: 'ขาดบันทึก', value: attendance.missing, Icon: XCircle, tone: 'red',
+                  key: 'missing', label: 'ขาดบันทึก', value: attendance.missing, Icon: XCircle, box: 'bg-rose-50 text-rose-500', num: 'text-rose-600',
                   hint: 'วันทำการ (จ.-ศ. ไม่รวมวันหยุด) ที่ผ่านมาแล้วแต่ยังไม่มีรายงาน',
                 },
-              ].map((stat) => {
-                const StatIcon = stat.Icon;
+                { key: 'signed', label: 'เซ็นรับรองแล้ว', value: stats.signed, Icon: PenTool, box: 'bg-indigo-50 text-indigo-600', num: 'text-indigo-700' },
+              ].map((kpi) => {
+                const KpiIcon = kpi.Icon;
                 return (
-                  <div key={stat.key} className={`checkin-stat checkin-stat-${stat.tone}`} title={stat.hint}>
-                    <span className="checkin-stat-icon" aria-hidden="true"><StatIcon className="w-5 h-5" /></span>
+                  <div
+                    key={kpi.key}
+                    title={kpi.hint}
+                    className="flex items-center gap-3 min-w-0 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm"
+                  >
+                    <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${kpi.box}`} aria-hidden="true">
+                      <KpiIcon className="w-5 h-5" />
+                    </span>
                     <div className="min-w-0">
-                      <p className="checkin-stat-label">{stat.label}</p>
-                      <p className="checkin-stat-value">{stat.value}<span>วัน</span></p>
+                      <div className={`text-xl font-extrabold leading-none ${kpi.num}`}>
+                        {kpi.value}<span className="text-[11px] font-semibold text-slate-400 ml-1">วัน</span>
+                      </div>
+                      <p className="m-0 mt-1 text-[11px] font-semibold text-slate-500 leading-tight">{kpi.label}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-              {/* Dashboard grid: calendar (main) + summary stats (rail) */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
-              {/* Calendar Dashboard — same calendar component the advisor views */}
-              <div className="checkin-panel lg:col-span-2 overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center shrink-0">
-                      <CalendarDays className="w-5 h-5 text-violet-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-base font-bold text-slate-800 m-0">ปฏิทินรายงานประจำวัน</h2>
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          กำลังออกฝึกงาน
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 m-0">สถานะคำร้องปัจจุบัน: {currentRequestStatus}</p>
-                    </div>
-                  </div>
-                </div>
+            {message && <div className="checkin-message">{message}</div>}
 
-                <div className="px-1.5 sm:px-4 pb-4">
-                  <AttendanceCalendar
-                    entries={entries}
-                    studentId={user.student_code || user.studentId || user.username || user.email}
-                    studentName={user.full_name || user.name || user.username || 'นักศึกษา'}
-                    internshipStartDate={internshipStartDate}
-                    accentTheme="violet"
-                    onDayClick={(item) => openDayModal(item.dateKey)}
-                    onBatchSign={handleBatchSigned}
-                  />
-                </div>
-              </div>
+            {/* ปฏิทิน (ซ้าย) + รายละเอียดวันที่เลือก (ขวา) สูงเท่ากัน */}
+            <AttendanceCalendar
+              splitLayout
+              entries={entries}
+              studentId={user.student_code || user.studentId || user.username || user.email}
+              studentName={user.full_name || user.name || user.username || 'นักศึกษา'}
+              internshipStartDate={internshipStartDate}
+              accentTheme="violet"
+              onDayClick={(item) => {
+                // วันที่มีรายงานแล้วดูรายละเอียดในการ์ดขวา; วันที่ยังไม่มีรายงานเปิดฟอร์มบันทึก
+                if (!entriesByDate[item.dateKey]) openDayModal(item.dateKey);
+              }}
+              onBatchSign={handleBatchSigned}
+            />
 
-              {/* Summary Stats Rail */}
-              <div className="checkin-panel checkin-panel-rail p-4 sm:p-5">
-                <h3 className="text-sm font-bold text-slate-800 m-0">สรุปการเช็คชื่อ</h3>
-                <p className="text-[11px] text-slate-400 m-0 mt-0.5">สถิติรายงานประจำวันทั้งหมดของคุณ</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2.5 mt-3.5">
-                  <div className="rounded-xl bg-violet-50/70 border border-violet-100 p-3">
-                    <div className="flex items-center gap-1.5 text-violet-600 mb-1"><FileText className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ส่งรายงานแล้ว</span></div>
-                    <div className="text-xl font-extrabold text-violet-700 leading-none">{stats.total}<span className="text-[11px] font-semibold text-violet-400 ml-1">วัน</span></div>
-                  </div>
-                  <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 p-3">
-                    <div className="flex items-center gap-1.5 text-emerald-600 mb-1"><CheckCircle2 className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">มา</span></div>
-                    <div className="text-xl font-extrabold text-emerald-700 leading-none">{stats.present}<span className="text-[11px] font-semibold text-emerald-400 ml-1">วัน</span></div>
-                  </div>
-                  <div className="rounded-xl bg-amber-50/70 border border-amber-100 p-3">
-                    <div className="flex items-center gap-1.5 text-amber-600 mb-1"><Clock className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">สาย</span></div>
-                    <div className="text-xl font-extrabold text-amber-700 leading-none">{stats.late}<span className="text-[11px] font-semibold text-amber-400 ml-1">วัน</span></div>
-                  </div>
-                  <div className="rounded-xl bg-rose-50/70 border border-rose-100 p-3">
-                    <div className="flex items-center gap-1.5 text-rose-500 mb-1"><XCircle className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ขาด</span></div>
-                    <div className="text-xl font-extrabold text-rose-600 leading-none">{stats.absent}<span className="text-[11px] font-semibold text-rose-300 ml-1">วัน</span></div>
-                  </div>
-                  <div className="rounded-xl bg-sky-50/70 border border-sky-100 p-3">
-                    <div className="flex items-center gap-1.5 text-sky-600 mb-1"><CalendarDays className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">ลา / หยุด</span></div>
-                    <div className="text-xl font-extrabold text-sky-700 leading-none">{stats.leave}<span className="text-[11px] font-semibold text-sky-400 ml-1">วัน</span></div>
-                  </div>
-                  <div className="rounded-xl bg-indigo-50/70 border border-indigo-100 p-3">
-                    <div className="flex items-center gap-1.5 text-indigo-600 mb-1"><PenTool className="w-3.5 h-3.5" /><span className="text-[11px] font-semibold">เซ็นรับรองแล้ว</span></div>
-                    <div className="text-xl font-extrabold text-indigo-700 leading-none">{stats.signed}<span className="text-[11px] font-semibold text-indigo-400 ml-1">วัน</span></div>
-                  </div>
-                </div>
-                {internshipStartDate && (
-                  <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                    <CalendarCheck className="w-3.5 h-3.5 text-violet-500" />
-                    เริ่มฝึกงาน: <span className="text-violet-700">{formatDateDisplay(internshipStartDate)}</span>
-                  </div>
-                )}
-              </div>
-              </div>
+            {/* ประวัติรายงานประจำวัน */}
+            <section className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 min-w-0">
+              <h2 className="m-0 mb-4 flex items-center gap-2 text-base sm:text-lg font-extrabold text-slate-900">
+                <FileText className="w-[18px] h-[18px] text-violet-600" aria-hidden="true" />
+                ประวัติรายงานประจำวัน
+              </h2>
 
-              {message && <div className="checkin-message" style={{ marginTop: '1rem' }}>{message}</div>}
-
-              {/* Attendance History */}
-              <Box className="checkin-panel checkin-history" sx={{ marginTop: '1.5rem', padding: { xs: '1rem', sm: '1.75rem' } }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', fontSize: { xs: '1rem', sm: '1.15rem' }, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FileText style={{ width: 18, height: 18, color: '#7c3aed' }} />
-                  ประวัติรายงานประจำวัน
-                </Typography>
-
-                {/* Desktop / tablet: table */}
-                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                <TableContainer className="checkin-table-container">
-                  <Table size="small" className="checkin-table" stickyHeader>
+              {/* Desktop (md ขึ้นไป): ตารางคอลัมน์คงที่ ไม่มี horizontal scroll */}
+              <div className="hidden md:block">
+                <TableContainer className="checkin-table-container" sx={{ overflowX: 'hidden' }}>
+                  <Table size="small" className="checkin-table" sx={{ tableLayout: 'fixed', width: '100%', minWidth: 0, '&.checkin-table th, &.checkin-table td': { whiteSpace: 'normal', overflow: 'hidden' } }}>
+                    <colgroup>
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '30%' }} />
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '22%' }} />
+                    </colgroup>
                     <TableHead>
                       <TableRow>
                         <TableCell>วันที่</TableCell>
@@ -548,7 +494,7 @@ const StudentCheckInPage = () => {
                       ) : (
                         entries.map((entry) => (
                           <TableRow key={entry.id} hover>
-                            <TableCell sx={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                            <TableCell sx={{ fontWeight: 600, color: '#1e293b', verticalAlign: 'top' }}>
                               {formatDateDisplay(entry.date)}
                               {entry.submittedAt && (
                                 <div className={`checkin-submitted ${isBackfillEntry(entry) ? 'is-late' : ''}`}>
@@ -556,7 +502,7 @@ const StudentCheckInPage = () => {
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
                               <div className="flex flex-col items-start gap-1">
                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                   {STATUS_LABEL[entry.status] || entry.status}
@@ -564,21 +510,21 @@ const StudentCheckInPage = () => {
                                 {isBackfillEntry(entry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
                               </div>
                             </TableCell>
-                            <TableCell>{entry.work_experience || entry.workExperience || entry.note || '-'}</TableCell>
-                            <TableCell>
+                            <TableCell sx={{ verticalAlign: 'top', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                              {entry.work_experience || entry.workExperience || entry.note || '-'}
+                            </TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
                               {entry.supervisor_signature || entry.supervisorSignature ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <img
-                                    src={entry.supervisor_signature || entry.supervisorSignature}
-                                    alt="Supervisor Signature"
-                                    style={{ maxHeight: 36, maxWidth: 110, objectFit: 'contain', border: '1px solid #ddd6fe', borderRadius: 4, padding: 2, bgcolor: '#fff' }}
-                                  />
-                                </Box>
+                                <img
+                                  src={entry.supervisor_signature || entry.supervisorSignature}
+                                  alt="ลายเซ็นพี่เลี้ยง"
+                                  style={{ maxHeight: 36, maxWidth: '100%', objectFit: 'contain', border: '1px solid #ddd6fe', borderRadius: 4, padding: 2, background: '#fff' }}
+                                />
                               ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>- ยังไม่มีลายเซ็น -</span>
+                                <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>ยังไม่มีลายเซ็น</span>
                               )}
                             </TableCell>
-                            <TableCell sx={{ fontSize: '0.825rem', color: '#475569' }}>
+                            <TableCell sx={{ fontSize: '0.825rem', color: '#475569', verticalAlign: 'top', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                               {entry.supervisor_name && <div><strong>พี่เลี้ยง:</strong> {entry.supervisor_name}</div>}
                               {entry.supervisor_comment && <div><strong>ความเห็น:</strong> {entry.supervisor_comment}</div>}
                               {!entry.supervisor_name && !entry.supervisor_comment && (entry.note ? entry.note : '-')}
@@ -589,58 +535,62 @@ const StudentCheckInPage = () => {
                     </TableBody>
                   </Table>
                 </TableContainer>
-                </Box>
+              </div>
 
-                {/* Mobile: compact cards — no horizontal scroll */}
-                <div className="sm:hidden space-y-3">
-                  {entries.length === 0 ? (
-                    <div className="text-center py-6 text-sm text-slate-400">ยังไม่มีประวัติรายงานประจำวัน</div>
-                  ) : (
-                    entries.map((entry) => (
-                      <div key={entry.id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-slate-700">{formatDateDisplay(entry.date)}</span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                            {STATUS_LABEL[entry.status] || entry.status}
-                          </span>
+              {/* Mobile (< 768px): Card Stack แนวตั้ง ข้อมูลครบ ไม่มี horizontal scroll */}
+              <div className="md:hidden flex flex-col gap-3">
+                {entries.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-slate-400">ยังไม่มีประวัติรายงานประจำวัน</div>
+                ) : (
+                  entries.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 min-w-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-slate-800">{formatDateDisplay(entry.date)}</span>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-bold ${STATUS_CHIP_CLASS[entry.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                          {STATUS_LABEL[entry.status] || entry.status}
+                        </span>
+                      </div>
+                      {(entry.submittedAt || isBackfillEntry(entry)) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {isBackfillEntry(entry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
+                          {entry.submittedAt && (
+                            <span className={`checkin-submitted ${isBackfillEntry(entry) ? 'is-late' : ''}`}>
+                              บันทึกเมื่อ {formatSubmittedAt(entry.submittedAt)}
+                            </span>
+                          )}
                         </div>
-                        {(entry.submittedAt || isBackfillEntry(entry)) && (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            {isBackfillEntry(entry) && <span className="checkin-badge-backfill">ลงย้อนหลัง / ไม่ตรงวัน</span>}
-                            {entry.submittedAt && (
-                              <span className={`checkin-submitted ${isBackfillEntry(entry) ? 'is-late' : ''}`}>
-                                บันทึกเมื่อ {formatSubmittedAt(entry.submittedAt)}
-                              </span>
-                            )}
+                      )}
+                      <div className="mt-3">
+                        <div className="text-[11px] font-semibold text-slate-400 mb-0.5">ประสบการณ์ / กิจกรรมที่ทำ</div>
+                        <p className="m-0 text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap">
+                          {entry.work_experience || entry.workExperience || entry.note || '-'}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-semibold text-slate-400 shrink-0">ลายเซ็นพี่เลี้ยง</span>
+                          {entry.supervisor_signature || entry.supervisorSignature ? (
+                            <img
+                              src={entry.supervisor_signature || entry.supervisorSignature}
+                              alt="ลายเซ็นพี่เลี้ยง"
+                              className="h-9 max-w-[120px] object-contain bg-white border border-violet-100 rounded-md p-0.5"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-400">ยังไม่มีลายเซ็น</span>
+                          )}
+                        </div>
+                        {(entry.supervisor_name || entry.supervisor_comment) && (
+                          <div className="text-xs text-slate-600 leading-relaxed break-words">
+                            {entry.supervisor_name && <div><strong>ผู้รับรอง:</strong> {entry.supervisor_name}</div>}
+                            {entry.supervisor_comment && <div><strong>ความเห็น:</strong> {entry.supervisor_comment}</div>}
                           </div>
                         )}
-                        {(entry.work_experience || entry.workExperience || entry.note) && (
-                          <p className="m-0 mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2 break-words">
-                            {entry.work_experience || entry.workExperience || entry.note}
-                          </p>
-                        )}
-                        <div className="mt-2.5 pt-2.5 border-t border-slate-200/70 flex items-center justify-between gap-2">
-                          {entry.supervisor_signature || entry.supervisorSignature ? (
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={entry.supervisor_signature || entry.supervisorSignature}
-                                alt="ลายเซ็นพี่เลี้ยง"
-                                className="h-8 max-w-[96px] object-contain bg-white border border-violet-100 rounded-md p-0.5"
-                              />
-                              <span className="text-[10px] font-semibold text-violet-600">รับรองแล้ว</span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] font-medium text-slate-400">ยังไม่มีลายเซ็นพี่เลี้ยง</span>
-                          )}
-                          {entry.supervisor_name && (
-                            <span className="text-[10px] text-slate-500 truncate">พี่เลี้ยง: {entry.supervisor_name}</span>
-                          )}
-                        </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </Box>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
         )}
       </Box>

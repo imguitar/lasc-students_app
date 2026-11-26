@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { ErrorRetry } from '../../../components/common/AsyncStates';
 import BackButton from '../../../components/BackButton';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -63,7 +65,6 @@ const matchDepartment = (department, filterValue) => {
 const AllRequestsOverviewPage = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -92,26 +93,35 @@ const AllRequestsOverviewPage = () => {
   const [approveWizard, setApproveWizard] = useState({ open: false, queue: [], index: 0, file: null, submitting: false, error: '', done: 0 });
   const wizardFileRef = useRef(null);
 
-  useEffect(() => {
+  // ดึงคำร้องทั้งหมด + คำร้องย้ายที่ฝึกงาน: ยกเลิกอัตโนมัติเมื่อออกจากหน้า, ล้มเหลวมีปุ่มลองใหม่
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-      return;
+      return null;
     }
     const user = JSON.parse(userStr);
     if (String(user.role || '').toLowerCase() !== 'admin') {
       navigate('/dashboard');
-      return;
+      return null;
     }
-
-    api.get('/requests')
-      .then((res) => setRequests(res.data.data || []))
-      .catch((err) => console.error('Failed to load requests:', err))
-      .finally(() => setLoading(false));
-    api.get('/relocations')
-      .then((res) => setRelocations(res.data.data || []))
-      .catch(() => {});
-  }, [navigate]);
+    const [reqRes, relocRes] = await Promise.allSettled([
+      api.get('/requests', { signal }),
+      api.get('/relocations', { signal }),
+    ]);
+    signal.throwIfAborted();
+    if (reqRes.status === 'rejected') throw reqRes.reason;
+    return {
+      requests: reqRes.value.data.data || [],
+      relocations: relocRes.status === 'fulfilled' ? relocRes.value.data.data || [] : [],
+    };
+  }, 'admin-all-requests', {
+    onSuccess: (d) => {
+      if (!d) return;
+      setRequests(d.requests);
+      setRelocations(d.relocations);
+    },
+  });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -877,7 +887,9 @@ const AllRequestsOverviewPage = () => {
             </div>
 
             {/* Table (Tablet / Desktop) */}
-            {loading ? (
+            {loadError ? (
+              <ErrorRetry message="โหลดรายการคำร้องไม่สำเร็จ" onRetry={reload} />
+            ) : loading ? (
               <div className="flex flex-col items-center justify-center py-20 w-full">
                 <Loader2 className="w-8 h-8 text-violet-600 animate-spin stroke-[2.2]" />
                 <p className="text-xs font-medium text-slate-400 mt-3 m-0">กำลังโหลดข้อมูลคำร้อง...</p>

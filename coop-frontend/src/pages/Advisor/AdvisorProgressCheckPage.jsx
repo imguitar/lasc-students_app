@@ -1,5 +1,7 @@
 import { ModalActions, ModalCancelButton } from '../../components/ModalActions';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import useAsyncData from '../../hooks/useAsyncData';
+import { LoadingBlock, ErrorRetry } from '../../components/common/AsyncStates';
 import AttendanceCalendar from '../../components/AttendanceCalendar';
 import { ArrowRight, Calendar, ListOrdered, PenLine, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -61,53 +63,80 @@ const AdvisorProgressCheckPage = () => {
       .replace(/\s+/g, '')
       .trim();
 
-  const loadData = async (dept) => {
-    try {
-      const [reqRes, checkinRes] = await Promise.all([
-        api.get('/requests'),
-        api.get('/checkins'),
-      ]);
-      const allRequests = reqRes.data.data || [];
-      const allCheckins = checkinRes.data.data || [];
+  // ดึงคำร้อง + ประวัติเช็คชื่อของสาขา (signal ใช้ยกเลิกคำขอเมื่อออกจากหน้า)
+  const fetchProgress = async (dept, signal) => {
+    const [reqRes, checkinRes] = await Promise.all([
+      api.get('/requests', { signal }),
+      api.get('/checkins', { signal }),
+    ]);
+    const allRequests = reqRes.data.data || [];
+    const allCheckins = checkinRes.data.data || [];
 
-      const deptKey = normalizeDept(dept);
-      const departmentRequests = allRequests.filter((request) => {
-        const requestDept = request.department || request.details?.student_info?.major || '';
-        const sameDept = deptKey ? normalizeDept(requestDept) === deptKey : true;
-        return sameDept && internshipStatuses.has(normalize(request.status));
-      });
-
-      console.log('[Progress] dept:', dept, '| total:', allRequests.length, '| matched:', departmentRequests.length);
-      setRequests(departmentRequests);
-      setCheckins(allCheckins);
-    } catch (err) {
-      console.error('Failed to load data:', err);
-    }
+    const deptKey = normalizeDept(dept);
+    const departmentRequests = allRequests.filter((request) => {
+      const requestDept = request.department || request.details?.student_info?.major || '';
+      const sameDept = deptKey ? normalizeDept(requestDept) === deptKey : true;
+      return sameDept && internshipStatuses.has(normalize(request.status));
+    });
+    return { requests: departmentRequests, checkins: allCheckins };
   };
 
-  useEffect(() => {
+  const advisorUser = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+      return user && user.role === 'advisor' ? user : null;
+    } catch {
+      return null;
+    }
+  })();
+  const advisorDeptKey = advisorUser ? (advisorUser.department || advisorUser.major || '') : '';
+
+  // ลำดับคำขอรีเฟรชเบื้องหลัง: ผลของคำขอเก่าที่ตอบช้ากว่าห้ามเขียนทับผลใหม่
+  const refreshSeq = useRef(0);
+  const applyProgress = (d) => {
+    setRequests(d.requests);
+    setCheckins(d.checkins);
+  };
+
+  // โหลดครั้งแรก: มีสถานะโหลด/ผิดพลาด/ลองใหม่ ไม่แสดง Empty State ระหว่างรอ
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-      return;
+      return null;
     }
-
     const user = JSON.parse(userStr);
     if (user.role !== 'advisor') {
       navigate('/dashboard');
-      return;
+      return null;
     }
+    return fetchProgress(user.department || user.major || '', signal);
+  }, 'advisor-progress', {
+    onSuccess: (d) => {
+      if (!d) return;
+      refreshSeq.current += 1;
+      applyProgress(d);
+    },
+  });
 
-    const dept = user.department || user.major || '';
-    setAdvisorName(user.name || user.full_name || 'อาจารย์ที่ปรึกษา');
-    setAdvisorDept(dept);
-    loadData(dept);
+  useEffect(() => {
+    if (!advisorUser) return undefined;
+    setAdvisorName(advisorUser.name || advisorUser.full_name || 'อาจารย์ที่ปรึกษา');
+    setAdvisorDept(advisorDeptKey);
 
-    const refresh = () => loadData(dept);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refresh();
+    // รีเฟรชเบื้องหลังเมื่อกลับมาที่แท็บ/หน้าต่าง (ไม่กระพริบเป็น Skeleton)
+    const controller = new AbortController();
+    const refresh = async () => {
+      const seq = ++refreshSeq.current;
+      try {
+        const d = await fetchProgress(advisorDeptKey, controller.signal);
+        if (seq === refreshSeq.current && !controller.signal.aborted) applyProgress(d);
+      } catch (err) {
+        if (!controller.signal.aborted && err.code !== 'ERR_CANCELED') console.error('Failed to refresh data:', err);
       }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
     };
 
     window.addEventListener('storage', refresh);
@@ -115,11 +144,13 @@ const AdvisorProgressCheckPage = () => {
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      controller.abort();
       window.removeEventListener('storage', refresh);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [navigate, internshipStatuses]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advisorDeptKey, internshipStatuses]);
 
   const getRequestIdentity = (request) => {
     const ids = [
@@ -280,6 +311,12 @@ const AdvisorProgressCheckPage = () => {
             />
           </Box>
 
+          {loading ? (
+            <LoadingBlock rows={5} variant="table" label="กำลังโหลดความคืบหน้านักศึกษา..." />
+          ) : loadError ? (
+            <ErrorRetry message="โหลดข้อมูลความคืบหน้าไม่สำเร็จ" onRetry={reload} />
+          ) : (
+          <>
           <TableContainer
             component={Box}
             className="compact-table"
@@ -408,6 +445,8 @@ const AdvisorProgressCheckPage = () => {
               })
             )}
           </Box>
+          </>
+          )}
         </Paper>
       </main>
 

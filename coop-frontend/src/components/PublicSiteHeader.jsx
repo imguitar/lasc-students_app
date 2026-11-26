@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, Home as HomeLucide, LayoutDashboard, Newspaper, Search, LogIn } from 'lucide-react';
+import { Menu, Home as HomeLucide, LayoutDashboard, Newspaper, Search, LogIn, User } from 'lucide-react';
 import logo from '../assets/LASC-SSKRU-1.png';
 import MobileNavDrawer from './MobileNavDrawer';
 import MobileTabBar from './MobileTabBar';
@@ -42,6 +42,7 @@ const PublicSiteHeader = () => {
       : { key: 'login', label: 'เข้าสู่ระบบ', Icon: LogIn, to: '/login', active: false },
     { key: 'companies', label: 'ที่ฝึกงาน', Icon: Search, to: '/companies', active: pathname.startsWith('/companies') },
     { key: 'news', label: 'ข่าวสาร', Icon: Newspaper, to: '/news', active: pathname.startsWith('/news') },
+    ...(user ? [{ key: 'profile', label: 'โปรไฟล์', Icon: User, to: `${dashboardTo}/profile`, active: false }] : []),
   ];
 
   const drawerItems = [
@@ -104,7 +105,7 @@ const PublicSiteHeader = () => {
         onLogin={() => redirectToProfileLogin()}
       />
 
-      <MobileTabBar items={tabItems} onOpenMenu={() => setIsDrawerOpen(true)} menuActive={isDrawerOpen} />
+      <MobileTabBar items={tabItems} />
     </>
   );
 };

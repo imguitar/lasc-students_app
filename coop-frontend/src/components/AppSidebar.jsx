@@ -6,7 +6,7 @@ import {
   ClipboardList,
   Banknote,
   CalendarDays,
-  UserRound,
+  User,
   GraduationCap,
   RefreshCw,
   CheckCircle2,
@@ -85,13 +85,13 @@ const MOBILE_ICONS = {
   '/dashboard/my-requests': ClipboardList,
   '/dashboard/payment-proof': Banknote,
   '/dashboard/check-in': CalendarDays,
-  '/dashboard/profile': UserRound,
+  '/dashboard/profile': User,
   '/advisor-dashboard': Home,
   '/advisor-dashboard/students': GraduationCap,
   '/advisor-dashboard/supervision': CalendarDays,
   '/advisor-dashboard/relocations': RefreshCw,
   '/advisor-dashboard/progress': CheckCircle2,
-  '/advisor-dashboard/profile': UserRound,
+  '/advisor-dashboard/profile': User,
   '/admin-dashboard': Home,
   '/admin-dashboard/students': GraduationCap,
   '/admin-dashboard/companies': Building2,
@@ -99,7 +99,7 @@ const MOBILE_ICONS = {
   '/admin-dashboard/reports': FileText,
   '/admin-dashboard/relocations': RefreshCw,
   '/admin-dashboard/home-editor': LayoutTemplate,
-  '/admin-dashboard/profile': UserRound,
+  '/admin-dashboard/profile': User,
   '/admin-dashboard/schedules': CalendarRange,
 };
 
@@ -111,11 +111,11 @@ const MOBILE_TAB_LABELS = {
   '/admin-dashboard/schedules': 'กำหนดการ',
 };
 
-// เมนูหลัก 4 รายการที่แสดงบน Mobile Tab Bar (ที่เหลืออยู่ในปุ่ม "เมนู")
+// เมนูหลัก 5 ช่องบน Mobile Tab Bar (ช่องที่ 5 = โปรไฟล์) — เมนูที่เหลืออยู่ใน Drawer จากปุ่มแฮมเบอร์เกอร์ด้านบน
 const TAB_PATHS = {
-  student: ['/dashboard', '/dashboard/new-request', '/dashboard/my-requests', '/dashboard/check-in'],
-  advisor: ['/advisor-dashboard', '/advisor-dashboard/students', '/advisor-dashboard/supervision', '/advisor-dashboard/relocations'],
-  admin: ['/admin-dashboard', '/admin-dashboard/students', '/admin-dashboard/checkins', '/admin-dashboard/schedules'],
+  student: ['/dashboard', '/dashboard/new-request', '/dashboard/my-requests', '/dashboard/check-in', '/dashboard/profile'],
+  advisor: ['/advisor-dashboard', '/advisor-dashboard/students', '/advisor-dashboard/supervision', '/advisor-dashboard/relocations', '/advisor-dashboard/profile'],
+  admin: ['/admin-dashboard', '/admin-dashboard/students', '/admin-dashboard/checkins', '/admin-dashboard/schedules', '/admin-dashboard/profile'],
 };
 
 const NOTIFICATION_PATHS = {
@@ -198,13 +198,12 @@ const AppSidebar = ({
       to: item.path,
       active: activePath === item.path,
     }));
-  const menuActive = !tabItems.some((item) => item.active);
 
   return (
     <>
       <UtilityBar variant="fixed" />
       <SubNav variant="fixed" />
-      <MobileTabBar items={tabItems} onOpenMenu={() => setIsMenuOpen(true)} menuActive={menuActive} />
+      <MobileTabBar items={tabItems} />
       {/* Drawer เต็มจอ — แสดงเฉพาะจอเล็ก (< 1024px) ควบคุมด้วย CSS ใน index.css */}
       <MobileNavDrawer
         isOpen={isMenuOpen}

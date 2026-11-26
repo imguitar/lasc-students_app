@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
+import useAsyncData from '../../../hooks/useAsyncData';
+import { ErrorRetry } from '../../../components/common/AsyncStates';
 import BackButton from '../../../components/BackButton';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
@@ -107,10 +109,12 @@ const FILTER_OPTIONS = [
   { value: 'unread', label: 'ยังไม่ได้อ่าน' },
 ];
 
+// ซ่อน scrollbar ทุกเบราว์เซอร์ แต่ยังเลื่อนได้
+const HIDE_SCROLLBAR = '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
+
 const StudentNotificationsPage = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -118,36 +122,32 @@ const StudentNotificationsPage = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [requestLoading, setRequestLoading] = useState(false);
   const [pageError, setPageError] = useState('');
-  const [userRole, setUserRole] = useState('student');
+  const [userRole] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null')?.role || 'student';
+    } catch {
+      return 'student';
+    }
+  });
+  // คำขอรายละเอียดคำร้องล่าสุดเท่านั้นที่มีผล (กดสลับรายการรัวๆ ผลของรายการเก่าไม่เขียนทับ)
+  const detailAbortRef = useRef(null);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const loadNotifications = async () => {
-    const token = getAuthToken();
-    try {
-      const res = await api.get('/notifications', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      setNotifications(res.data?.data || []);
-    } catch (err) {
-      console.error('Failed to load notifications:', err.response?.data?.message || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
+  const { loading, error: loadError, reload } = useAsyncData(async (signal) => {
+    if (!localStorage.getItem('user')) {
       navigate('/login?next=' + encodeURIComponent(window.location.pathname.replace(/^\/coop/, '') || '/'));
-      return;
+      return null;
     }
-    try {
-      const parsed = JSON.parse(userStr);
-      if (parsed?.role) setUserRole(parsed.role);
-    } catch (_) {}
-    loadNotifications();
-  }, [navigate]);
+    const token = getAuthToken();
+    const res = await api.get('/notifications', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    });
+    return res.data?.data || [];
+  }, 'notifications', {
+    onSuccess: (list) => { if (list) setNotifications(list); },
+  });
 
   const markAsRead = async (noticeId) => {
     const token = getAuthToken();
@@ -188,19 +188,27 @@ const StudentNotificationsPage = () => {
     setPageError('');
     if (!notice.is_read) markAsRead(notice.id);
 
+    detailAbortRef.current?.abort();
     if (notice.request_id) {
+      const controller = new AbortController();
+      detailAbortRef.current = controller;
       setRequestLoading(true);
       try {
         const token = getAuthToken();
         const res = await api.get(`/requests/${notice.request_id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
         });
-        setSelectedRequest(res.data?.data || null);
+        if (!controller.signal.aborted) setSelectedRequest(res.data?.data || null);
       } catch (err) {
+        if (controller.signal.aborted || err.code === 'ERR_CANCELED') return;
         console.error('Failed to load request detail:', err.response?.data?.message || err.message);
+        setPageError('โหลดรายละเอียดคำร้องไม่สำเร็จ');
       } finally {
-        setRequestLoading(false);
+        if (!controller.signal.aborted) setRequestLoading(false);
       }
+    } else {
+      setRequestLoading(false);
     }
   };
 
@@ -268,7 +276,7 @@ const StudentNotificationsPage = () => {
             <button
               type="button"
               onClick={handleMarkAllRead}
-              disabled={markingAll || unreadCount === 0}
+              disabled={loading || markingAll || unreadCount === 0}
               className="h-10 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-[0_4px_14px_rgba(124,58,237,0.25)] transition cursor-pointer border-none flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCheck className="w-4 h-4" />
@@ -288,12 +296,14 @@ const StudentNotificationsPage = () => {
               <Loader2 className="w-8 h-8 text-violet-600 animate-spin stroke-[2.2]" />
               <p className="text-xs font-medium text-slate-400 mt-3 m-0">กำลังโหลดการแจ้งเตือน...</p>
             </div>
+          ) : loadError ? (
+            <ErrorRetry message="โหลดการแจ้งเตือนไม่สำเร็จ" onRetry={reload} />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 items-stretch md:h-[calc(100dvh-300px)] md:min-h-[480px]">
               {/* Left: List View — always visible (mobile uses inline accordion) */}
-              <div className="block bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden">
+              <div className="flex flex-col bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden md:h-full md:min-h-0">
                 {filtered.length === 0 ? (
-                  <div className="py-16 px-4 flex flex-col items-center justify-center text-center gap-2">
+                  <div className="py-16 px-4 flex flex-col items-center justify-center text-center gap-2 md:flex-1 md:py-0">
                     <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
                       <Check className="w-7 h-7 stroke-[2.5]" />
                     </div>
@@ -301,7 +311,7 @@ const StudentNotificationsPage = () => {
                     <div className="text-xs text-slate-400">เมื่อมีความเคลื่อนไหวของคำร้อง ระบบจะแจ้งเตือนที่นี่</div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-50 max-h-[70vh] overflow-y-auto">
+                  <div className={`divide-y divide-slate-50 max-h-[70vh] md:max-h-none md:flex-1 md:min-h-0 overflow-y-auto ${HIDE_SCROLLBAR}`}>
                     {filtered.map((notice) => {
                       const isUnread = !notice.is_read;
                       const isSelected = notice.id === selectedId;
@@ -344,7 +354,7 @@ const StudentNotificationsPage = () => {
                                   </span>
                                 </div>
                                 {notice.message && (
-                                  <p className={`m-0 mt-1 text-[11px] leading-relaxed break-words ${isExpanded ? '' : 'line-clamp-2'} ${isUnread ? 'text-slate-600' : 'text-slate-400'}`}>
+                                  <p className={`m-0 mt-1 text-[11px] leading-relaxed break-words ${isExpanded ? 'line-clamp-none md:line-clamp-2' : 'line-clamp-2'} ${isUnread ? 'text-slate-600' : 'text-slate-400'}`}>
                                     {notice.message}
                                   </p>
                                 )}
@@ -461,9 +471,9 @@ const StudentNotificationsPage = () => {
               </div>
 
               {/* Right: Reading Pane — desktop only (mobile reads inline via accordion) */}
-              <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-2xs min-h-[400px]">
+              <div className="hidden md:flex md:flex-col bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden md:h-full md:min-h-0">
                 {!selectedNotice ? (
-                  <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center gap-2 py-16 px-4">
+                  <div className="flex-1 min-h-0 h-full flex flex-col items-center justify-center text-center gap-2 px-4">
                     <div className="w-14 h-14 rounded-2xl bg-violet-50 border border-violet-100 text-violet-500 flex items-center justify-center">
                       <Inbox className="w-7 h-7" />
                     </div>
@@ -471,7 +481,7 @@ const StudentNotificationsPage = () => {
                     <div className="text-xs text-slate-400">คลิกรายการฝั่งซ้ายเพื่อดูรายละเอียดฉบับเต็ม</div>
                   </div>
                 ) : (
-                  <div className="p-5 sm:p-6">
+                  <div className={`p-5 sm:p-6 flex-1 min-h-0 overflow-y-auto ${HIDE_SCROLLBAR}`}>
                     {/* Letter Header */}
                     <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
                       <div className="min-w-0">
